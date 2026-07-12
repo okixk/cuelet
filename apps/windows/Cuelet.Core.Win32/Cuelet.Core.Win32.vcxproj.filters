@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files"><UniqueIdentifier>{4A97E9E2-B52B-4F56-A08C-9FA5844951FA}</UniqueIdentifier></Filter>
+    <Filter Include="Source Files"><UniqueIdentifier>{5D903813-6632-47E2-8973-8CF8CC227466}</UniqueIdentifier></Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\LibraryScanner.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundSearch.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundTypes.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\core\cuelet-core\src\LibraryScanner.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\core\cuelet-core\src\SoundSearch.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="..\..\..\core\cuelet-core\src\SoundTypes.cpp"><Filter>Source Files</Filter></ClCompile>
+  </ItemGroup>
+</Project>

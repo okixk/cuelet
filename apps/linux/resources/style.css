@@ -1,0 +1,158 @@
+.cuelet-sidebar {
+  background: @window_bg_color;
+}
+
+.cuelet-sidebar-list {
+  padding: 6px;
+  background: transparent;
+}
+
+.cuelet-sidebar-row {
+  border-radius: 8px;
+  margin: 1px 4px;
+}
+
+.cuelet-sidebar-row-content {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.cuelet-content {
+  background: @view_bg_color;
+}
+
+.cuelet-content-header {
+  padding: 20px 24px 14px;
+}
+
+.cuelet-count-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: alpha(currentColor, 0.07);
+}
+
+.cuelet-search {
+  min-width: 240px;
+}
+
+.cuelet-empty-state {
+  padding: 48px 24px;
+}
+
+.cuelet-empty-actions {
+  margin-top: 2px;
+}
+
+.cuelet-grid {
+  padding-top: 2px;
+}
+
+.cuelet-grid > flowboxchild {
+  padding: 0;
+  background: transparent;
+}
+
+.cuelet-sound-card {
+  padding: 8px;
+  border-radius: 8px;
+  background: @card_bg_color;
+  border: 1px solid @borders;
+  box-shadow: 0 1px 2px alpha(#000000, 0.12);
+}
+
+.cuelet-sound-card:hover {
+  background: @view_hover_color;
+}
+
+.cuelet-sound-card.playing {
+  border-color: alpha(@accent_color, 0.55);
+  background: alpha(@accent_bg_color, 0.14);
+}
+
+.cuelet-sound-card.selected {
+  border-color: alpha(@accent_color, 0.70);
+  box-shadow: 0 0 0 2px alpha(@accent_color, 0.20);
+}
+
+.cuelet-sound-name,
+.cuelet-list-name {
+  font-weight: 700;
+}
+
+.cuelet-waveform {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  background: alpha(currentColor, 0.055);
+}
+
+.cuelet-waveform-bar {
+  border-radius: 999px;
+  background: alpha(currentColor, 0.32);
+}
+
+.cuelet-waveform.playing .cuelet-waveform-bar {
+  background: @accent_color;
+}
+
+.cuelet-category-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: alpha(currentColor, 0.07);
+}
+
+.cuelet-shortcut-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: alpha(currentColor, 0.09);
+  font-size: 0.86em;
+}
+
+.cuelet-list {
+  background: transparent;
+}
+
+.cuelet-sound-row {
+  min-height: 64px;
+}
+
+.cuelet-sound-row-content {
+  padding: 8px 12px;
+}
+
+.cuelet-sound-row.playing {
+  background: alpha(@accent_bg_color, 0.10);
+}
+
+.cuelet-sound-row.selected {
+  background: alpha(@accent_bg_color, 0.08);
+}
+
+.cuelet-now-playing {
+  margin: 0 18px 12px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: @card_bg_color;
+  border: 1px solid @borders;
+  box-shadow: 0 1px 2px alpha(#000000, 0.12);
+}
+
+.cuelet-now-playing-icon {
+  color: @accent_color;
+}
+
+.cuelet-now-playing-title {
+  font-weight: 700;
+}
+
+.cuelet-now-playing-progress {
+  min-width: 130px;
+}
+
+.shortcut-recorder {
+  padding: 18px;
+  border-radius: 8px;
+  background: @view_bg_color;
+  border: 1px solid @borders;
+  font-weight: 700;
+}

@@ -1,0 +1,65 @@
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+CTestTestfile.cmake
+cmake_install.cmake
+Makefile
+
+*.o
+*.a
+*.dylib
+*.so
+*.dll
+*.exe
+*.app/
+.build/
+DerivedData/
+
+.DS_Store
+*.user
+*.autosave
+.vscode/
+.idea/
+
+# Native Windows / Visual Studio outputs
+apps/windows/.vs/
+apps/windows/**/x64/
+apps/windows/**/Debug/
+apps/windows/**/Release/
+apps/windows/**/AppPackages/
+apps/windows/**/Generated Files/
+apps/windows/**/obj/
+apps/windows/packages/
+*.suo
+*.VC.db
+*.VC.VC.opendb
+
+# Crash dumps and patch/editor leftovers
+core
+core.*
+*.rej
+*.orig
+*.tmp
+
+# macOS and Xcode user data
+.DS_Store
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+**/xcuserdata/
+/build/
+/apps/linux/build/
+/apps/linux/build.backup.*/
+/apps/macos/.build/
+/apps/windows/.vs/
+/apps/windows/AppPackages/
+/apps/windows/packages/
+/apps/windows/x64/
+
+# Windows build output
+/apps/windows/*/x64/
+/apps/windows/x64/
+/apps/windows/AppPackages/
+/apps/windows/packages/
+/apps/windows/.vs/
