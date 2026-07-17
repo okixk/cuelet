@@ -16,7 +16,6 @@ Makefile
 .build/
 DerivedData/
 
-.DS_Store
 *.user
 *.autosave
 .vscode/
@@ -36,8 +35,6 @@ apps/windows/packages/
 *.VC.VC.opendb
 
 # Crash dumps and patch/editor leftovers
-core
-core.*
 *.rej
 *.orig
 *.tmp
