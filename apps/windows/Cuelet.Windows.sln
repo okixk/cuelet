@@ -8,6 +8,12 @@ Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "Cuelet.Core.Win32", "Cuelet
 EndProject
 Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "Cuelet.Core.Tests", "Cuelet.Core.Tests\Cuelet.Core.Tests.vcxproj", "{AB3D3F6B-06BB-4FC1-A4BB-39FB6CFEFE44}"
 EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "Cuelet.VirtualAudio.Installer", "Cuelet.VirtualAudio.Installer\Cuelet.VirtualAudio.Installer.vcxproj", "{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "Cuelet.VirtualAudio.Driver", "Cuelet.VirtualAudio.Driver\Cuelet.VirtualAudio.Driver.vcxproj", "{CD960A17-2E07-4F83-B1D5-4E144E2FAFC2}"
+EndProject
+Project("{BC8A1FFA-BEE3-4634-8014-F334798102B3}") = "Cuelet.VirtualAudio.FlowTest", "Cuelet.VirtualAudio.FlowTest\Cuelet.VirtualAudio.FlowTest.vcxproj", "{A85A4633-5106-48A0-93CF-6ED4E486AA49}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -26,6 +32,16 @@ Global
 		{AB3D3F6B-06BB-4FC1-A4BB-39FB6CFEFE44}.Debug|x64.Build.0 = Debug|x64
 		{AB3D3F6B-06BB-4FC1-A4BB-39FB6CFEFE44}.Release|x64.ActiveCfg = Release|x64
 		{AB3D3F6B-06BB-4FC1-A4BB-39FB6CFEFE44}.Release|x64.Build.0 = Release|x64
+		{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}.Debug|x64.ActiveCfg = Debug|x64
+		{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}.Debug|x64.Build.0 = Debug|x64
+		{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}.Release|x64.ActiveCfg = Release|x64
+		{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}.Release|x64.Build.0 = Release|x64
+		{CD960A17-2E07-4F83-B1D5-4E144E2FAFC2}.Debug|x64.ActiveCfg = Debug|x64
+		{CD960A17-2E07-4F83-B1D5-4E144E2FAFC2}.Release|x64.ActiveCfg = Release|x64
+		{A85A4633-5106-48A0-93CF-6ED4E486AA49}.Debug|x64.ActiveCfg = Debug|x64
+		{A85A4633-5106-48A0-93CF-6ED4E486AA49}.Debug|x64.Build.0 = Debug|x64
+		{A85A4633-5106-48A0-93CF-6ED4E486AA49}.Release|x64.ActiveCfg = Release|x64
+		{A85A4633-5106-48A0-93CF-6ED4E486AA49}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

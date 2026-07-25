@@ -1,54 +1,74 @@
-# Cuelet virtual microphone design
+# Cuelet Virtual Microphone
 
-## Current status
+Cuelet distinguishes three independent audio roles:
 
-Cuelet does **not** install or expose a Windows capture endpoint. The current app can send soundboard audio to a selected secondary render endpoint and can forward a physical microphone to that same endpoint. This works with an already installed virtual cable whose paired capture endpoint can be selected in Discord, a game, a call, or recording software.
+- **Physical microphone** — a real capture endpoint such as a USB microphone,
+  headset microphone, or microphone array.
+- **Local playback** — headphones, speakers, or another render endpoint used by
+  the person running Cuelet.
+- **Virtual microphone route** — a paired virtual render and capture endpoint.
+  Cuelet renders its soundboard/microphone mix to the first; Discord, games,
+  OBS, and call applications record from the second.
 
-The settings status must remain `Virtual microphone: Not installed` unless Windows enumerates a real Cuelet capture endpoint. A normal speaker/render endpoint is never described as a microphone.
+Ordinary speakers plus an ordinary microphone are not a virtual pair. The
+normal selector accepts only Cuelet-owned endpoints identified by provider,
+hardware ID, pairing property, and common container, or an explicitly supported
+third-party cable family. Arbitrary choices are available only in the clearly
+labeled Advanced manual pairing mode.
 
-## App-side routing (implemented)
+## End-user flow
 
-- `Playback output` selects the local render device.
-- `Broadcast output` selects a second render device or disables broadcasting.
-- Each sound uses the existing reliable `MediaPlayer` path locally and a second `MediaPlayer` stream for broadcast when both outputs are enabled.
-- `Monitor locally` can disable the local stream.
-- An `AudioGraph` forwards the selected physical capture device to the broadcast render device when microphone mixing is enabled. Windows' audio engine mixes that stream with Cuelet's broadcast sound streams at the selected endpoint.
-- Broadcast, microphone, and soundboard gains are persisted separately.
-- Device-open failures are surfaced in the settings `InfoBar`; they are not treated as virtual-microphone success.
+When a signed driver package is bundled, Audio Setup presents **Install Virtual
+Microphone**, explains the UAC request and driver change, launches the dedicated
+helper with the Windows `runas` verb, waits without blocking WinUI, verifies the
+complete pair, refreshes endpoint enumeration, and selects:
 
-The next app-side iteration should add `DeviceWatcher` recovery, clock-drift measurement for long simultaneous local/broadcast playback, and integration tests with a loopback endpoint.
+- broadcast render: `Cuelet Virtual Microphone Input`
+- recording endpoint shown to other apps: `Cuelet Virtual Microphone`
+- physical input: the default communications microphone
+- physical microphone mixing: enabled
 
-## Native driver architecture (not implemented)
+Local playback and monitoring are preserved. Cuelet does not change the global
+Windows default microphone.
 
-The intended layout is:
+If installation is unavailable or fails, local playback remains usable.
+Troubleshooting is then exposed through **View Diagnostic Details**; users are
+not directed through Device Manager or PnPUtil during the normal setup.
 
-```text
-apps/windows/
-  Cuelet.WinUI/
-  Cuelet.Audio/
-  Cuelet.VirtualAudio.Driver/
-  Cuelet.VirtualAudio.Bridge/
-  docs/VIRTUAL_MICROPHONE.md
-```
+## Current delivery boundary
 
-The driver should be derived deliberately from Microsoft's SysVAD virtual audio driver sample, not copied wholesale. It must expose a paired topology:
+Driver source preparation, the render-to-capture bridge, test-signed Debug
+packaging, the elevated helper, app integration, endpoint classification,
+status UI, and an independent WASAPI flow verifier are in this tree. No
+production-signed catalog or private signing material is present in the
+repository.
 
-- render endpoint: `Cuelet Virtual Mic Input`
-- capture endpoint: `Cuelet Virtual Microphone`
+The Debug workflow is for a controlled, backed-up Windows development system in
+`TESTSIGNING` mode. It does not make the driver publicly distributable. See
+[VIRTUAL_AUDIO_DRIVER.md](VIRTUAL_AUDIO_DRIVER.md) for the exact local
+validation and production-signing boundary.
 
-`Cuelet.VirtualAudio.Bridge` will accept the app's mixed PCM stream and feed the render side. The capture side must deliver the same frames, formats, timestamps, discontinuity flags, and silence behavior to Windows audio clients. The bridge protocol needs versioning, bounded shared-memory buffers, explicit underrun/overrun counters, process-lifetime recovery, and access control that does not allow arbitrary untrusted processes to inject audio.
+## Privacy and security boundary
 
-## Driver delivery requirements
+The paired capture endpoint is an ordinary Windows microphone endpoint. Any
+process that Windows permits to use microphones can select it and receive the
+audio currently rendered to `Cuelet Virtual Microphone Input`. Cuelet does not
+provide a second authorization layer, encryption boundary, or per-consuming-app
+access list.
 
-1. Build x64 first with a matching Visual Studio, Windows SDK, and WDK toolchain.
-2. Keep driver installation separate from normal app launch. Show an administrator confirmation and never install silently.
-3. For local development, document Windows test-signing mode and use a locally generated certificate outside the repository.
-4. Production distribution requires Microsoft-compatible release signing/attestation and a signed catalog. No development certificate, private key, generated package, or build output may be committed.
-5. Provide a signed installer plus a clean uninstall that removes both endpoints, services, bridge registration, and driver package.
-6. Verify in Windows Sound settings and at least two independent capture clients that the capture endpoint exists and receives the app's audio before changing product status to `Installed` or `Connected`.
+The kernel driver does not open or record a physical microphone by itself.
+Physical microphone mixing occurs only in Cuelet's user-mode AudioGraph after
+the user selects an input and Windows grants microphone permission. Closing
+Cuelet normally stops that graph and its render streams; the virtual capture
+endpoint then produces no Cuelet mix.
 
-Microsoft's maintained references are the [SysVAD sample](https://github.com/microsoft/Windows-driver-samples/tree/main/audio/sysvad), the [SysVAD build/install sample page](https://learn.microsoft.com/en-us/samples/microsoft/windows-driver-samples/sysvad-virtual-audio-device-driver-sample/), and the [Universal audio driver guidance](https://learn.microsoft.com/en-us/windows-hardware/drivers/audio/audio-universal-drivers).
+Public distribution still requires:
 
-## Why there is no driver scaffold in this tree yet
-
-The current development machine does not have the WDK driver targets or Windows driver samples installed. Creating an unbuildable project would give false confidence and would not produce a selectable endpoint. Add the driver and bridge projects only after the WDK is installed, the selected SysVAD revision is pinned, and a minimal paired render/capture endpoint can be built and manually verified.
+- an explicit in-app indication when physical-microphone mixing is active;
+- documentation telling users to select `Cuelet Virtual Microphone`, not a
+  physical microphone, in the consuming application;
+- a least-privilege review of the inherited SysVAD device security descriptor;
+- removal of unused sample endpoints, transports, APO/keyword sections, and
+  other unreachable package surface;
+- verification that install, upgrade, recovery, and uninstall never modify
+  unrelated audio devices.

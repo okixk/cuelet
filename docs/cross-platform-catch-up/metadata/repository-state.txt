@@ -1,0 +1,20 @@
+branch: main
+HEAD: abf3e888f8e0d60f06dbad91ad33d79f5da48602
+parent: 2feb2d613dd293d94ddfdba9656e4209526b47f7
+working-tree: dirty before this documentation task; existing changes preserved
+
+Commands requested by TASK.md:
+git status --short: 26 tracked modifications plus untracked Windows virtual-audio projects/scripts and docs/cross-platform-catch-up.
+git diff --stat: 26 files, 5289 insertions, 669 deletions.
+git diff --name-status: tracked Windows UI/core/audio/test files modified; exact output is reproducible with the command.
+git diff --cached: no staged changes observed.
+git diff HEAD^..HEAD --stat: 16 files, 1547 insertions, 3 deletions.
+git diff HEAD^..HEAD --name-status: shared core README/types/search/metadata/scanner and src/core files added, plus .gitignore.
+
+Launch:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\windows\scripts\run-windows.ps1 -Configuration Debug -NoBuild -AllowTestDriver
+Executable: C:\Users\oki\projects\cuelet\apps\windows\x64\Debug\Cuelet.WinUI\Cuelet.exe
+Observed process: Cuelet.exe; native capture identified a 1422x776 window, but the frame was black and was not retained as visual evidence.
+
+Safety: no reset/checkout/clean/stash/commit/revert; no driver uninstall/rebuild; no real library/settings changes; no application source changes.
+

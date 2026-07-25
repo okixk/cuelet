@@ -21,6 +21,7 @@
       IsBackButtonVisible="Collapsed"
       IsSettingsVisible="True"
       IsPaneToggleButtonVisible="True"
+      AllowDrop="True"
       PaneDisplayMode="Auto"
       OpenPaneLength="248"
       ItemInvoked="Navigation_ItemInvoked">
@@ -37,7 +38,25 @@
         <NavigationViewItem Content="New category…" Tag="new-category"><NavigationViewItem.Icon><SymbolIcon Symbol="Add" /></NavigationViewItem.Icon></NavigationViewItem>
       </NavigationView.FooterMenuItems>
 
-      <Grid>
+      <Grid x:Name="PageHost">
+        <Grid x:Name="OnboardingPage" Visibility="Collapsed" Padding="40">
+          <StackPanel MaxWidth="620" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+            <FontIcon Glyph="&#xE8D6;" FontSize="48" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+            <TextBlock x:Name="OnboardingTitle" Text="Welcome to Cuelet" Style="{StaticResource TitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="OnboardingDescription" Text="Create a sound library or use an existing folder to get started." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <TextBlock x:Name="MissingLibraryPathText" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <StackPanel x:Name="WelcomeLibraryActions" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+              <Button x:Name="CreateLibraryButton" Click="CreateLibrary_Click"><StackPanel Orientation="Horizontal" Spacing="7"><SymbolIcon Symbol="Add" /><TextBlock Text="Create a New Library" /></StackPanel></Button>
+              <Button x:Name="UseExistingLibraryButton" Click="ChooseLibrary_Click"><StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="Use an Existing Library" /></StackPanel></Button>
+            </StackPanel>
+            <StackPanel x:Name="MissingLibraryActions" Visibility="Collapsed" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+              <Button Click="ChooseLibrary_Click" Content="Locate Library" />
+              <Button Click="CreateLibrary_Click" Content="Create New Library" />
+              <Button Click="ChooseLibrary_Click" Content="Choose Another Library" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+
         <Grid x:Name="LibraryPage" Padding="28,18,28,22">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -50,20 +69,21 @@
           <Grid ColumnSpacing="16">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Spacing="2">
-              <TextBlock x:Name="PageTitle" Text="Library" Style="{StaticResource TitleTextBlockStyle}" />
+              <TextBlock x:Name="PageTitle" Text="Library" Style="{StaticResource TitleTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
               <TextBlock x:Name="LibraryPathText" Text="No folder selected" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-              <Button x:Name="ChooseLibraryButton" Click="ChooseLibrary_Click"><StackPanel Orientation="Horizontal" Spacing="7"><FontIcon Glyph="&#xE8B7;" /><TextBlock Text="Choose library…" /></StackPanel></Button>
               <Button x:Name="ImportButton" Click="Import_Click" IsEnabled="False"><StackPanel Orientation="Horizontal" Spacing="7"><SymbolIcon Symbol="Add" /><TextBlock Text="Import" /></StackPanel></Button>
-              <Button x:Name="RescanButton" Width="40" Height="32" Click="Rescan_Click" IsEnabled="False" ToolTipService.ToolTip="Rescan library"><SymbolIcon Symbol="Refresh" /></Button>
+              <Button x:Name="RescanButton" Width="40" Height="32" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Click="Rescan_Click" IsEnabled="False" ToolTipService.ToolTip="Rescan library" AutomationProperties.Name="Rescan library">
+                <FontIcon Glyph="&#xE72C;" FontFamily="Segoe Fluent Icons" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Button>
               <Button x:Name="StopAllButton" MinWidth="96" Height="32" Click="StopAll_Click" IsEnabled="False"><StackPanel Orientation="Horizontal" Spacing="7"><SymbolIcon Symbol="Stop" /><TextBlock Text="Stop all" /></StackPanel></Button>
             </StackPanel>
           </Grid>
 
           <Grid Grid.Row="1" Margin="0,18,0,12" ColumnSpacing="10">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="190" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search sounds, notes, and aliases" QueryIcon="Find" />
+            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search sounds, notes, and aliases" QueryIcon="Find" QuerySubmitted="SearchBox_QuerySubmitted" />
             <ComboBox x:Name="SortCombo" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch">
               <ComboBoxItem Content="Name (A–Z)" /><ComboBoxItem Content="Name (Z–A)" /><ComboBoxItem Content="Recently added" /><ComboBoxItem Content="Recently played" /><ComboBoxItem Content="Shortest" /><ComboBoxItem Content="Longest" /><ComboBoxItem Content="Category" />
             </ComboBox>
@@ -73,9 +93,7 @@
             </StackPanel>
           </Grid>
 
-          <InfoBar x:Name="StatusInfoBar" Grid.Row="2" IsOpen="False" IsClosable="True" Margin="0,0,0,10" />
-
-          <Grid Grid.Row="3">
+          <Grid x:Name="SoundDropTarget" Grid.Row="3" AllowDrop="True" DragOver="SoundDropTarget_DragOver" DragLeave="SoundDropTarget_DragLeave" Drop="SoundDropTarget_Drop">
             <StackPanel x:Name="EmptyPanel" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="540" Spacing="12">
               <FontIcon x:Name="EmptyIcon" Glyph="&#xEC4F;" FontSize="44" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
               <TextBlock x:Name="EmptyStateTitle" Text="No sound library" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
@@ -86,6 +104,13 @@
               <GridView.ItemsPanel><ItemsPanelTemplate><ItemsWrapGrid Orientation="Horizontal" MaximumRowsOrColumns="0" /></ItemsPanelTemplate></GridView.ItemsPanel>
             </GridView>
             <ListView x:Name="SoundList" IsItemClickEnabled="False" SelectionChanged="SoundSelection_Changed" SelectionMode="Extended" Visibility="Collapsed" PointerPressed="SoundCollection_PointerPressed" />
+            <Border x:Name="DropOverlay" Visibility="Collapsed" IsHitTestVisible="False" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="{ThemeResource LayerFillColorDefaultBrush}" Opacity="0.96" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="10" Margin="4">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                <FontIcon x:Name="DropOverlayIcon" Glyph="&#xE898;" FontSize="36" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                <TextBlock x:Name="DropOverlayTitle" Text="Copy to library" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                <TextBlock x:Name="DropOverlayDescription" Text="Release to import supported audio files." HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
+            </Border>
           </Grid>
 
           <Border x:Name="NowPlayingBar" Grid.Row="4" Visibility="Collapsed" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14,9" Margin="0,12,0,0">
@@ -107,28 +132,88 @@
           </Border>
         </Grid>
 
-        <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" Padding="32,20,32,32">
-          <StackPanel MaxWidth="760" HorizontalAlignment="Left" Spacing="20">
-            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+        <Grid x:Name="SettingsPage" Visibility="Collapsed">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+          </Grid.RowDefinitions>
+          <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" Margin="32,20,32,8" />
+          <ScrollViewer x:Name="SettingsScrollViewer"
+                        Grid.Row="1"
+                        Padding="32,12,32,40"
+                        VerticalScrollMode="Enabled"
+                        VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Disabled"
+                        HorizontalScrollBarVisibility="Disabled"
+                        HorizontalContentAlignment="Stretch">
+          <StackPanel MaxWidth="760" HorizontalAlignment="Stretch" Spacing="20">
             <TextBlock Text="Playback" Style="{StaticResource SubtitleTextBlockStyle}" />
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
               <StackPanel Spacing="18">
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Volume" FontWeight="SemiBold" /><TextBlock Text="Applied to newly started and active sounds." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Volume" FontWeight="SemiBold" /><TextBlock Text="Applied to newly started and active sounds." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><Slider x:Name="VolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
                 <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Allow sounds to overlap" FontWeight="SemiBold" /><TextBlock Text="When off, starting a sound stops the previous one." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ToggleSwitch x:Name="MultiplePlaybackToggle" Grid.Column="1" IsOn="True" /></Grid>
               </StackPanel>
             </Border>
             <TextBlock Text="Audio routing" Style="{StaticResource SubtitleTextBlockStyle}" />
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
               <StackPanel Spacing="16">
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="300" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Playback output" FontWeight="SemiBold" /><TextBlock Text="Headphones or speakers used for local playback." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ComboBox x:Name="PlaybackOutputCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="300" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Broadcast output" FontWeight="SemiBold" /><TextBlock Text="A secondary render endpoint, such as an installed virtual audio cable." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ComboBox x:Name="BroadcastOutputCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Monitor locally" FontWeight="SemiBold" /><TextBlock Text="Also play soundboard audio through the playback output." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ToggleSwitch x:Name="MonitorLocallyToggle" Grid.Column="1" IsOn="True" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Mix physical microphone" FontWeight="SemiBold" /><TextBlock Text="Forward the selected capture input to the broadcast render endpoint." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ToggleSwitch x:Name="MixMicrophoneToggle" Grid.Column="1" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="300" /></Grid.ColumnDefinitions><TextBlock Text="Microphone input device" VerticalAlignment="Center" /><ComboBox x:Name="MicrophoneInputCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions><TextBlock Text="Broadcast volume" VerticalAlignment="Center" /><Slider x:Name="BroadcastVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions><TextBlock Text="Microphone volume" VerticalAlignment="Center" /><Slider x:Name="MicrophoneVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
-                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /></Grid.ColumnDefinitions><TextBlock Text="Soundboard volume" VerticalAlignment="Center" /><Slider x:Name="SoundboardVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="100" /></Grid>
-                <InfoBar x:Name="AudioRoutingInfo" IsOpen="True" IsClosable="False" Severity="Informational" Title="Virtual microphone: Not installed" Message="Select an existing virtual cable as Broadcast output, then choose its paired recording endpoint in Discord or another app." />
+                <InfoBar x:Name="VirtualDriverInfo"
+                         IsOpen="True"
+                         IsClosable="False"
+                         Severity="Informational"
+                         Title="Cuelet Virtual Microphone · Not installed"
+                         Message="Install Cuelet's signed driver to use the soundboard and your microphone in Discord, games, and recording apps." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="InstallVirtualDriverButton" Click="InstallVirtualDriver_Click" Content="Install" />
+                  <Button x:Name="RepairVirtualDriverButton" Click="RepairVirtualDriver_Click" Content="Repair" Visibility="Collapsed" />
+                  <Button x:Name="UninstallVirtualDriverButton" Click="UninstallVirtualDriver_Click" Content="Uninstall" Visibility="Collapsed" />
+                  <Button x:Name="RefreshVirtualDriverButton" Click="RefreshVirtualDriver_Click" Content="Refresh" />
+                  <ProgressRing x:Name="VirtualDriverProgress" Width="20" Height="20" IsActive="False" Visibility="Collapsed" />
+                </StackPanel>
+                <Expander x:Name="VirtualDriverDiagnostics" Header="View Diagnostic Details" Visibility="Collapsed">
+                  <StackPanel Spacing="8" Padding="0,8,0,0">
+                    <TextBlock x:Name="VirtualDriverDiagnosticText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    <HyperlinkButton x:Name="VirtualDriverTroubleshootingLink"
+                                     Content="Open troubleshooting guide"
+                                     NavigateUri="https://github.com/okixk/cuelet/blob/main/apps/windows/docs/VIRTUAL_AUDIO_DRIVER.md"
+                                     Visibility="Collapsed" />
+                  </StackPanel>
+                </Expander>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Voice-chat output" FontWeight="SemiBold" /><TextBlock Text="Off, or an installed virtual audio render endpoint that receives Cuelet audio." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ComboBox x:Name="BroadcastOutputCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Voice-chat microphone endpoint" FontWeight="SemiBold" /><TextBlock Text="The matching recording endpoint to select in Discord, games, or chat apps." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ComboBox x:Name="VirtualCaptureCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
+                <Grid ColumnSpacing="18">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
+                  <StackPanel><TextBlock Text="Microphone" FontWeight="SemiBold" /><TextBlock Text="Your normal physical microphone, independent of virtual audio setup." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="8">
+                    <ComboBox x:Name="MicrophoneInputCombo" HorizontalAlignment="Stretch" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button x:Name="TestMicrophoneButton" Click="TestMicrophone_Click" Content="Test Microphone" />
+                      <Button Click="RefreshAudioDevices_Click" Content="Refresh" />
+                    </StackPanel>
+                  </StackPanel>
+                </Grid>
+                <ProgressBar x:Name="MicrophoneLevel" Minimum="0" Maximum="1" Value="0" Height="4" Visibility="Collapsed" />
+                <InfoBar x:Name="MicrophoneAccessInfo" IsOpen="False" IsClosable="False">
+                  <InfoBar.ActionButton>
+                    <Button Click="OpenMicrophonePrivacy_Click" Content="Open microphone privacy settings" />
+                  </InfoBar.ActionButton>
+                </InfoBar>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Mix my microphone" FontWeight="SemiBold" /><TextBlock Text="Combine your microphone with Cuelet sounds for the voice-chat output." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ToggleSwitch x:Name="MixMicrophoneToggle" Grid.Column="1" IsOn="True" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Play through speakers/headphones" FontWeight="SemiBold" /><TextBlock Text="Hear Cuelet locally as well as through the voice-chat output." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ToggleSwitch x:Name="MonitorLocallyToggle" Grid.Column="1" IsOn="True" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Speaker/headphone device" FontWeight="SemiBold" /><TextBlock Text="Where local monitoring is played." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ComboBox x:Name="PlaybackOutputCombo" Grid.Column="1" HorizontalAlignment="Stretch" /></Grid>
+                <TextBlock Text="Levels" FontWeight="SemiBold" />
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><TextBlock Text="Soundboard" VerticalAlignment="Center" /><Slider x:Name="SoundboardVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="100" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><TextBlock Text="Microphone" VerticalAlignment="Center" /><Slider x:Name="MicrophoneVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><TextBlock Text="Voice-chat output" VerticalAlignment="Center" /><Slider x:Name="BroadcastVolumeSlider" Grid.Column="1" Minimum="0" Maximum="100" Value="80" /></Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="RunAudioSetupButton" Click="RunAudioSetup_Click" Content="Run Audio Setup Again…" />
+                </StackPanel>
+                <Expander Header="Advanced audio details" IsExpanded="False">
+                  <StackPanel Spacing="10" Padding="0,10,0,0">
+                    <Button x:Name="RefreshAudioDevicesButton" Click="RefreshAudioDevices_Click" Content="Refresh audio devices" HorizontalAlignment="Left" />
+                    <InfoBar x:Name="AudioRoutingInfo" IsOpen="True" IsClosable="False" Severity="Informational" Title="Virtual microphone: Not installed" Message="Select an existing virtual audio device. Cuelet does not install or create a microphone endpoint." />
+                  </StackPanel>
+                </Expander>
               </StackPanel>
             </Border>
             <TextBlock Text="Background" Style="{StaticResource SubtitleTextBlockStyle}" />
@@ -141,29 +226,40 @@
             <TextBlock Text="Library" Style="{StaticResource SubtitleTextBlockStyle}" />
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
               <StackPanel Spacing="18">
+                <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Import behavior" FontWeight="SemiBold" /><TextBlock Text="Choose whether imports are copied into this library or linked at their original location." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" /></StackPanel><ComboBox x:Name="ImportBehaviorCombo" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0"><ComboBoxItem Content="Copy files into the library" Tag="copy" /><ComboBoxItem Content="Link to files in their original locations" Tag="link" /></ComboBox></Grid>
                 <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Scan subfolders" FontWeight="SemiBold" /><TextBlock Text="Include supported audio files in nested folders." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ToggleSwitch x:Name="RecursiveScanToggle" Grid.Column="1" IsOn="True" /></Grid>
                 <Grid ColumnSpacing="18"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="Show file extensions" FontWeight="SemiBold" /><TextBlock Text="Display extensions in grid and list labels." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel><ToggleSwitch x:Name="ShowExtensionsToggle" Grid.Column="1" /></Grid>
+                <Button x:Name="ChangeLibraryButton" Click="ChooseLibrary_Click" Content="Change Library…" HorizontalAlignment="Left" />
               </StackPanel>
             </Border>
             <TextBlock Text="Keyboard" Style="{StaticResource SubtitleTextBlockStyle}" />
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
               <StackPanel Spacing="14">
                 <TextBlock Text="Per-sound shortcuts" FontWeight="SemiBold" />
-                <TextBlock Text="Local shortcuts work while Cuelet is focused. Global shortcuts remain active while Cuelet is hidden or in the notification area." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Every assigned shortcut is global and remains active while Cuelet is hidden or in the notification area." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                 <StackPanel x:Name="ShortcutSettingsList" Spacing="8" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button x:Name="ReRegisterShortcutsButton" Content="Re-register global shortcuts" />
                   <Button x:Name="ClearAllShortcutsButton" Content="Clear all shortcuts" />
                 </StackPanel>
-                <TextBlock Text="Enter plays the focused selection, Escape clears selection, Ctrl+A selects visible sounds, and Ctrl+F focuses search." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                <TextBlock Text="Enter plays the focused selection or the best search result, Escape clears search then selection, Ctrl+A selects visible sounds, and Ctrl+F focuses search." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
               </StackPanel>
             </Border>
             <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
             <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
-              <StackPanel Spacing="4"><TextBlock Text="Cuelet for Windows" FontWeight="SemiBold" /><TextBlock Text="Version 0.1.0 · Native WinUI 3 and C++/WinRT" Foreground="{ThemeResource TextFillColorSecondaryBrush}" /><TextBlock Text="Library metadata uses the portable Cuelet schema version 2." Foreground="{ThemeResource TextFillColorSecondaryBrush}" /></StackPanel>
+              <StackPanel Spacing="6">
+                <TextBlock Text="Cuelet for Windows" FontWeight="SemiBold" />
+                <TextBlock Text="Version 0.1.0 · Native WinUI 3 and C++/WinRT" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <TextBlock Text="A native soundboard for organizing, searching, and playing audio clips quickly." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <HyperlinkButton Content="Cuelet GitHub Repository" NavigateUri="https://github.com/okixk/cuelet" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open https://github.com/okixk/cuelet" AutomationProperties.Name="Open Cuelet GitHub Repository" />
+                <HyperlinkButton Content="GNU Affero General Public License v3.0" NavigateUri="https://github.com/okixk/cuelet/blob/main/LICENSE" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open the Cuelet license" AutomationProperties.Name="Open Cuelet license" />
+                <TextBlock Text="Library metadata uses the portable Cuelet schema version 2." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+              </StackPanel>
             </Border>
           </StackPanel>
-        </ScrollViewer>
+          </ScrollViewer>
+        </Grid>
+        <InfoBar x:Name="StatusInfoBar" IsOpen="False" IsClosable="True" MaxWidth="560" MinWidth="320" Margin="24" HorizontalAlignment="Right" VerticalAlignment="Top" Canvas.ZIndex="100" />
       </Grid>
     </NavigationView>
   </Grid>

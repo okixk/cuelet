@@ -60,3 +60,7 @@ xcuserdata/
 /apps/windows/AppPackages/
 /apps/windows/packages/
 /apps/windows/.vs/
+
+# Python generated files
+__pycache__/
+*.py[cod]

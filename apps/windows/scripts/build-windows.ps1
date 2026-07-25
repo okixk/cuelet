@@ -2,7 +2,8 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
-    [switch]$Package
+    [switch]$Package,
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,7 +20,7 @@ if (-not $installationPath) {
     throw 'Visual Studio with the MSVC x64 tools was not found.'
 }
 
-$msbuild = Join-Path $installationPath 'MSBuild\Current\Bin\MSBuild.exe'
+$msbuild = Join-Path $installationPath 'MSBuild\Current\Bin\amd64\MSBuild.exe'
 if (-not (Test-Path -LiteralPath $msbuild)) {
     throw "MSBuild was not found at $msbuild"
 }
@@ -28,9 +29,11 @@ Write-Host "Restoring Cuelet Windows dependencies..."
 & $msbuild $solution /t:Restore /p:RestorePackagesConfig=true /p:Configuration=$Configuration /p:Platform=x64 /v:minimal
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$target = if ($Rebuild) { '/t:Rebuild' } else { '/t:Build' }
 $arguments = @(
     $solution,
     '/m',
+    $target,
     "/p:Configuration=$Configuration",
     '/p:Platform=x64',
     '/v:minimal'
@@ -41,6 +44,7 @@ if ($Package) {
     $arguments += '/p:AppxPackageSigningEnabled=false'
 }
 
-Write-Host "Building Cuelet Windows ($Configuration, x64)..."
+$action = if ($Rebuild) { 'Rebuilding' } else { 'Building' }
+Write-Host "$action Cuelet Windows ($Configuration, x64)..."
 & $msbuild @arguments
 exit $LASTEXITCODE

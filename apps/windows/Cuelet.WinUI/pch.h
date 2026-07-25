@@ -7,16 +7,19 @@
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.ApplicationModel.Activation.h>
+#include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Devices.Enumeration.h>
 #include <winrt/Windows.Media.Audio.h>
 #include <winrt/Windows.Media.Capture.h>
 #include <winrt/Windows.Media.Core.h>
 #include <winrt/Windows.Media.Devices.h>
+#include <winrt/Windows.Media.Editing.h>
 #include <winrt/Windows.Media.MediaProperties.h>
 #include <winrt/Windows.Media.Playback.h>
 #include <winrt/Windows.Media.Render.h>
 #include <winrt/Windows.Storage.h>
+#include <winrt/Windows.Storage.FileProperties.h>
 #include <winrt/Windows.Storage.Pickers.h>
 #include <winrt/Windows.System.h>
 #include <winrt/Windows.UI.Text.h>
@@ -38,6 +41,7 @@
 #include <microsoft.ui.xaml.window.h>
 #include <shellapi.h>
 #include <commctrl.h>
+#include <setupapi.h>
 #include <ShObjIdl_core.h>
 #include <shlobj.h>
 #include <wil/cppwinrt_helpers.h>

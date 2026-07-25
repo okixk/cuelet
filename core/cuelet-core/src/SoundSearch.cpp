@@ -63,27 +63,61 @@ int rankingScore(const SoundClip& clip,
     const auto name = normalizeForSearch(clip.searchableName());
     const auto filename = normalizeForSearch(clip.filename);
     const auto category = normalizeForSearch(categoryName(categories, clip));
+    std::vector<std::string> aliases;
+    aliases.reserve(clip.aliases.size());
+    for (const auto& alias : clip.aliases) aliases.push_back(normalizeForSearch(alias));
 
     if (name == normalizedQuery) {
-        return 1000;
-    }
-    if (name.rfind(normalizedQuery, 0) == 0) {
-        return 900;
+        return 10000;
     }
     if (filename == normalizedQuery) {
-        return 800;
+        return 9500;
+    }
+    if (std::any_of(aliases.begin(), aliases.end(), [&](const auto& alias) {
+            return alias == normalizedQuery;
+        })) {
+        return 9000;
+    }
+    if (name.rfind(normalizedQuery, 0) == 0) {
+        return 8500;
     }
     if (filename.rfind(normalizedQuery, 0) == 0) {
-        return 700;
+        return 8000;
+    }
+    if (std::any_of(aliases.begin(), aliases.end(), [&](const auto& alias) {
+            return alias.rfind(normalizedQuery, 0) == 0;
+        })) {
+        return 7500;
+    }
+
+    const auto tokens = splitTokens(normalizedQuery);
+    const auto hasWordPrefix = [&](const std::string& text) {
+        std::istringstream words(text);
+        std::string word;
+        while (words >> word) {
+            if (std::any_of(tokens.begin(), tokens.end(), [&](const auto& token) {
+                    return word.rfind(token, 0) == 0;
+                })) return true;
+        }
+        return false;
+    };
+    if (hasWordPrefix(name) || hasWordPrefix(filename) ||
+        std::any_of(aliases.begin(), aliases.end(), hasWordPrefix)) {
+        return 7000;
     }
     if (name.find(normalizedQuery) != std::string::npos) {
-        return 600;
+        return 6000;
     }
     if (filename.find(normalizedQuery) != std::string::npos) {
-        return 500;
+        return 5500;
+    }
+    if (std::any_of(aliases.begin(), aliases.end(), [&](const auto& alias) {
+            return alias.find(normalizedQuery) != std::string::npos;
+        })) {
+        return 5000;
     }
     if (category.find(normalizedQuery) != std::string::npos) {
-        return 400;
+        return 4000;
     }
     return 0;
 }
@@ -106,6 +140,37 @@ const Category* categoryForId(const std::vector<Category>& categories, const std
         return category.id == id;
     });
     return it == categories.end() ? nullptr : &*it;
+}
+
+int soundSearchRankingScore(const SoundClip& clip,
+                            const std::vector<Category>& categories,
+                            const std::string& query)
+{
+    return rankingScore(clip, categories, normalizeForSearch(query));
+}
+
+const SoundClip* bestMatchingSound(const std::vector<SoundClip>& clips,
+                                   const std::vector<Category>& categories,
+                                   const std::string& query)
+{
+    const auto normalized = normalizeForSearch(query);
+    if (normalized.empty()) return nullptr;
+
+    const SoundClip* best = nullptr;
+    int bestScore = 0;
+    for (const auto& clip : clips) {
+        const auto score = rankingScore(clip, categories, normalized);
+        if (score > bestScore) {
+            best = &clip;
+            bestScore = score;
+            continue;
+        }
+        if (score == 0 || score != bestScore || !best) continue;
+        const auto currentName = normalizeForSearch(clip.searchableName());
+        const auto bestName = normalizeForSearch(best->searchableName());
+        if (currentName < bestName || (currentName == bestName && clip.id < best->id)) best = &clip;
+    }
+    return best;
 }
 
 std::vector<SoundClip> filterAndSortSounds(const std::vector<SoundClip>& clips,
@@ -164,11 +229,17 @@ std::vector<SoundClip> filterAndSortSounds(const std::vector<SoundClip>& clips,
             }
             return compareName(left, right, true);
         case SortOption::DurationShortest:
+            if (left.durationKnown != right.durationKnown) {
+                return left.durationKnown;
+            }
             if (left.durationSeconds != right.durationSeconds) {
                 return left.durationSeconds < right.durationSeconds;
             }
             return compareName(left, right, true);
         case SortOption::DurationLongest:
+            if (left.durationKnown != right.durationKnown) {
+                return left.durationKnown;
+            }
             if (left.durationSeconds != right.durationSeconds) {
                 return left.durationSeconds > right.durationSeconds;
             }

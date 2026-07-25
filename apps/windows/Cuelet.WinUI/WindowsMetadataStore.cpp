@@ -1,8 +1,10 @@
 #include "pch.h"
 #include "WindowsMetadataStore.h"
 #include "WindowsHotkeyModel.h"
+#include "WindowsWorkflowModel.h"
 #include "WindowsText.h"
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 
@@ -62,11 +64,35 @@ JsonObject shortcutToJson(const Shortcut& shortcut)
     return object;
 }
 
-JsonObject metadataToJson(const SoundMetadata& metadata, const std::vector<Category>& categories)
+JsonObject metadataToJson(const SoundMetadata& metadata, const std::vector<Category>& categories,
+                          JsonObject const& existing = nullptr)
 {
-    JsonObject object;
+    JsonObject object = existing ? existing : JsonObject();
+    if (!metadata.soundId.empty()) {
+        object.Insert(L"soundId", JsonValue::CreateStringValue(utf8ToHstring(metadata.soundId)));
+    } else {
+        object.Remove(L"soundId");
+    }
     object.Insert(L"displayName", JsonValue::CreateStringValue(utf8ToHstring(metadata.displayName)));
     object.Insert(L"title", JsonValue::CreateStringValue(utf8ToHstring(metadata.displayName)));
+    object.Insert(L"storageMode", JsonValue::CreateStringValue(
+        utf8ToHstring(soundStorageModeName(metadata.storageMode))));
+    if (!metadata.externalPath.empty()) {
+        object.Insert(L"externalPath", JsonValue::CreateStringValue(utf8ToHstring(metadata.externalPath)));
+    } else {
+        object.Remove(L"externalPath");
+    }
+    if (!metadata.originalSourcePath.empty()) {
+        object.Insert(L"originalSourcePath", JsonValue::CreateStringValue(
+            utf8ToHstring(metadata.originalSourcePath)));
+    } else {
+        object.Remove(L"originalSourcePath");
+    }
+    if (!metadata.sourceFileName.empty()) {
+        object.Insert(L"sourceFileName", JsonValue::CreateStringValue(utf8ToHstring(metadata.sourceFileName)));
+    } else {
+        object.Remove(L"sourceFileName");
+    }
     object.Insert(L"categoryId", JsonValue::CreateStringValue(utf8ToHstring(metadata.categoryId)));
     auto categoryName = std::string{"Uncategorized"};
     for (auto const& category : categories) {
@@ -77,6 +103,18 @@ JsonObject metadataToJson(const SoundMetadata& metadata, const std::vector<Categ
     }
     object.Insert(L"category", JsonValue::CreateStringValue(utf8ToHstring(categoryName)));
     object.Insert(L"favorite", JsonValue::CreateBooleanValue(metadata.favorite));
+    object.Insert(L"durationSeconds", JsonValue::CreateNumberValue(metadata.durationSeconds));
+    object.Insert(L"durationKnown", JsonValue::CreateBooleanValue(metadata.durationKnown));
+    object.Insert(L"durationFileSize", JsonValue::CreateNumberValue(
+        static_cast<double>(metadata.durationFileSize)));
+    object.Insert(L"durationModifiedSeconds", JsonValue::CreateNumberValue(
+        static_cast<double>(metadata.durationModifiedSeconds)));
+    if (!metadata.durationSourcePath.empty()) {
+        object.Insert(L"durationSourcePath", JsonValue::CreateStringValue(
+            utf8ToHstring(metadata.durationSourcePath)));
+    } else {
+        object.Remove(L"durationSourcePath");
+    }
     object.Insert(L"notes", JsonValue::CreateStringValue(utf8ToHstring(metadata.notes)));
     JsonArray aliases;
     for (auto const& alias : metadata.aliases) {
@@ -85,12 +123,18 @@ JsonObject metadataToJson(const SoundMetadata& metadata, const std::vector<Categ
     object.Insert(L"aliases", aliases);
     if (metadata.shortcut && !metadata.shortcut->empty()) {
         object.Insert(L"shortcut", shortcutToJson(*metadata.shortcut));
+    } else {
+        object.Remove(L"shortcut");
     }
     if (metadata.addedAt) {
         object.Insert(L"addedAt", JsonValue::CreateNumberValue(static_cast<double>(*metadata.addedAt)));
+    } else {
+        object.Remove(L"addedAt");
     }
     if (metadata.lastPlayedAt) {
         object.Insert(L"lastPlayedAt", JsonValue::CreateNumberValue(static_cast<double>(*metadata.lastPlayedAt)));
+    } else {
+        object.Remove(L"lastPlayedAt");
     }
     return object;
 }
@@ -99,7 +143,12 @@ SoundMetadata parseSoundMetadata(JsonObject const& object, bool legacy,
                                  std::vector<Category>& categories)
 {
     SoundMetadata metadata;
+    metadata.soundId = stringValue(object, L"soundId");
     metadata.displayName = stringValue(object, L"displayName", stringValue(object, L"title"));
+    metadata.storageMode = soundStorageModeFromName(stringValue(object, L"storageMode", "managed"));
+    metadata.externalPath = stringValue(object, L"externalPath");
+    metadata.originalSourcePath = stringValue(object, L"originalSourcePath");
+    metadata.sourceFileName = stringValue(object, L"sourceFileName");
     metadata.categoryId = stringValue(object, L"categoryId");
     if (metadata.categoryId.empty()) {
         auto categoryName = stringValue(object, L"category", "Uncategorized");
@@ -119,6 +168,14 @@ SoundMetadata parseSoundMetadata(JsonObject const& object, bool legacy,
         }
     }
     metadata.favorite = boolValue(object, L"favorite");
+    metadata.durationSeconds = numberValue(object, L"durationSeconds");
+    metadata.durationKnown = boolValue(object, L"durationKnown");
+    const auto durationFileSize = numberValue(object, L"durationFileSize");
+    metadata.durationFileSize = static_cast<std::uint64_t>(
+        durationFileSize > 0.0 ? durationFileSize : 0.0);
+    metadata.durationModifiedSeconds = static_cast<std::int64_t>(
+        numberValue(object, L"durationModifiedSeconds"));
+    metadata.durationSourcePath = stringValue(object, L"durationSourcePath");
     metadata.notes = stringValue(object, L"notes", stringValue(object, L"note"));
     if (object.HasKey(L"aliases")) {
         try {
@@ -167,6 +224,7 @@ MetadataLoadResult WindowsMetadataStore::load(const std::filesystem::path& libra
     if (!std::filesystem::exists(path)) {
         return result;
     }
+    addHiddenFileAttribute(path);
 
     try {
         const auto text = readText(path);
@@ -217,10 +275,11 @@ bool WindowsMetadataStore::save(const std::filesystem::path& libraryFolder,
 {
     try {
         const auto path = libraryFolder / fileName;
+        JsonObject previousRoot{nullptr};
         if (std::filesystem::exists(path)) {
             try {
-                auto oldRoot = JsonObject::Parse(utf8ToHstring(readText(path)));
-                if (static_cast<int>(numberValue(oldRoot, L"version", 1)) < 2) {
+                previousRoot = JsonObject::Parse(utf8ToHstring(readText(path)));
+                if (static_cast<int>(numberValue(previousRoot, L"version", 1)) < 2) {
                     auto backup = path;
                     backup += L".v1.bak";
                     if (!std::filesystem::exists(backup)) {
@@ -230,7 +289,7 @@ bool WindowsMetadataStore::save(const std::filesystem::path& libraryFolder,
             } catch (...) {}
         }
 
-        JsonObject root;
+        JsonObject root = previousRoot ? previousRoot : JsonObject();
         root.Insert(L"version", JsonValue::CreateNumberValue(2));
         JsonArray categories;
         for (auto const& category : metadata.categories) {
@@ -245,8 +304,17 @@ bool WindowsMetadataStore::save(const std::filesystem::path& libraryFolder,
         }
         root.Insert(L"categories", categories);
         JsonObject sounds;
+        JsonObject previousSounds{nullptr};
+        if (previousRoot && previousRoot.HasKey(L"sounds")) {
+            try { previousSounds = previousRoot.GetNamedObject(L"sounds"); } catch (...) {}
+        }
         for (auto const& [relativePath, sound] : metadata.soundsByRelativePath) {
-            sounds.Insert(utf8ToHstring(relativePath), metadataToJson(sound, metadata.categories));
+            JsonObject previousSound{nullptr};
+            const auto key = utf8ToHstring(relativePath);
+            if (previousSounds && previousSounds.HasKey(key)) {
+                try { previousSound = previousSounds.GetNamedObject(key); } catch (...) {}
+            }
+            sounds.Insert(key, metadataToJson(sound, metadata.categories, previousSound));
         }
         root.Insert(L"sounds", sounds);
 
@@ -264,6 +332,9 @@ bool WindowsMetadataStore::save(const std::filesystem::path& libraryFolder,
             std::filesystem::remove(temporary, cleanupError);
             throw std::system_error(static_cast<int>(code), std::system_category(), "Unable to replace the metadata file");
         }
+        // Atomic replacement creates a new directory entry, so the native hidden
+        // attribute must be restored on the final path after every successful save.
+        addHiddenFileAttribute(path);
         return true;
     } catch (std::exception const& exception) {
         if (error) *error = exception.what();

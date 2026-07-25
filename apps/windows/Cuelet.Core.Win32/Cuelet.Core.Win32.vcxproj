@@ -34,7 +34,10 @@
   <ItemGroup>
     <ClInclude Include="WindowsAudioRoutingModel.h" />
     <ClInclude Include="WindowsHotkeyModel.h" />
+    <ClInclude Include="WindowsLifecycleModel.h" />
     <ClInclude Include="WindowsUtf8.h" />
+    <ClInclude Include="WindowsVirtualAudioModel.h" />
+    <ClInclude Include="WindowsWorkflowModel.h" />
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\LibraryScanner.h" />
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundSearch.h" />
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundTypes.h" />
@@ -42,7 +45,10 @@
   <ItemGroup>
     <ClCompile Include="WindowsAudioRoutingModel.cpp" />
     <ClCompile Include="WindowsHotkeyModel.cpp" />
+    <ClCompile Include="WindowsLifecycleModel.cpp" />
     <ClCompile Include="WindowsUtf8.cpp" />
+    <ClCompile Include="WindowsVirtualAudioModel.cpp" />
+    <ClCompile Include="WindowsWorkflowModel.cpp" />
     <ClCompile Include="..\..\..\core\cuelet-core\src\LibraryScanner.cpp" />
     <ClCompile Include="..\..\..\core\cuelet-core\src\SoundSearch.cpp" />
     <ClCompile Include="..\..\..\core\cuelet-core\src\SoundTypes.cpp" />

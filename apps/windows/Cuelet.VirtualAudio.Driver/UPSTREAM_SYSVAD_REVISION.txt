@@ -1,0 +1,8 @@
+Repository: https://github.com/microsoft/Windows-driver-samples.git
+Commit: 2ee527bfeb0aeb6be11f0a8b6dce4011b358ce89
+Sparse path: audio/sysvad
+
+This revision is deliberately pinned. Updating it requires reviewing every
+strict source transform in prepare-driver-source.ps1 and re-running driver
+build, Static Driver Verifier/CodeQL, Driver Verifier, install, endpoint, and
+render-to-capture flow validation.

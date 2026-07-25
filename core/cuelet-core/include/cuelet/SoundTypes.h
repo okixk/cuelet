@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <ctime>
 #include <map>
 #include <optional>
@@ -7,6 +8,11 @@
 #include <vector>
 
 namespace cuelet {
+
+enum class SoundStorageMode {
+    Managed,
+    Linked,
+};
 
 struct Shortcut {
     unsigned int keyval = 0;
@@ -31,6 +37,10 @@ struct SoundClip {
     std::string absolutePath;
     std::string relativePath;
     std::string filename;
+    SoundStorageMode storageMode = SoundStorageMode::Managed;
+    std::string externalPath;
+    std::string originalSourcePath;
+    std::string sourceFileName;
     std::string displayName;
     std::string categoryId = "uncategorized";
     std::string notes;
@@ -39,6 +49,10 @@ struct SoundClip {
     bool favorite = false;
     bool missing = false;
     double durationSeconds = 0.0;
+    bool durationKnown = false;
+    std::uint64_t durationFileSize = 0;
+    std::int64_t durationModifiedSeconds = 0;
+    std::string durationSourcePath;
     std::time_t addedAt = 0;
     std::optional<std::time_t> lastPlayedAt;
 
@@ -46,12 +60,22 @@ struct SoundClip {
 };
 
 struct SoundMetadata {
+    std::string soundId;
     std::string displayName;
+    SoundStorageMode storageMode = SoundStorageMode::Managed;
+    std::string externalPath;
+    std::string originalSourcePath;
+    std::string sourceFileName;
     std::string categoryId = "uncategorized";
     std::string notes;
     std::vector<std::string> aliases;
     std::optional<Shortcut> shortcut;
     bool favorite = false;
+    double durationSeconds = 0.0;
+    bool durationKnown = false;
+    std::uint64_t durationFileSize = 0;
+    std::int64_t durationModifiedSeconds = 0;
+    std::string durationSourcePath;
     std::optional<std::time_t> addedAt;
     std::optional<std::time_t> lastPlayedAt;
 };
@@ -111,6 +135,8 @@ PlaybackProgress makePlaybackProgress(double positionSeconds, double durationSec
 bool shouldShowSelectionOutline(bool selected, bool playing);
 std::string stableIdForPath(const std::string& relativePath);
 std::string stableCategoryIdForName(const std::string& name);
+std::string soundStorageModeName(SoundStorageMode mode);
+SoundStorageMode soundStorageModeFromName(const std::string& value);
 std::string trim(std::string value);
 std::string normalizeForSearch(const std::string& value);
 std::string filenameFromPath(const std::string& path);

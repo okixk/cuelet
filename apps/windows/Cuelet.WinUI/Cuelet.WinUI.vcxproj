@@ -16,7 +16,7 @@
   <Import Project="..\packages\Microsoft.Windows.AI.MachineLearning.2.1.70\build\native\Microsoft.Windows.AI.MachineLearning.props" Condition="Exists('..\packages\Microsoft.Windows.AI.MachineLearning.2.1.70\build\native\Microsoft.Windows.AI.MachineLearning.props')" />
   <PropertyGroup Label="Globals">
     <CppWinRTOptimized>true</CppWinRTOptimized><CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge><MinimalCoreWin>true</MinimalCoreWin>
-    <ProjectGuid>{A9712178-50DF-4C12-9022-9D5F8C63827A}</ProjectGuid><ProjectName>Cuelet.WinUI</ProjectName><RootNamespace>Cuelet.WinUI</RootNamespace><TargetName>$(RootNamespace)</TargetName>
+    <ProjectGuid>{A9712178-50DF-4C12-9022-9D5F8C63827A}</ProjectGuid><ProjectName>Cuelet.WinUI</ProjectName><RootNamespace>Cuelet.WinUI</RootNamespace><TargetName>Cuelet</TargetName>
     <DefaultLanguage>en-US</DefaultLanguage><MinimumVisualStudioVersion>18.0</MinimumVisualStudioVersion><AppContainerApplication>false</AppContainerApplication>
     <AppxPackage>true</AppxPackage><ApplicationType>Windows Store</ApplicationType><ApplicationTypeRevision>10.0</ApplicationTypeRevision>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion><WindowsTargetPlatformMinVersion>10.0.17763.0</WindowsTargetPlatformMinVersion>
@@ -34,27 +34,54 @@
   <ImportGroup Label="ExtensionSettings" />
   <ImportGroup Label="PropertySheets"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <ItemDefinitionGroup><ClCompile><PrecompiledHeader>Use</PrecompiledHeader><PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile><PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile><WarningLevel>Level4</WarningLevel><LanguageStandard>stdcpp20</LanguageStandard><AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions><AdditionalIncludeDirectories>$(ProjectDir)..\..\..\core\cuelet-core\include;$(ProjectDir)..\Cuelet.Core.Win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><AdditionalDependencies>comctl32.lib;shell32.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
+  <ItemDefinitionGroup><ClCompile><PrecompiledHeader>Use</PrecompiledHeader><PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile><PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile><WarningLevel>Level4</WarningLevel><LanguageStandard>stdcpp20</LanguageStandard><AdditionalOptions>%(AdditionalOptions) /bigobj</AdditionalOptions><AdditionalIncludeDirectories>$(ProjectDir)..\..\..\core\cuelet-core\include;$(ProjectDir)..\Cuelet.Core.Win32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile><Link><AdditionalDependencies>comctl32.lib;shell32.lib;ole32.lib;setupapi.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'"><ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'"><ClCompile><PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile><Link><EnableCOMDATFolding>true</EnableCOMDATFolding><OptimizeReferences>true</OptimizeReferences></Link></ItemDefinitionGroup>
   <ItemGroup Condition="'$(Configuration)'=='Release'"><AppxManifest Include="Package.appxmanifest"><SubType>Designer</SubType></AppxManifest></ItemGroup>
   <ItemGroup><Manifest Include="app.manifest" /></ItemGroup>
   <ItemGroup>
-    <ClInclude Include="pch.h" /><ClInclude Include="App.xaml.h"><DependentUpon>App.xaml</DependentUpon></ClInclude><ClInclude Include="CategoryIconMapper.h" /><ClInclude Include="MainWindow.xaml.h"><DependentUpon>MainWindow.xaml</DependentUpon></ClInclude><ClInclude Include="WindowsGlobalShortcutService.h" /><ClInclude Include="WindowsMetadataStore.h" /><ClInclude Include="WindowsText.h" /><ClInclude Include="WindowsTrayIcon.h" />
+    <ClInclude Include="pch.h" /><ClInclude Include="App.xaml.h"><DependentUpon>App.xaml</DependentUpon></ClInclude><ClInclude Include="CategoryIconMapper.h" /><ClInclude Include="MainWindow.xaml.h"><DependentUpon>MainWindow.xaml</DependentUpon></ClInclude><ClInclude Include="VirtualAudioInstallerClient.h" /><ClInclude Include="WindowsDiagnostics.h" /><ClInclude Include="WindowsGlobalShortcutService.h" /><ClInclude Include="WindowsMetadataStore.h" /><ClInclude Include="WindowsText.h" /><ClInclude Include="WindowsTrayIcon.h" />
   </ItemGroup>
   <ItemGroup><ApplicationDefinition Include="App.xaml" /><Page Include="MainWindow.xaml" /></ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pch.cpp"><PrecompiledHeader>Create</PrecompiledHeader></ClCompile><ClCompile Include="App.xaml.cpp"><DependentUpon>App.xaml</DependentUpon></ClCompile><ClCompile Include="CategoryIconMapper.cpp" /><ClCompile Include="MainWindow.xaml.cpp"><DependentUpon>MainWindow.xaml</DependentUpon></ClCompile><ClCompile Include="WindowsGlobalShortcutService.cpp" /><ClCompile Include="WindowsMetadataStore.cpp" /><ClCompile Include="WindowsTrayIcon.cpp" /><ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+    <ClCompile Include="pch.cpp"><PrecompiledHeader>Create</PrecompiledHeader></ClCompile><ClCompile Include="App.xaml.cpp"><DependentUpon>App.xaml</DependentUpon></ClCompile><ClCompile Include="CategoryIconMapper.cpp" /><ClCompile Include="MainWindow.xaml.cpp"><DependentUpon>MainWindow.xaml</DependentUpon></ClCompile><ClCompile Include="VirtualAudioInstallerClient.cpp" /><ClCompile Include="WindowsDiagnostics.cpp" /><ClCompile Include="WindowsGlobalShortcutService.cpp" /><ClCompile Include="WindowsMetadataStore.cpp" /><ClCompile Include="WindowsTrayIcon.cpp" /><ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
   </ItemGroup>
   <ItemGroup><Midl Include="MainWindow.idl"><SubType>Code</SubType><DependentUpon>MainWindow.xaml</DependentUpon></Midl></ItemGroup>
   <ItemGroup><None Include="packages.config" /></ItemGroup>
   <ItemGroup>
     <Image Include="Assets\LockScreenLogo.scale-200.png" /><Image Include="Assets\SplashScreen.scale-200.png" /><Image Include="Assets\Square150x150Logo.scale-200.png" /><Image Include="Assets\Square44x44Logo.scale-200.png" /><Image Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" /><Image Include="Assets\StoreLogo.png" /><Image Include="Assets\Wide310x150Logo.scale-200.png" />
   </ItemGroup>
-  <ItemGroup><ProjectReference Include="..\Cuelet.Core.Win32\Cuelet.Core.Win32.vcxproj"><Project>{2490CFA1-3EC9-46E7-A178-67BE6C7B5477}</Project></ProjectReference></ItemGroup>
+  <ItemGroup Condition="Exists('$(SolutionDir)x64\$(Configuration)\DriverPackage')">
+    <Content Include="$(SolutionDir)x64\$(Configuration)\DriverPackage\**\*">
+      <Link>DriverPackage\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <DeploymentContent>true</DeploymentContent>
+    </Content>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="$(SolutionDir)x64\$(Configuration)\Cuelet.VirtualAudio.Installer.exe">
+      <Link>Cuelet.VirtualAudio.Installer.exe</Link>
+      <DeploymentContent>true</DeploymentContent>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Cuelet.Core.Win32\Cuelet.Core.Win32.vcxproj"><Project>{2490CFA1-3EC9-46E7-A178-67BE6C7B5477}</Project></ProjectReference>
+    <ProjectReference Include="..\Cuelet.VirtualAudio.Installer\Cuelet.VirtualAudio.Installer.vcxproj"><Project>{6CBB1A99-1033-45D8-8DA9-D84B0E141A52}</Project><ReferenceOutputAssembly>false</ReferenceOutputAssembly></ProjectReference>
+  </ItemGroup>
   <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'"><ProjectCapability Include="Msix" /></ItemGroup>
   <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'"><HasPackageAndPublishMenu>true</HasPackageAndPublishMenu></PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyVirtualAudioInstaller" AfterTargets="Build">
+    <Copy SourceFiles="$(SolutionDir)x64\$(Configuration)\Cuelet.VirtualAudio.Installer.exe"
+          DestinationFolder="$(OutDir)"
+          Condition="Exists('$(SolutionDir)x64\$(Configuration)\Cuelet.VirtualAudio.Installer.exe')" />
+    <ItemGroup Condition="Exists('$(SolutionDir)x64\$(Configuration)\DriverPackage')">
+      <_CueletDriverPackage Include="$(SolutionDir)x64\$(Configuration)\DriverPackage\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CueletDriverPackage)"
+          DestinationFiles="@(_CueletDriverPackage->'$(OutDir)DriverPackage\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(_CueletDriverPackage)' != ''" />
+  </Target>
   <ImportGroup Label="ExtensionTargets">
     <Import Project="..\packages\Microsoft.Web.WebView2.1.0.3719.77\build\native\Microsoft.Web.WebView2.targets" Condition="Exists('..\packages\Microsoft.Web.WebView2.1.0.3719.77\build\native\Microsoft.Web.WebView2.targets')" />
     <Import Project="..\packages\Microsoft.Windows.AI.MachineLearning.2.1.70\build\native\Microsoft.Windows.AI.MachineLearning.targets" Condition="Exists('..\packages\Microsoft.Windows.AI.MachineLearning.2.1.70\build\native\Microsoft.Windows.AI.MachineLearning.targets')" />

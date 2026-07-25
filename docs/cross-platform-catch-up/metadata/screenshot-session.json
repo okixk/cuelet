@@ -1,0 +1,14 @@
+{
+  "date": "2026-07-25",
+  "captureCapability": "native ffmpeg gdigrab available; interactive computer-use unavailable",
+  "executable": "apps/windows/x64/Debug/Cuelet.WinUI/Cuelet.exe",
+  "launchCommand": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\apps\\windows\\scripts\\run-windows.ps1 -Configuration Debug -NoBuild -AllowTestDriver",
+  "windowSize": "1422x776",
+  "screenshotsRetained": 1,
+  "result": "blocked",
+  "reason": "The captured native window frame was all black; no visual state was claimed.",
+  "temporaryLibrary": false,
+  "realLibraryModified": false,
+  "driverModified": false,
+  "restoration": "No application data or routing settings were changed by this task."
+}

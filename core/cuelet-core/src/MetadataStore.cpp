@@ -84,6 +84,7 @@ std::optional<Shortcut> shortcutMember(JsonObject* object)
     shortcut.keyval = static_cast<unsigned int>(doubleMember(shortcutObject, "keyval"));
     shortcut.modifiers = static_cast<unsigned int>(doubleMember(shortcutObject, "modifiers"));
     shortcut.label = stringMember(shortcutObject, "label");
+    shortcut.global = boolMember(shortcutObject, "global", true);
     if (shortcut.empty()) {
         return std::nullopt;
     }
@@ -93,7 +94,12 @@ std::optional<Shortcut> shortcutMember(JsonObject* object)
 SoundMetadata soundMetadataFromObject(JsonObject* object, const std::string& categoryName)
 {
     SoundMetadata metadata;
+    metadata.soundId = stringMember(object, "soundId");
     metadata.displayName = stringMember(object, "displayName", stringMember(object, "title"));
+    metadata.storageMode = soundStorageModeFromName(stringMember(object, "storageMode", "managed"));
+    metadata.externalPath = stringMember(object, "externalPath");
+    metadata.originalSourcePath = stringMember(object, "originalSourcePath");
+    metadata.sourceFileName = stringMember(object, "sourceFileName");
 
     if (json_object_has_member(object, "categoryId")) {
         metadata.categoryId = stringMember(object, "categoryId", "uncategorized");
@@ -158,6 +164,8 @@ void addShortcut(JsonBuilder* builder, const std::optional<Shortcut>& shortcut)
     json_builder_add_int_value(builder, shortcut->modifiers);
     json_builder_set_member_name(builder, "label");
     json_builder_add_string_value(builder, shortcut->label.c_str());
+    json_builder_set_member_name(builder, "global");
+    json_builder_add_boolean_value(builder, shortcut->global);
     json_builder_end_object(builder);
 }
 
@@ -317,6 +325,24 @@ bool MetadataStore::save(const LibraryMetadata& metadata) const
         json_builder_begin_object(builder);
         json_builder_set_member_name(builder, "displayName");
         json_builder_add_string_value(builder, sound.displayName.c_str());
+        if (!sound.soundId.empty()) {
+            json_builder_set_member_name(builder, "soundId");
+            json_builder_add_string_value(builder, sound.soundId.c_str());
+        }
+        json_builder_set_member_name(builder, "storageMode");
+        json_builder_add_string_value(builder, soundStorageModeName(sound.storageMode).c_str());
+        if (!sound.externalPath.empty()) {
+            json_builder_set_member_name(builder, "externalPath");
+            json_builder_add_string_value(builder, sound.externalPath.c_str());
+        }
+        if (!sound.originalSourcePath.empty()) {
+            json_builder_set_member_name(builder, "originalSourcePath");
+            json_builder_add_string_value(builder, sound.originalSourcePath.c_str());
+        }
+        if (!sound.sourceFileName.empty()) {
+            json_builder_set_member_name(builder, "sourceFileName");
+            json_builder_add_string_value(builder, sound.sourceFileName.c_str());
+        }
         json_builder_set_member_name(builder, "title");
         json_builder_add_string_value(builder, sound.displayName.c_str());
         json_builder_set_member_name(builder, "categoryId");
@@ -382,8 +408,18 @@ void MetadataStore::applyMetadata(std::vector<SoundClip>& clips, const LibraryMe
         }
 
         const auto& sound = found->second;
+        if (!sound.soundId.empty()) clip.id = sound.soundId;
         if (!trim(sound.displayName).empty()) {
             clip.displayName = sound.displayName;
+        }
+        clip.storageMode = sound.storageMode;
+        clip.externalPath = sound.externalPath;
+        clip.originalSourcePath = sound.originalSourcePath;
+        clip.sourceFileName = sound.sourceFileName;
+        if (sound.storageMode == SoundStorageMode::Linked && !sound.externalPath.empty()) {
+            clip.absolutePath = sound.externalPath;
+            clip.filename = sound.sourceFileName.empty()
+                ? filenameFromPath(sound.externalPath) : sound.sourceFileName;
         }
         clip.categoryId = sound.categoryId.empty() ? "uncategorized" : sound.categoryId;
         clip.notes = sound.notes;
@@ -402,9 +438,16 @@ void MetadataStore::applyMetadata(std::vector<SoundClip>& clips, const LibraryMe
         }
 
         SoundClip missing;
-        missing.id = stableIdForPath(relativePath);
+        missing.id = sound.soundId.empty() ? stableIdForPath(relativePath) : sound.soundId;
         missing.relativePath = relativePath;
-        missing.filename = filenameFromPath(relativePath);
+        missing.storageMode = sound.storageMode;
+        missing.externalPath = sound.externalPath;
+        missing.originalSourcePath = sound.originalSourcePath;
+        missing.sourceFileName = sound.sourceFileName;
+        missing.absolutePath = sound.storageMode == SoundStorageMode::Linked ? sound.externalPath : std::string{};
+        missing.filename = sound.sourceFileName.empty()
+            ? filenameFromPath(sound.storageMode == SoundStorageMode::Linked ? sound.externalPath : relativePath)
+            : sound.sourceFileName;
         missing.displayName = sound.displayName.empty()
             ? displayNameFromFilename(missing.filename)
             : sound.displayName;
@@ -415,7 +458,12 @@ void MetadataStore::applyMetadata(std::vector<SoundClip>& clips, const LibraryMe
         missing.favorite = sound.favorite;
         missing.addedAt = sound.addedAt.value_or(0);
         missing.lastPlayedAt = sound.lastPlayedAt;
-        missing.missing = true;
+        if (sound.storageMode == SoundStorageMode::Linked && !sound.externalPath.empty()) {
+            std::error_code error;
+            missing.missing = !std::filesystem::is_regular_file(std::filesystem::u8path(sound.externalPath), error);
+        } else {
+            missing.missing = true;
+        }
         clips.push_back(missing);
     }
 }
@@ -432,7 +480,12 @@ LibraryMetadata MetadataStore::metadataFromClips(const std::vector<SoundClip>& c
         }
 
         SoundMetadata sound;
+        sound.soundId = clip.id;
         sound.displayName = clip.displayName;
+        sound.storageMode = clip.storageMode;
+        sound.externalPath = clip.externalPath;
+        sound.originalSourcePath = clip.originalSourcePath;
+        sound.sourceFileName = clip.sourceFileName;
         sound.categoryId = clip.categoryId.empty() ? "uncategorized" : clip.categoryId;
         sound.notes = clip.notes;
         sound.aliases = clip.aliases;

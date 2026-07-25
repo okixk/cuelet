@@ -90,7 +90,7 @@ cuelet::Shortcut normalizeShortcut(cuelet::Shortcut shortcut)
 ShortcutStorageRecord shortcutToStorage(cuelet::Shortcut const& value) noexcept
 {
     const auto shortcut = normalizeShortcut(value);
-    return {shortcut.keyval, shortcut.modifiers, shortcut.global};
+    return {shortcut.keyval, shortcut.modifiers, true};
 }
 
 cuelet::Shortcut shortcutFromStorage(ShortcutStorageRecord const& stored)
@@ -140,8 +140,6 @@ bool shortcutEquals(cuelet::Shortcut const& left, cuelet::Shortcut const& right)
 
 bool shortcutScopesConflict(cuelet::Shortcut const& left, cuelet::Shortcut const& right) noexcept
 {
-    // Local shortcuts share Cuelet's main-window context. A global shortcut also
-    // fires while Cuelet is focused, so cross-scope duplicates are conflicts.
     return shortcutEquals(left, right);
 }
 
@@ -162,7 +160,6 @@ bool isShortcutSupported(cuelet::Shortcut const& value) noexcept
 {
     const auto shortcut = normalizeShortcut(value);
     if (shortcut.keyval == 0 || isModifierKey(shortcut.keyval)) return false;
-    if (!shortcut.global) return true;
 
     // Avoid taking normal typing/navigation keys globally. Function keys with a
     // modifier and F13-F24 are intentionally supported; other keys need at least
@@ -176,7 +173,7 @@ bool isWindowsReservedShortcut(cuelet::Shortcut const& value) noexcept
 {
     const auto shortcut = normalizeShortcut(value);
     const auto key = shortcut.keyval;
-    if (key == VK_F12 && shortcut.global) return true; // Reserved for the debugger by RegisterHotKey.
+    if (key == VK_F12) return true; // Reserved for the debugger by RegisterHotKey.
     if (key == VK_DELETE && hasExactModifiers(shortcut, shortcutModifierCtrl | shortcutModifierAlt)) return true;
     if (key == VK_TAB && hasExactModifiers(shortcut, shortcutModifierAlt)) return true;
     if (key == VK_ESCAPE && hasExactModifiers(shortcut, shortcutModifierAlt)) return true;
@@ -234,8 +231,9 @@ HotkeyRegistrationPlan makeHotkeyRegistrationPlan(std::vector<SoundClip> const& 
     }
     auto id = firstId;
     for (auto const& clip : clips) {
-        if (!clip.shortcut || clip.shortcut->empty() || !clip.shortcut->global) continue;
-        const auto shortcut = normalizeShortcut(*clip.shortcut);
+        if (!clip.shortcut || clip.shortcut->empty()) continue;
+        auto shortcut = normalizeShortcut(*clip.shortcut);
+        shortcut.global = true;
         const auto combination = std::pair{shortcut.keyval, shortcut.modifiers};
         if (combinationCounts[combination] > 1) {
             plan.errors[clip.id] = L"Another Cuelet sound uses the same shortcut.";

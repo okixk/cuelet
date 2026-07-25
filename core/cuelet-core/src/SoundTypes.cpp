@@ -182,6 +182,16 @@ std::string stableCategoryIdForName(const std::string& name)
     return stream.str();
 }
 
+std::string soundStorageModeName(SoundStorageMode mode)
+{
+    return mode == SoundStorageMode::Linked ? "linked" : "managed";
+}
+
+SoundStorageMode soundStorageModeFromName(const std::string& value)
+{
+    return normalizeForSearch(value) == "linked" ? SoundStorageMode::Linked : SoundStorageMode::Managed;
+}
+
 std::string trim(std::string value)
 {
     const auto begin = std::find_if_not(value.begin(), value.end(), [](unsigned char ch) {
