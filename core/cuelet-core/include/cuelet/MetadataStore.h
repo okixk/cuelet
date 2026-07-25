@@ -20,6 +20,9 @@ public:
 
     static std::filesystem::path metadataPathForLibrary(const std::filesystem::path& libraryFolder);
     static void applyMetadata(std::vector<SoundClip>& clips, const LibraryMetadata& metadata);
+    static void applyMetadata(std::vector<SoundClip>& clips,
+                              const LibraryMetadata& metadata,
+                              const std::filesystem::path& libraryFolder);
     static LibraryMetadata metadataFromClips(const std::vector<SoundClip>& clips,
                                              const std::vector<Category>& categories);
 

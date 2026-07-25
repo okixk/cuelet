@@ -48,6 +48,7 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
             return fail("could not play sound: " + clip.searchableName());
         }
         clip.lastPlayedAt = std::time(nullptr);
+        notifyPlaybackStarted();
         saveMetadata();
         refreshContent();
         refreshNowPlaying();
@@ -133,6 +134,9 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
         return 0;
     case CliAction::Hide:
         gtk_widget_set_visible(GTK_WIDGET(window_), FALSE);
+        return 0;
+    case CliAction::Exit:
+        stopAll();
         return 0;
     case CliAction::Rescan:
         if (libraryPath_.empty()) {

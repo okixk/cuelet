@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -45,6 +44,12 @@ struct ShortcutDialogData {
     GtkWidget* label = nullptr;
     std::string relativePath;
     cuelet::Shortcut shortcut;
+};
+
+struct OutputPreferenceData {
+    CueletWindow* self = nullptr;
+    GtkWidget* backendDropDown = nullptr;
+    GtkWidget* targetEntry = nullptr;
 };
 
 struct CategoryIconChoice {
@@ -219,6 +224,10 @@ inline GtkWidget* iconButton(const char* iconName, const char* tooltip)
 {
     GtkWidget* button = gtk_button_new_from_icon_name(iconName);
     gtk_widget_set_tooltip_text(button, tooltip);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(button),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, tooltip,
+        -1);
     gtk_widget_add_css_class(button, "flat");
     return button;
 }
@@ -233,6 +242,10 @@ inline GtkWidget* textIconButton(const char* iconName, const char* label, const 
     gtk_box_append(GTK_BOX(content), text);
     gtk_button_set_child(GTK_BUTTON(button), content);
     gtk_widget_set_tooltip_text(button, tooltip);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(button),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, tooltip,
+        -1);
     return button;
 }
 
@@ -333,20 +346,6 @@ inline std::string sortOptionTitle(cuelet::SortOption option)
         return "Category";
     }
     return "Name A-Z";
-}
-
-inline std::filesystem::path duplicateImportDestination(const std::filesystem::path& library,
-                                                        const std::filesystem::path& source)
-{
-    auto destination = library / source.filename();
-    int index = 1;
-    while (std::filesystem::exists(destination)) {
-        const auto stem = source.stem().string();
-        const auto extension = source.extension().string();
-        destination = library / (stem + " (" + std::to_string(index) + ")" + extension);
-        ++index;
-    }
-    return destination;
 }
 
 } // namespace cuelet_linux

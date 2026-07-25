@@ -1,6 +1,8 @@
 # Screenshot index
 
-The Debug window was brought to the foreground and captured by copying its on-screen rectangle. The inventory uses an isolated generated WAV library; the original library selection was restored after capture. Each listed PNG was checked for visible non-black pixels and visible Cuelet chrome/content.
+## Windows reference
+
+The Windows Debug window was brought to the foreground and captured by copying its on-screen rectangle. The inventory uses an isolated generated WAV library; the original library selection was restored after capture. Each listed PNG was checked for visible non-black pixels and visible Cuelet chrome/content.
 
 | Filename | State | Reproduction | Feature/source | Safe automation | macOS/Linux equivalent |
 |---|---|---|---|---|---|
@@ -29,3 +31,32 @@ The Debug window was brought to the foreground and captured by copying its on-sc
 Use `capture-window.ps1` only after an interactive session verifies that the compositor produces a non-black image. A future capture session should use a deterministic demo folder and restore the prior library/settings.
 
 The reliable replacement workflow remains [`tools/MANUAL_CAPTURE_GUIDE.md`](tools/MANUAL_CAPTURE_GUIDE.md). The isolated demo captures above avoid real-library filenames. The remaining checklist states are documented as not captured where they would require destructive configuration changes, private content, or additional transient interaction not safely reproducible from the current Debug state.
+
+## Linux GNOME/Wayland captures
+
+The Linux app was run under the active GNOME Wayland session with generated
+WAV files and an isolated `XDG_CONFIG_HOME`. GNOME Shell denied external
+window capture, so Cuelet's test-only application renderer produced these
+images from the real GTK widget tree. The renderer requires the explicit
+`CUELET_TEST_CAPTURE_ENABLED=1` opt-in plus an absolute PNG destination; an
+ordinary launch ignores capture-path environment values. Every PNG was opened for visual
+inspection and validated with `file` and ImageMagick `identify`.
+
+| Filename | State | Validation note |
+|---|---|---|
+| [`library-populated.png`](linux-screenshots/library-populated.png) | populated library | Five managed/linked/missing fixture entries, categories, favorite, and durations visible |
+| [`category.png`](linux-screenshots/category.png) | selected category | Alerts scope, sidebar selection, and three matching sounds visible |
+| [`category-editor.png`](linux-screenshots/category-editor.png) | category editor | Native libadwaita dialog with name, color, icon, cancel, and save controls |
+| [`search-results.png`](linux-screenshots/search-results.png) | search results | Four fixture matches and active search query visible |
+| [`search-no-results.png`](linux-screenshots/search-no-results.png) | no search results | Dedicated zero-results state and Clear Search action visible |
+| [`playback.png`](linux-screenshots/playback.png) | playback and mini-player | Playing card plus native progress/pause/stop/volume bar visible |
+| [`settings.png`](linux-screenshots/settings.png) | preferences | Native Library settings page visible |
+| [`audio-routing.png`](linux-screenshots/audio-routing.png) | output and virtual routing settings | Explicit output targeting, temporary route switch, diagnostics, and safety copy visible |
+| [`empty-state.png`](linux-screenshots/empty-state.png) | selected empty library | Import action, supported formats, and zero count visible |
+| [`collapsed.png`](linux-screenshots/collapsed.png) | collapsed navigation | Narrow responsive navigation-only state visible at 720×720 |
+| [`maximized.png`](linux-screenshots/maximized.png) | maximized window | Real maximized 1920×1048 GTK state |
+
+No Linux context-menu PNG is claimed. The popover was opened, but it occupies
+a separate Wayland popup surface that the application renderer cannot include.
+The rejected PNG showed only a selected card and was removed rather than
+mislabelled as visual evidence.

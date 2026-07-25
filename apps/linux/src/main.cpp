@@ -68,6 +68,8 @@ std::vector<std::string> commandArguments(GApplicationCommandLine* commandLine)
     appendBooleanOption(options, "stop-all", arguments);
     appendBooleanOption(options, "show", arguments);
     appendBooleanOption(options, "hide", arguments);
+    appendBooleanOption(options, "exit", arguments);
+    appendBooleanOption(options, "quit", arguments);
     appendBooleanOption(options, "rescan", arguments);
     appendStringOption(options, "play-id", arguments);
     appendStringOption(options, "play-name", arguments);
@@ -109,6 +111,13 @@ int onCommandLine(GApplication* application,
     if (!standardError.empty()) {
         g_application_command_line_printerr(commandLine, "%s", standardError.c_str());
     }
+    if (parsed.command.action == cuelet_linux::CliAction::Exit) {
+        g_object_steal_data(G_OBJECT(application), windowDataKey);
+        window->closeForCliExit();
+        delete window;
+        g_application_quit(application);
+        return status;
+    }
     const bool needsResidentWindow = status == 0
         && (parsed.command.action == cuelet_linux::CliAction::Show
             || parsed.command.action == cuelet_linux::CliAction::PlayId
@@ -137,6 +146,8 @@ void addCommandLineOptions(GApplication* application)
         {"stop-all", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Stop all sounds", nullptr},
         {"show", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Show the window", nullptr},
         {"hide", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Hide the window", nullptr},
+        {"exit", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Stop playback and exit Cuelet", nullptr},
+        {"quit", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, nullptr, "Stop playback and exit Cuelet", nullptr},
         {"rescan", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Rescan the active library", nullptr},
         {"library", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, nullptr, "Select a library folder", "FOLDER"},
         {nullptr, 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, nullptr, nullptr},

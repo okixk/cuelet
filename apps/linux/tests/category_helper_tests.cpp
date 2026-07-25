@@ -1,7 +1,6 @@
 #include "CueletWindowHelpers.h"
+#include "TestSupport.h"
 
-#include <cassert>
-#include <iostream>
 #include <set>
 
 namespace {
@@ -9,35 +8,35 @@ namespace {
 void colorSelectionsAreStable()
 {
     const auto& colors = cuelet_linux::colorPalette();
-    assert(!colors.empty());
-    assert(cuelet_linux::categoryColorIndex("#009688") < colors.size());
-    assert(colors[cuelet_linux::categoryColorIndex("#009688")].first == "Teal");
-    assert(cuelet_linux::categoryColorIndex("not-a-color") == 0);
+    CUELET_REQUIRE(!colors.empty());
+    CUELET_REQUIRE(cuelet_linux::categoryColorIndex("#009688") < colors.size());
+    CUELET_REQUIRE(colors[cuelet_linux::categoryColorIndex("#009688")].first == "Teal");
+    CUELET_REQUIRE(cuelet_linux::categoryColorIndex("not-a-color") == 0);
 
     std::set<std::string> values;
     for (const auto& [name, value] : colors) {
-        assert(!name.empty());
-        assert(!value.empty());
-        assert(values.insert(value).second);
+        CUELET_REQUIRE(!name.empty());
+        CUELET_REQUIRE(!value.empty());
+        CUELET_REQUIRE(values.insert(value).second);
     }
 }
 
 void iconSelectionsCanonicalizeAliases()
 {
     const auto& icons = cuelet_linux::iconChoices();
-    assert(!icons.empty());
-    assert(cuelet_linux::canonicalCategoryIconId("music.note") == "music-note");
-    assert(cuelet_linux::canonicalCategoryIconId("audio-x-generic-symbolic") == "music-note");
-    assert(cuelet_linux::categoryIconIndex("music.note") == cuelet_linux::categoryIconIndex("music-note"));
-    assert(cuelet_linux::categoryIconIndex("unknown-icon") == 0);
+    CUELET_REQUIRE(!icons.empty());
+    CUELET_REQUIRE(cuelet_linux::canonicalCategoryIconId("music.note") == "music-note");
+    CUELET_REQUIRE(cuelet_linux::canonicalCategoryIconId("audio-x-generic-symbolic") == "music-note");
+    CUELET_REQUIRE(cuelet_linux::categoryIconIndex("music.note") == cuelet_linux::categoryIconIndex("music-note"));
+    CUELET_REQUIRE(cuelet_linux::categoryIconIndex("unknown-icon") == 0);
 
     std::set<std::string> ids;
     for (const auto& icon : icons) {
-        assert(!icon.label.empty());
-        assert(!icon.id.empty());
-        assert(!icon.linuxIconName.empty());
-        assert(ids.insert(icon.id).second);
-        assert(cuelet_linux::linuxCategoryIconName(icon.id) == icon.linuxIconName);
+        CUELET_REQUIRE(!icon.label.empty());
+        CUELET_REQUIRE(!icon.id.empty());
+        CUELET_REQUIRE(!icon.linuxIconName.empty());
+        CUELET_REQUIRE(ids.insert(icon.id).second);
+        CUELET_REQUIRE(cuelet_linux::linuxCategoryIconName(icon.id) == icon.linuxIconName);
     }
 }
 
@@ -45,8 +44,8 @@ void iconSelectionsCanonicalizeAliases()
 
 int main()
 {
-    colorSelectionsAreStable();
-    iconSelectionsCanonicalizeAliases();
-    std::cout << "cuelet category helper tests passed\n";
-    return 0;
+    return cuelet_linux::tests::run("cuelet category helper tests", [] {
+        colorSelectionsAreStable();
+        iconSelectionsCanonicalizeAliases();
+    });
 }

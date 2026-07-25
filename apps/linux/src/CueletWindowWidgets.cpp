@@ -39,6 +39,14 @@ void addMenuItem(GMenu* menu, const char* label, const char* action, const char*
     g_object_unref(item);
 }
 
+GtkWidget* makeStatusBadge(const char* text, const char* cssClass)
+{
+    GtkWidget* badge = gtk_label_new(text);
+    gtk_widget_add_css_class(badge, "cuelet-status-badge");
+    gtk_widget_add_css_class(badge, cssClass);
+    return badge;
+}
+
 } // namespace
 
 void CueletWindow::presentPopover(GtkWidget* popover, GtkWidget* source, double x, double y)
@@ -97,6 +105,10 @@ GtkWidget* CueletWindow::makeSidebarRow(const std::string& title,
         gtk_box_append(GTK_BOX(box), dot);
     }
     gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), box);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(row),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, title.c_str(),
+        -1);
 
     if (kind == SidebarKind::Category || kind == SidebarKind::AllCategories) {
         GtkGesture* click = gtk_gesture_click_new();
@@ -119,10 +131,18 @@ GtkWidget* CueletWindow::makeSidebarRow(const std::string& title,
 GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
 {
     const bool playing = audio_.isPlaying(clip.relativePath);
+    const std::string displayName =
+        settings_.showFileExtensions ? clip.filename : clip.searchableName();
     GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
     gtk_widget_add_css_class(card, "cuelet-sound-card");
     if (playing) {
         gtk_widget_add_css_class(card, "playing");
+    }
+    if (clip.missing) {
+        gtk_widget_add_css_class(card, "missing");
+    }
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        gtk_widget_add_css_class(card, "linked");
     }
     if (selectedPaths_.find(clip.relativePath) != selectedPaths_.end()) {
         gtk_widget_add_css_class(card, "selected");
@@ -132,11 +152,32 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_widget_set_vexpand(card, FALSE);
     gtk_widget_set_valign(card, GTK_ALIGN_START);
     setObjectString(G_OBJECT(card), "relative-path", clip.relativePath);
+    std::string accessibleDescription =
+        categoryName(clip.categoryId) + ", " + formatDuration(clip.durationSeconds);
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        accessibleDescription += ", linked file";
+    }
+    if (clip.missing) {
+        accessibleDescription += ", file missing";
+    }
+    if (clip.favorite) {
+        accessibleDescription += ", favorite";
+    }
+    accessibleDescription += clip.missing
+        ? ". Playback is unavailable while the file is missing. Press the Menu key for more actions."
+        : ". Press Enter to play. Press the Menu key for more actions.";
+    setObjectString(G_OBJECT(card), "accessible-label", displayName);
+    setObjectString(G_OBJECT(card), "accessible-description", accessibleDescription);
 
     GtkWidget* top = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    GtkWidget* play = iconButton(playing ? "media-playback-stop-symbolic" : "media-playback-start-symbolic",
-                                 playing ? "Stop Sound" : "Play Sound");
+    const std::string playLabel = clip.missing
+        ? displayName + " is missing from disk"
+        : (playing ? "Stop " : "Play ") + displayName;
+    GtkWidget* play = iconButton(
+        playing ? "media-playback-stop-symbolic" : "media-playback-start-symbolic",
+        playLabel.c_str());
     gtk_widget_add_css_class(play, "circular");
+    gtk_widget_set_sensitive(play, !clip.missing);
     if (playing) {
         gtk_widget_add_css_class(play, "suggested-action");
     }
@@ -145,7 +186,12 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
         auto* data = static_cast<WindowStringData*>(userData);
         data->self->togglePlayback(data->value);
     }), playData, +[](gpointer data, GClosure*) { delete static_cast<WindowStringData*>(data); }, G_CONNECT_DEFAULT);
-    GtkWidget* fav = iconButton(clip.favorite ? "starred-symbolic" : "non-starred-symbolic", "Toggle Favorite");
+    const std::string favoriteLabel =
+        (clip.favorite ? "Remove " : "Add ") + displayName
+        + (clip.favorite ? " from favorites" : " to favorites");
+    GtkWidget* fav = iconButton(
+        clip.favorite ? "starred-symbolic" : "non-starred-symbolic",
+        favoriteLabel.c_str());
     gtk_widget_add_css_class(fav, "circular");
     if (clip.favorite) {
         gtk_widget_add_css_class(fav, "accent");
@@ -163,7 +209,7 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
 
     GtkWidget* waveform = makeWaveformPreview(clip.relativePath.empty() ? clip.filename : clip.relativePath, playing);
 
-    GtkWidget* name = gtk_label_new(settings_.showFileExtensions ? clip.filename.c_str() : clip.searchableName().c_str());
+    GtkWidget* name = gtk_label_new(displayName.c_str());
     gtk_label_set_xalign(GTK_LABEL(name), 0.0f);
     gtk_label_set_wrap(GTK_LABEL(name), TRUE);
     gtk_label_set_wrap_mode(GTK_LABEL(name), PANGO_WRAP_WORD_CHAR);
@@ -171,6 +217,16 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
     gtk_label_set_max_width_chars(GTK_LABEL(name), 22);
     gtk_widget_add_css_class(name, "cuelet-sound-name");
+
+    GtkWidget* status = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+    gtk_widget_add_css_class(status, "cuelet-status-row");
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        gtk_box_append(GTK_BOX(status), makeStatusBadge("Linked", "linked"));
+    }
+    if (clip.missing) {
+        gtk_box_append(GTK_BOX(status), makeStatusBadge("Missing", "missing"));
+    }
+    gtk_widget_set_visible(status, gtk_widget_get_first_child(status) != nullptr);
 
     GtkWidget* meta = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget* category = categoryChip(categoryName(clip.categoryId), categoryColor(clip.categoryId));
@@ -189,6 +245,7 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_box_append(GTK_BOX(card), top);
     gtk_box_append(GTK_BOX(card), waveform);
     gtk_box_append(GTK_BOX(card), name);
+    gtk_box_append(GTK_BOX(card), status);
     gtk_box_append(GTK_BOX(card), meta);
 
     GtkGesture* click = gtk_gesture_click_new();
@@ -199,6 +256,7 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
         const std::string path = objectString(G_OBJECT(card), "relative-path");
         const guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
         if (button == GDK_BUTTON_SECONDARY) {
+            self->selectSound(path, false);
             GtkWidget* popover = self->makeSoundPopover(path);
             self->presentPopover(popover, card, x, y);
         } else if (pressCount == 2) {
@@ -208,26 +266,7 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
                 gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
             const bool toggles = (modifiers & GDK_CONTROL_MASK) != 0;
 
-            if (!toggles) {
-                self->selectedPaths_.clear();
-                for (GtkWidget* child = gtk_widget_get_first_child(self->flowBox_);
-                     child;
-                     child = gtk_widget_get_next_sibling(child)) {
-                    if (GTK_IS_FLOW_BOX_CHILD(child)) {
-                        GtkWidget* childCard = gtk_flow_box_child_get_child(GTK_FLOW_BOX_CHILD(child));
-                        if (childCard) {
-                            gtk_widget_remove_css_class(childCard, "selected");
-                        }
-                    }
-                }
-            }
-
-            if (toggles && self->selectedPaths_.erase(path) > 0) {
-                gtk_widget_remove_css_class(card, "selected");
-            } else {
-                self->selectedPaths_.insert(path);
-                gtk_widget_add_css_class(card, "selected");
-            }
+            self->selectSound(path, toggles);
         }
     }), this);
     gtk_widget_add_controller(card, GTK_EVENT_CONTROLLER(click));
@@ -238,21 +277,54 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
 GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
 {
     const bool playing = audio_.isPlaying(clip.relativePath);
+    const std::string displayName =
+        settings_.showFileExtensions ? clip.filename : clip.searchableName();
     GtkWidget* row = gtk_list_box_row_new();
     gtk_widget_add_css_class(row, "cuelet-sound-row");
     if (playing) {
         gtk_widget_add_css_class(row, "playing");
     }
+    if (clip.missing) {
+        gtk_widget_add_css_class(row, "missing");
+    }
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        gtk_widget_add_css_class(row, "linked");
+    }
     if (selectedPaths_.find(clip.relativePath) != selectedPaths_.end()) {
         gtk_widget_add_css_class(row, "selected");
     }
+    gtk_widget_set_focusable(row, TRUE);
     setObjectString(G_OBJECT(row), "relative-path", clip.relativePath);
+    std::string accessibleDescription =
+        categoryName(clip.categoryId) + ", " + formatDuration(clip.durationSeconds);
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        accessibleDescription += ", linked file";
+    }
+    if (clip.missing) {
+        accessibleDescription += ", file missing";
+    }
+    if (clip.favorite) {
+        accessibleDescription += ", favorite";
+    }
+    accessibleDescription += clip.missing
+        ? ". Playback is unavailable while the file is missing. Press the Menu key for more actions."
+        : ". Press Enter to play. Press the Menu key for more actions.";
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(row),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, displayName.c_str(),
+        GTK_ACCESSIBLE_PROPERTY_DESCRIPTION, accessibleDescription.c_str(),
+        -1);
     GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
     gtk_widget_add_css_class(box, "cuelet-sound-row-content");
 
-    GtkWidget* play = iconButton(playing ? "media-playback-stop-symbolic" : "media-playback-start-symbolic",
-                                 playing ? "Stop Sound" : "Play Sound");
+    const std::string playLabel = clip.missing
+        ? displayName + " is missing from disk"
+        : (playing ? "Stop " : "Play ") + displayName;
+    GtkWidget* play = iconButton(
+        playing ? "media-playback-stop-symbolic" : "media-playback-start-symbolic",
+        playLabel.c_str());
     gtk_widget_add_css_class(play, "circular");
+    gtk_widget_set_sensitive(play, !clip.missing);
     if (playing) {
         gtk_widget_add_css_class(play, "suggested-action");
     }
@@ -265,7 +337,7 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
 
     GtkWidget* textBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_hexpand(textBox, TRUE);
-    GtkWidget* name = gtk_label_new(settings_.showFileExtensions ? clip.filename.c_str() : clip.searchableName().c_str());
+    GtkWidget* name = gtk_label_new(displayName.c_str());
     gtk_label_set_xalign(GTK_LABEL(name), 0.0f);
     gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
     gtk_widget_add_css_class(name, "cuelet-list-name");
@@ -273,6 +345,17 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
     GtkWidget* sub = secondaryLabel(pathText);
     gtk_box_append(GTK_BOX(textBox), name);
     gtk_box_append(GTK_BOX(textBox), sub);
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked || clip.missing) {
+        GtkWidget* status = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
+        gtk_widget_add_css_class(status, "cuelet-status-row");
+        if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+            gtk_box_append(GTK_BOX(status), makeStatusBadge("Linked", "linked"));
+        }
+        if (clip.missing) {
+            gtk_box_append(GTK_BOX(status), makeStatusBadge("Missing", "missing"));
+        }
+        gtk_box_append(GTK_BOX(textBox), status);
+    }
     gtk_box_append(GTK_BOX(box), textBox);
 
     GtkWidget* chip = categoryChip(categoryName(clip.categoryId), categoryColor(clip.categoryId));
@@ -289,7 +372,12 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
         gtk_widget_add_css_class(shortcut, "cuelet-shortcut-badge");
         gtk_box_append(GTK_BOX(box), shortcut);
     }
-    GtkWidget* fav = iconButton(clip.favorite ? "starred-symbolic" : "non-starred-symbolic", "Toggle Favorite");
+    const std::string favoriteLabel =
+        (clip.favorite ? "Remove " : "Add ") + displayName
+        + (clip.favorite ? " from favorites" : " to favorites");
+    GtkWidget* fav = iconButton(
+        clip.favorite ? "starred-symbolic" : "non-starred-symbolic",
+        favoriteLabel.c_str());
     gtk_widget_add_css_class(fav, "circular");
     if (clip.favorite) {
         gtk_widget_add_css_class(fav, "accent");
@@ -310,19 +398,15 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
         const std::string path = objectString(G_OBJECT(row), "relative-path");
         const guint button = gtk_gesture_single_get_current_button(GTK_GESTURE_SINGLE(gesture));
         if (button == GDK_BUTTON_SECONDARY) {
+            self->selectSound(path, false);
             GtkWidget* popover = self->makeSoundPopover(path);
             self->presentPopover(popover, row, x, y);
         } else if (pressCount == 2) {
             self->playSound(path);
         } else {
-            self->selectedPaths_.clear();
-            for (GtkWidget* child = gtk_widget_get_first_child(self->listBox_);
-                 child;
-                 child = gtk_widget_get_next_sibling(child)) {
-                gtk_widget_remove_css_class(child, "selected");
-            }
-            self->selectedPaths_.insert(path);
-            gtk_widget_add_css_class(row, "selected");
+            const GdkModifierType modifiers =
+                gtk_event_controller_get_current_event_state(GTK_EVENT_CONTROLLER(gesture));
+            self->selectSound(path, (modifiers & GDK_CONTROL_MASK) != 0);
         }
     }), this);
     gtk_widget_add_controller(row, GTK_EVENT_CONTROLLER(click));
@@ -335,9 +419,13 @@ GtkWidget* CueletWindow::makeSoundPopover(const std::string& relativePath)
     GMenu* menu = g_menu_new();
 
     GMenu* playbackSection = g_menu_new();
-    addMenuItem(playbackSection, "Play", "win.play-sound", relativePath.c_str());
-    if (audio_.isPlaying(relativePath)) {
-        addMenuItem(playbackSection, "Stop", "win.stop-sound", relativePath.c_str());
+    if (clip && clip->missing) {
+        g_menu_append(playbackSection, "File Missing", nullptr);
+    } else {
+        addMenuItem(playbackSection, "Play", "win.play-sound", relativePath.c_str());
+        if (audio_.isPlaying(relativePath)) {
+            addMenuItem(playbackSection, "Stop", "win.stop-sound", relativePath.c_str());
+        }
     }
     addMenuItem(playbackSection, clip && clip->favorite ? "Unfavorite" : "Favorite", "win.toggle-favorite", relativePath.c_str());
     g_menu_append_section(menu, nullptr, G_MENU_MODEL(playbackSection));

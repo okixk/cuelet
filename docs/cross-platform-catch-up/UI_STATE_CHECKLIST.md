@@ -1,5 +1,7 @@
 # UI state checklist
 
+## Windows reference
+
 States below were checked against the live Debug window. Captures use an isolated generated WAV library and the original library selection was restored afterward. “Not captured” means a specific safe limitation remains; it does not claim the source feature is absent.
 
 | Area/state | Status | Evidence/why |
@@ -35,3 +37,35 @@ States below were checked against the live Debug window. Captures use an isolate
 | narrow/wide/scroll/theme | Not captured | Maximized and collapsed states captured; theme and narrow/scroll variants remain safe follow-up states |
 | navigation collapsed | Captured | [navigation-collapsed.png](screenshots/navigation-collapsed.png) |
 | window maximized | Captured | [window-maximized.png](screenshots/window-maximized.png) |
+
+## Linux GNOME/Wayland validation
+
+Linux captures use generated temporary WAV files and isolated XDG settings.
+“Runtime validated” means the real workflow ran but the state is not claimed
+as PNG evidence.
+
+| Area/state | Status | Evidence/why |
+|---|---|---|
+| clean launch/populated grid | Captured | [library-populated.png](linux-screenshots/library-populated.png) |
+| empty selected library | Captured | [empty-state.png](linux-screenshots/empty-state.png) |
+| linked and missing file indicators | Captured | [library-populated.png](linux-screenshots/library-populated.png) |
+| category selection | Captured | [category.png](linux-screenshots/category.png) |
+| category editor/color/icon | Captured | [category-editor.png](linux-screenshots/category-editor.png) |
+| category delete/reassignment | Implemented and reviewed | Native confirmation/reassignment path was source-reviewed; no dedicated automated delete test or PNG is claimed |
+| search results/no results | Captured | [search-results.png](linux-screenshots/search-results.png), [search-no-results.png](linux-screenshots/search-no-results.png) |
+| Enter-to-play/Escape/focus/selection | Runtime validated | Real Wayland app plus keyboard implementation/reviewer audit; not a still-image claim |
+| playback and mini-player | Captured | [playback.png](linux-screenshots/playback.png) |
+| pause/resume/stop/overlap/cleanup | Automated and runtime validated | GStreamer state tests plus single-instance hidden play/stop/exit workflow |
+| list view | Runtime validated | Native list implementation built and reviewed; no dedicated PNG |
+| sound context menu | Implemented; not captured | GTK popover is a separate Wayland surface; rejected screenshot was removed |
+| rename managed/linked sound | Automated | Tests cover safe managed move, same-name no-op, linked display-name-only behavior, and duration refresh |
+| file/folder/drop import | Automated; dialog app validated | Import planner/executor tests cover copy/link, directories, duplicate, collision, traversal, symlink rejection, overwrite, and missing recovery |
+| settings | Captured | [settings.png](linux-screenshots/settings.png) |
+| output and PipeWire routing settings | Captured | [audio-routing.png](linux-screenshots/audio-routing.png) |
+| temporary virtual microphone enabled/audio flow | Runtime validated | Non-silent generated WAV recorded from the temporary source; nodes/process removed and defaults unchanged |
+| hidden playback notification | Runtime validated | Show → hide → play → stop → exit completed under `G_DEBUG=fatal-warnings` |
+| single-instance show/hide/exit | Runtime validated | Commands forwarded to one `GApplication`; exit left no Cuelet process |
+| global shortcut portal | Not implemented | GNOME custom shortcut command is available; portal consent/session work remains |
+| tray menu | Not implemented | No reliable stock-GNOME tray contract |
+| collapsed navigation | Captured | [collapsed.png](linux-screenshots/collapsed.png) |
+| maximized window | Captured | [maximized.png](linux-screenshots/maximized.png) |

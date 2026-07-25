@@ -3,13 +3,6 @@
 #include <gio/gio.h>
 #include <glib/gi18n.h>
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstdlib>
-#include <fstream>
-#include <sstream>
-
 #include "CueletWindowHelpers.h"
 
 using namespace cuelet_linux;
@@ -25,24 +18,45 @@ CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
     audio_.setFinishCallback([this](const std::string&) {
         refreshContent();
         refreshNowPlaying();
+        if (audio_.playingPaths().empty()) {
+            withdrawPlaybackNotification();
+        }
     });
     audio_.setErrorCallback([this](const std::string& message) {
         showError(message);
     });
 
     buildUi();
+    LinuxAudioService::OutputSelection configuredOutput;
+    const bool validOutputSetting =
+        parseOutputSetting(settings_.outputDevice, configuredOutput);
+    const bool backendAvailable =
+        configuredOutput.backend == LinuxAudioService::OutputBackend::Automatic
+        || LinuxAudioService::outputBackendAvailable(configuredOutput.backend);
+    if (validOutputSetting && backendAvailable) {
+        audio_.setOutputSelection(configuredOutput);
+    } else {
+        audio_.setOutputSelection({});
+        showToast("The saved audio output is unavailable; using automatic output.");
+    }
     loadInitialLibrary(demoMode);
 }
 
 CueletWindow::~CueletWindow()
 {
+    if (visualCaptureSourceId_ != 0) {
+        g_source_remove(visualCaptureSourceId_);
+    }
     if (progressTickId_ != 0) {
         g_source_remove(progressTickId_);
     }
+    audio_.stopAll();
+    pipeWireRouting_.stop();
 }
 
 void CueletWindow::present()
 {
+    scheduleVisualCaptureFromEnvironment();
     gtk_window_present(GTK_WINDOW(window_));
 }
 
@@ -55,6 +69,47 @@ void CueletWindow::closeForCliExit()
 bool CueletWindow::isClosedForCliExit() const
 {
     return closedForCliExit_;
+}
+
+bool CueletWindow::parseOutputSetting(
+    const std::string& value,
+    LinuxAudioService::OutputSelection& selection)
+{
+    // Stable persisted format: pipewire:<target-object> or
+    // pulseaudio:<device>. Empty/"automatic" follows the desktop default.
+    if (value.empty() || value == "automatic") {
+        selection = {};
+        return true;
+    }
+
+    static const std::string pipeWirePrefix = "pipewire:";
+    static const std::string pulseAudioPrefix = "pulseaudio:";
+    if (value.rfind(pipeWirePrefix, 0) == 0 && value.size() > pipeWirePrefix.size()) {
+        selection.backend = LinuxAudioService::OutputBackend::PipeWire;
+        selection.deviceId = value.substr(pipeWirePrefix.size());
+        return true;
+    }
+    if (value.rfind(pulseAudioPrefix, 0) == 0 && value.size() > pulseAudioPrefix.size()) {
+        selection.backend = LinuxAudioService::OutputBackend::PulseAudio;
+        selection.deviceId = value.substr(pulseAudioPrefix.size());
+        return true;
+    }
+    selection = {};
+    return false;
+}
+
+std::string CueletWindow::outputSetting(
+    const LinuxAudioService::OutputSelection& selection)
+{
+    switch (selection.backend) {
+    case LinuxAudioService::OutputBackend::PipeWire:
+        return "pipewire:" + selection.deviceId;
+    case LinuxAudioService::OutputBackend::PulseAudio:
+        return "pulseaudio:" + selection.deviceId;
+    case LinuxAudioService::OutputBackend::Automatic:
+        return {};
+    }
+    return {};
 }
 
 void CueletWindow::buildUi()
@@ -78,6 +133,17 @@ void CueletWindow::buildUi()
 
     installActions();
 
+    sidebarToggleButton_ = iconButton("sidebar-show-symbolic", "Show Navigation");
+    gtk_widget_set_visible(sidebarToggleButton_, FALSE);
+    g_signal_connect_swapped(sidebarToggleButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+        if (!self->splitView_) {
+            return;
+        }
+        const bool showsContent = adw_navigation_split_view_get_show_content(self->splitView_);
+        adw_navigation_split_view_set_show_content(self->splitView_, !showsContent);
+    }), this);
+    adw_header_bar_pack_start(ADW_HEADER_BAR(header), sidebarToggleButton_);
+
     GtkWidget* chooseButton = textIconButton("folder-open-symbolic", "Choose Library", "Choose Library");
     gtk_widget_add_css_class(chooseButton, "suggested-action");
     g_signal_connect_swapped(chooseButton, "clicked", G_CALLBACK(+[](CueletWindow* self) {
@@ -96,6 +162,10 @@ void CueletWindow::buildUi()
     GtkWidget* appMenuButton = gtk_menu_button_new();
     gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(appMenuButton), "open-menu-symbolic");
     gtk_widget_set_tooltip_text(appMenuButton, "Main Menu");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(appMenuButton),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Main Menu",
+        -1);
     GMenu* appMenu = g_menu_new();
     GMenu* librarySection = g_menu_new();
     g_menu_append(librarySection, "Choose Library", "win.choose-library");
@@ -116,9 +186,17 @@ void CueletWindow::buildUi()
     gridToggle_ = gtk_toggle_button_new();
     gtk_button_set_icon_name(GTK_BUTTON(gridToggle_), "view-grid-symbolic");
     gtk_widget_set_tooltip_text(gridToggle_, "Grid View");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(gridToggle_),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Grid View",
+        -1);
     listToggle_ = gtk_toggle_button_new();
     gtk_button_set_icon_name(GTK_BUTTON(listToggle_), "view-list-symbolic");
     gtk_widget_set_tooltip_text(listToggle_, "List View");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(listToggle_),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "List View",
+        -1);
     gtk_box_append(GTK_BOX(viewBox), gridToggle_);
     gtk_box_append(GTK_BOX(viewBox), listToggle_);
     adw_header_bar_pack_end(ADW_HEADER_BAR(header), viewBox);
@@ -145,6 +223,10 @@ void CueletWindow::buildUi()
     GtkWidget* sortButton = gtk_menu_button_new();
     gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(sortButton), "view-sort-ascending-symbolic");
     gtk_widget_set_tooltip_text(sortButton, "Sort Sounds");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(sortButton),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Sort Sounds",
+        -1);
     GMenu* sortMenu = g_menu_new();
     const std::vector<std::pair<std::string, std::string>> sortItems = {
         {"Name A-Z", "nameAscending"},
@@ -165,10 +247,44 @@ void CueletWindow::buildUi()
     g_object_unref(sortMenu);
     adw_header_bar_pack_end(ADW_HEADER_BAR(header), sortButton);
 
-    GtkWidget* split = adw_navigation_split_view_new();
-    adw_navigation_split_view_set_min_sidebar_width(ADW_NAVIGATION_SPLIT_VIEW(split), 220);
-    adw_navigation_split_view_set_max_sidebar_width(ADW_NAVIGATION_SPLIT_VIEW(split), 320);
-    adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(toolbarView), split);
+    splitView_ = ADW_NAVIGATION_SPLIT_VIEW(adw_navigation_split_view_new());
+    adw_navigation_split_view_set_min_sidebar_width(splitView_, 220);
+    adw_navigation_split_view_set_max_sidebar_width(splitView_, 320);
+    adw_toolbar_view_set_content(ADW_TOOLBAR_VIEW(toolbarView), GTK_WIDGET(splitView_));
+
+    AdwBreakpointCondition* narrowCondition =
+        adw_breakpoint_condition_parse("max-width: 760sp");
+    AdwBreakpoint* narrowBreakpoint = adw_breakpoint_new(narrowCondition);
+    GValue collapsed = G_VALUE_INIT;
+    g_value_init(&collapsed, G_TYPE_BOOLEAN);
+    g_value_set_boolean(&collapsed, TRUE);
+    adw_breakpoint_add_setter(
+        narrowBreakpoint,
+        G_OBJECT(splitView_),
+        "collapsed",
+        &collapsed);
+    g_value_unset(&collapsed);
+    adw_application_window_add_breakpoint(window_, narrowBreakpoint);
+
+    g_object_bind_property(
+        splitView_, "collapsed",
+        sidebarToggleButton_, "visible",
+        static_cast<GBindingFlags>(G_BINDING_SYNC_CREATE));
+    g_signal_connect(splitView_, "notify::show-content", G_CALLBACK(+[](
+        AdwNavigationSplitView* splitView,
+        GParamSpec*,
+        gpointer userData) {
+        GtkWidget* button = GTK_WIDGET(userData);
+        const bool showsContent = adw_navigation_split_view_get_show_content(splitView);
+        const char* iconName = showsContent ? "sidebar-show-symbolic" : "go-next-symbolic";
+        const char* label = showsContent ? "Show Navigation" : "Show Sounds";
+        gtk_button_set_icon_name(GTK_BUTTON(button), iconName);
+        gtk_widget_set_tooltip_text(button, label);
+        gtk_accessible_update_property(
+            GTK_ACCESSIBLE(button),
+            GTK_ACCESSIBLE_PROPERTY_LABEL, label,
+            -1);
+    }), sidebarToggleButton_);
 
     GtkWidget* sidebarBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_widget_add_css_class(sidebarBox, "cuelet-sidebar");
@@ -181,6 +297,10 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(sidebarList_, "cuelet-sidebar-list");
     gtk_list_box_set_selection_mode(GTK_LIST_BOX(sidebarList_), GTK_SELECTION_SINGLE);
     gtk_list_box_set_activate_on_single_click(GTK_LIST_BOX(sidebarList_), TRUE);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(sidebarList_),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Library Navigation",
+        -1);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(sidebarScroll), sidebarList_);
     gtk_box_append(GTK_BOX(sidebarBox), sidebarScroll);
     g_signal_connect(sidebarList_, "row-activated", G_CALLBACK(+[](GtkListBox*, GtkListBoxRow* row, gpointer userData) {
@@ -190,12 +310,66 @@ void CueletWindow::buildUi()
         auto* self = static_cast<CueletWindow*>(userData);
         self->selection_.kind = static_cast<SidebarKind>(GPOINTER_TO_INT(g_object_get_data(G_OBJECT(row), "sidebar-kind")));
         self->selection_.categoryId = objectString(G_OBJECT(row), "category-id");
+        self->selectedPaths_.clear();
         self->refreshContent();
         self->refreshHeader();
+        if (self->splitView_ && adw_navigation_split_view_get_collapsed(self->splitView_)) {
+            adw_navigation_split_view_set_show_content(self->splitView_, TRUE);
+        }
     }), this);
 
     GtkWidget* contentBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_widget_add_css_class(contentBox, "cuelet-content");
+
+    GtkDropTarget* importDropTarget =
+        gtk_drop_target_new(GDK_TYPE_FILE_LIST, GDK_ACTION_COPY);
+    g_signal_connect(importDropTarget, "enter", G_CALLBACK(+[](
+        GtkDropTarget* target,
+        double,
+        double,
+        gpointer) -> GdkDragAction {
+        GtkWidget* content = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(target));
+        gtk_widget_add_css_class(content, "drop-active");
+        return GDK_ACTION_COPY;
+    }), nullptr);
+    g_signal_connect(importDropTarget, "leave", G_CALLBACK(+[](
+        GtkDropTarget* target,
+        gpointer) {
+        GtkWidget* content = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(target));
+        gtk_widget_remove_css_class(content, "drop-active");
+    }), nullptr);
+    g_signal_connect(importDropTarget, "drop", G_CALLBACK(+[](
+        GtkDropTarget* target,
+        const GValue* value,
+        double,
+        double,
+        gpointer userData) -> gboolean {
+        GtkWidget* content = gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(target));
+        gtk_widget_remove_css_class(content, "drop-active");
+        auto* self = static_cast<CueletWindow*>(userData);
+        auto* fileList = static_cast<GdkFileList*>(g_value_get_boxed(value));
+        if (!fileList) {
+            return FALSE;
+        }
+
+        std::vector<std::filesystem::path> sources;
+        std::size_t unavailableSources = 0;
+        for (GSList* item = gdk_file_list_get_files(fileList); item; item = item->next) {
+            GFile* file = G_FILE(item->data);
+            char* path = g_file_get_path(file);
+            if (path) {
+                sources.emplace_back(std::filesystem::u8path(path));
+                g_free(path);
+            } else {
+                ++unavailableSources;
+            }
+        }
+        self->importSources(sources, unavailableSources);
+        return TRUE;
+    }), this);
+    gtk_widget_add_controller(
+        contentBox,
+        GTK_EVENT_CONTROLLER(importDropTarget));
 
     GtkWidget* contentHeader = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 18);
     gtk_widget_add_css_class(contentHeader, "cuelet-content-header");
@@ -216,6 +390,12 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(search, "cuelet-search");
     gtk_widget_set_size_request(search, 280, -1);
     gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(search), "Search sounds");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(search),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Search Sounds",
+        GTK_ACCESSIBLE_PROPERTY_DESCRIPTION,
+            "Search names, filenames, notes, aliases, and categories",
+        -1);
     gtk_box_append(GTK_BOX(toolsBox), countLabel_);
     gtk_box_append(GTK_BOX(toolsBox), search);
     gtk_box_append(GTK_BOX(contentHeader), titleBox);
@@ -274,24 +454,42 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(emptyChild, "cuelet-empty-actions");
     GtkWidget* emptyButtons = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     gtk_widget_set_halign(emptyButtons, GTK_ALIGN_CENTER);
-    GtkWidget* emptyChoose = gtk_button_new_with_label("Choose Library");
-    gtk_widget_add_css_class(emptyChoose, "suggested-action");
-    gtk_widget_set_tooltip_text(emptyChoose, "Choose Library");
-    g_signal_connect_swapped(emptyChoose, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+    emptyChooseButton_ = gtk_button_new_with_label("Choose Library");
+    gtk_widget_add_css_class(emptyChooseButton_, "suggested-action");
+    gtk_widget_set_tooltip_text(emptyChooseButton_, "Choose Library");
+    g_signal_connect_swapped(emptyChooseButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
         self->chooseLibrary();
     }), this);
-    GtkWidget* emptyImport = gtk_button_new_with_label("Import Sounds");
-    gtk_widget_set_tooltip_text(emptyImport, "Import Sounds");
-    g_signal_connect_swapped(emptyImport, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+    emptyImportButton_ = gtk_button_new_with_label("Import Sounds");
+    gtk_widget_set_tooltip_text(emptyImportButton_, "Import Sounds");
+    g_signal_connect_swapped(emptyImportButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
         self->importSounds();
     }), this);
-    gtk_box_append(GTK_BOX(emptyButtons), emptyChoose);
-    gtk_box_append(GTK_BOX(emptyButtons), emptyImport);
-    GtkWidget* emptyHelper = gtk_label_new("Supports mp3, wav, ogg, flac, and m4a when codecs are available.");
-    gtk_widget_add_css_class(emptyHelper, "caption");
-    gtk_widget_add_css_class(emptyHelper, "dim-label");
+    emptyClearSearchButton_ = gtk_button_new_with_label("Clear Search");
+    gtk_widget_add_css_class(emptyClearSearchButton_, "suggested-action");
+    g_signal_connect_swapped(emptyClearSearchButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+        gtk_editable_set_text(GTK_EDITABLE(self->searchEntry_), "");
+        gtk_widget_grab_focus(self->searchEntry_);
+    }), this);
+    emptyBrowseButton_ = gtk_button_new_with_label("Browse Library");
+    g_signal_connect_swapped(emptyBrowseButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+        self->selection_ = SidebarSelection{};
+        self->clearSelection();
+        self->refreshSidebar();
+        self->refreshContent();
+        gtk_widget_grab_focus(self->sidebarList_);
+    }), this);
+    gtk_box_append(GTK_BOX(emptyButtons), emptyChooseButton_);
+    gtk_box_append(GTK_BOX(emptyButtons), emptyImportButton_);
+    gtk_box_append(GTK_BOX(emptyButtons), emptyClearSearchButton_);
+    gtk_box_append(GTK_BOX(emptyButtons), emptyBrowseButton_);
+    emptyHelperLabel_ = gtk_label_new("Supports mp3, wav, ogg, flac, and m4a when codecs are available.");
+    gtk_label_set_wrap(GTK_LABEL(emptyHelperLabel_), TRUE);
+    gtk_label_set_justify(GTK_LABEL(emptyHelperLabel_), GTK_JUSTIFY_CENTER);
+    gtk_widget_add_css_class(emptyHelperLabel_, "caption");
+    gtk_widget_add_css_class(emptyHelperLabel_, "dim-label");
     gtk_box_append(GTK_BOX(emptyChild), emptyButtons);
-    gtk_box_append(GTK_BOX(emptyChild), emptyHelper);
+    gtk_box_append(GTK_BOX(emptyChild), emptyHelperLabel_);
     adw_status_page_set_child(ADW_STATUS_PAGE(emptyPage_), emptyChild);
     gtk_stack_add_named(GTK_STACK(stack_), emptyPage_, "empty");
 
@@ -334,6 +532,22 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(nowPlayingProgress_, "cuelet-now-playing-progress");
     gtk_widget_set_size_request(nowPlayingProgress_, 150, -1);
     gtk_widget_set_valign(nowPlayingProgress_, GTK_ALIGN_CENTER);
+    nowPlayingPauseButton_ = iconButton("media-playback-pause-symbolic", "Pause Current Sound");
+    gtk_widget_set_valign(nowPlayingPauseButton_, GTK_ALIGN_CENTER);
+    g_signal_connect_swapped(nowPlayingPauseButton_, "clicked", G_CALLBACK(+[](CueletWindow* self) {
+        const auto playing = self->audio_.playingPaths();
+        if (playing.empty()) {
+            return;
+        }
+        const std::string& path = playing.back();
+        if (self->audio_.isPaused(path)) {
+            self->audio_.resume(path);
+        } else {
+            self->audio_.pause(path);
+        }
+        self->refreshContent();
+        self->refreshNowPlaying();
+    }), this);
     GtkWidget* stopCurrent = iconButton("media-playback-stop-symbolic", "Stop Current Sound");
     gtk_widget_set_valign(stopCurrent, GTK_ALIGN_CENTER);
     g_signal_connect_swapped(stopCurrent, "clicked", G_CALLBACK(+[](CueletWindow* self) {
@@ -351,14 +565,15 @@ void CueletWindow::buildUi()
     gtk_box_append(GTK_BOX(nowPlayingBar_), nowIcon);
     gtk_box_append(GTK_BOX(nowPlayingBar_), nowTextBox);
     gtk_box_append(GTK_BOX(nowPlayingBar_), nowPlayingProgress_);
+    gtk_box_append(GTK_BOX(nowPlayingBar_), nowPlayingPauseButton_);
     gtk_box_append(GTK_BOX(nowPlayingBar_), stopCurrent);
     gtk_box_append(GTK_BOX(nowPlayingBar_), stopMini);
     gtk_box_append(GTK_BOX(contentBox), nowPlayingBar_);
 
     AdwNavigationPage* sidebarPage = adw_navigation_page_new(sidebarBox, "Sidebar");
     AdwNavigationPage* contentPage = adw_navigation_page_new(contentBox, "Cuelet");
-    adw_navigation_split_view_set_sidebar(ADW_NAVIGATION_SPLIT_VIEW(split), sidebarPage);
-    adw_navigation_split_view_set_content(ADW_NAVIGATION_SPLIT_VIEW(split), contentPage);
+    adw_navigation_split_view_set_sidebar(splitView_, sidebarPage);
+    adw_navigation_split_view_set_content(splitView_, contentPage);
 
     GtkEventController* windowKeys = gtk_event_controller_key_new();
     gtk_event_controller_set_propagation_phase(windowKeys, GTK_PHASE_CAPTURE);
@@ -554,161 +769,4 @@ void CueletWindow::installCss()
         GTK_STYLE_PROVIDER(provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
     g_object_unref(provider);
-}
-
-void CueletWindow::loadInitialLibrary(bool demoMode)
-{
-    if (demoMode) {
-        loadDemoLibrary(false);
-        return;
-    }
-
-    if (!settings_.libraryPath.empty() && std::filesystem::exists(settings_.libraryPath)) {
-        loadLibrary(settings_.libraryPath);
-        return;
-    }
-
-    if (settings_.showsDemoLibrary) {
-        loadDemoLibrary(false);
-        return;
-    }
-
-    refreshAll();
-}
-
-bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
-{
-    const auto scan = scanner_.scan(folder, settings_.scansSubfolders);
-    if (!scan.warning.empty()) {
-        showError(scan.warning);
-        return false;
-    }
-
-    libraryPath_ = folder;
-    clips_ = scan.clips;
-    cuelet::MetadataStore metadataStore(cuelet::MetadataStore::metadataPathForLibrary(folder));
-    auto metadata = metadataStore.load();
-    if (!metadataStore.lastError().empty()) {
-        showToast(metadataStore.lastError());
-    }
-    cuelet::MetadataStore::applyMetadata(clips_, metadata);
-    categories_ = cuelet::mergeCategories(metadata.categories, clips_);
-
-    for (auto& clip : clips_) {
-        if (!clip.missing && clip.durationSeconds <= 0.0) {
-            clip.durationSeconds = LinuxAudioService::discoverDurationSeconds(clip.absolutePath);
-        }
-    }
-
-    settings_.libraryPath = folder.string();
-    settings_.showsDemoLibrary = false;
-    saveSettings();
-    selection_ = SidebarSelection{};
-    selectedPaths_.clear();
-    refreshAll();
-    return true;
-}
-
-void CueletWindow::loadDemoLibrary(bool persistChoice)
-{
-    libraryPath_.clear();
-    categories_ = {
-        cuelet::uncategorizedCategory(),
-        {"demo-ambience", "Ambience", "#009688", "weather-showers-symbolic", true},
-        {"demo-effects", "Effects", "#5856D6", "applications-games-symbolic", true},
-        {"demo-music", "Music", "#AF52DE", "audio-x-generic-symbolic", true},
-        {"demo-alerts", "Alerts", "#D9822B", "preferences-system-notifications-symbolic", true},
-    };
-    clips_ = {
-        {"demo-rain", "", "rain-window.wav", "rain-window.wav", "Rain on Window", "demo-ambience", "", {}, cuelet::Shortcut{GDK_KEY_1, GDK_ALT_MASK, "Alt+1"}, true, true, 72.0, 1, std::nullopt},
-        {"demo-door", "", "door-knock.wav", "door-knock.wav", "Door Knock", "demo-effects", "", {}, cuelet::Shortcut{GDK_KEY_2, GDK_ALT_MASK, "Alt+2"}, false, true, 3.0, 2, std::nullopt},
-        {"demo-tone", "", "soft-room-tone.flac", "soft-room-tone.flac", "Soft Room Tone", "demo-ambience", "", {}, cuelet::Shortcut{GDK_KEY_3, GDK_ALT_MASK, "Alt+3"}, false, true, 96.0, 3, std::nullopt},
-        {"demo-pop", "", "message-pop.wav", "message-pop.wav", "Message Pop", "demo-alerts", "", {}, cuelet::Shortcut{GDK_KEY_4, GDK_ALT_MASK, "Alt+4"}, true, true, 1.0, 4, std::nullopt},
-        {"demo-theme", "", "tension-bed.m4a", "tension-bed.m4a", "Tension Bed", "demo-music", "", {}, cuelet::Shortcut{GDK_KEY_5, GDK_ALT_MASK, "Alt+5"}, false, true, 124.0, 5, std::nullopt},
-    };
-    if (persistChoice) {
-        settings_.showsDemoLibrary = true;
-        saveSettings();
-    }
-    refreshAll();
-}
-
-bool CueletWindow::rescanLibrary()
-{
-    if (libraryPath_.empty()) {
-        showToast("Choose a library first.");
-        return false;
-    }
-    return loadLibrary(libraryPath_);
-}
-
-void CueletWindow::chooseLibrary()
-{
-    GtkFileDialog* dialog = gtk_file_dialog_new();
-    gtk_file_dialog_set_title(dialog, "Choose Sound Library");
-    gtk_file_dialog_select_folder(dialog, GTK_WINDOW(window_), nullptr, +[](GObject* source, GAsyncResult* result, gpointer userData) {
-        auto* self = static_cast<CueletWindow*>(userData);
-        GError* error = nullptr;
-        GFile* file = gtk_file_dialog_select_folder_finish(GTK_FILE_DIALOG(source), result, &error);
-        if (!file) {
-            if (error) {
-                g_error_free(error);
-            }
-            return;
-        }
-        char* path = g_file_get_path(file);
-        if (path) {
-            self->loadLibrary(path);
-            g_free(path);
-        }
-        g_object_unref(file);
-    }, this);
-    g_object_unref(dialog);
-}
-
-void CueletWindow::importSounds()
-{
-    if (libraryPath_.empty()) {
-        showToast("Choose a library before importing sounds.");
-        chooseLibrary();
-        return;
-    }
-
-    GtkFileDialog* dialog = gtk_file_dialog_new();
-    gtk_file_dialog_set_title(dialog, "Import Sounds");
-    gtk_file_dialog_open_multiple(dialog, GTK_WINDOW(window_), nullptr, +[](GObject* source, GAsyncResult* result, gpointer userData) {
-        auto* self = static_cast<CueletWindow*>(userData);
-        GError* error = nullptr;
-        GListModel* files = gtk_file_dialog_open_multiple_finish(GTK_FILE_DIALOG(source), result, &error);
-        if (!files) {
-            if (error) {
-                g_error_free(error);
-            }
-            return;
-        }
-
-        int imported = 0;
-        const guint count = g_list_model_get_n_items(files);
-        for (guint index = 0; index < count; ++index) {
-            GFile* file = G_FILE(g_list_model_get_item(files, index));
-            char* path = g_file_get_path(file);
-            if (path) {
-                std::filesystem::path sourcePath(path);
-                if (cuelet::LibraryScanner::isSupportedAudioFile(sourcePath)) {
-                    std::error_code copyError;
-                    const auto destination = duplicateImportDestination(self->libraryPath_, sourcePath);
-                    std::filesystem::copy_file(sourcePath, destination, copyError);
-                    if (!copyError) {
-                        ++imported;
-                    }
-                }
-                g_free(path);
-            }
-            g_object_unref(file);
-        }
-        g_object_unref(files);
-        self->showToast(imported == 1 ? "Imported 1 sound." : "Imported " + std::to_string(imported) + " sounds.");
-        self->rescanLibrary();
-    }, this);
-    g_object_unref(dialog);
 }

@@ -21,6 +21,11 @@
   background: @view_bg_color;
 }
 
+.cuelet-content.drop-active {
+  box-shadow: inset 0 0 0 3px alpha(@accent_color, 0.72);
+  background: alpha(@accent_bg_color, 0.08);
+}
+
 .cuelet-content-header {
   padding: 20px 24px 14px;
 }
@@ -62,6 +67,13 @@
 
 .cuelet-sound-card:hover {
   background: @view_hover_color;
+}
+
+.cuelet-sound-card:focus-visible,
+.cuelet-grid > flowboxchild:focus-visible > .cuelet-sound-card,
+.cuelet-sound-row:focus-visible {
+  outline: 2px solid @accent_color;
+  outline-offset: 2px;
 }
 
 .cuelet-sound-card.playing {
@@ -106,6 +118,33 @@
   border-radius: 999px;
   background: alpha(currentColor, 0.09);
   font-size: 0.86em;
+}
+
+.cuelet-status-row {
+  min-height: 20px;
+}
+
+.cuelet-status-badge {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: alpha(currentColor, 0.08);
+  font-size: 0.82em;
+  font-weight: 600;
+}
+
+.cuelet-status-badge.linked {
+  color: @accent_color;
+  background: alpha(@accent_bg_color, 0.12);
+}
+
+.cuelet-status-badge.missing {
+  color: @error_color;
+  background: alpha(@error_bg_color, 0.12);
+}
+
+.cuelet-sound-card.missing,
+.cuelet-sound-row.missing {
+  opacity: 0.78;
 }
 
 .cuelet-list {

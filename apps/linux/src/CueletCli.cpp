@@ -29,6 +29,8 @@ const std::unordered_map<std::string, CommandSpec>& commandSpecs()
         {"stop-all", {CliAction::StopAll, false}},
         {"show", {CliAction::Show, false}},
         {"hide", {CliAction::Hide, false}},
+        {"exit", {CliAction::Exit, false}},
+        {"quit", {CliAction::Exit, false}},
         {"rescan", {CliAction::Rescan, false}},
         {"library", {CliAction::Library, true}},
     };
@@ -158,6 +160,7 @@ std::string cliHelpText()
         "  --stop-all                Stop all sounds\n"
         "  --show                    Show the Cuelet window\n"
         "  --hide                    Hide the Cuelet window\n"
+        "  --exit                    Stop playback and exit Cuelet\n"
         "  --rescan                  Rescan the active library\n"
         "  --library FOLDER          Select and scan a library folder\n"
         "\n"

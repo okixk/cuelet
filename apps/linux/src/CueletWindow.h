@@ -5,11 +5,15 @@
 #include "cuelet/MetadataStore.h"
 #include "cuelet/SoundSearch.h"
 #include "services/LinuxAudioService.h"
+#include "services/LinuxLibraryImportService.h"
+#include "services/LinuxPipeWireRoutingService.h"
 #include "services/LinuxSettingsStore.h"
 
 #include <adwaita.h>
 
+#include <cstddef>
 #include <filesystem>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -42,8 +46,11 @@ private:
 
     AdwApplication* application_ = nullptr;
     AdwApplicationWindow* window_ = nullptr;
+    AdwDialog* preferencesDialog_ = nullptr;
+    AdwNavigationSplitView* splitView_ = nullptr;
     GtkWidget* toastOverlay_ = nullptr;
     GtkWidget* headerTitle_ = nullptr;
+    GtkWidget* sidebarToggleButton_ = nullptr;
     GtkWidget* stopAllButton_ = nullptr;
     GtkWidget* sidebarList_ = nullptr;
     GtkWidget* titleLabel_ = nullptr;
@@ -54,29 +61,41 @@ private:
     GtkWidget* flowBox_ = nullptr;
     GtkWidget* listBox_ = nullptr;
     GtkWidget* emptyPage_ = nullptr;
+    GtkWidget* emptyChooseButton_ = nullptr;
+    GtkWidget* emptyImportButton_ = nullptr;
+    GtkWidget* emptyClearSearchButton_ = nullptr;
+    GtkWidget* emptyBrowseButton_ = nullptr;
+    GtkWidget* emptyHelperLabel_ = nullptr;
     GtkWidget* nowPlayingBar_ = nullptr;
     GtkWidget* nowPlayingLabel_ = nullptr;
     GtkWidget* nowPlayingCategoryLabel_ = nullptr;
     GtkWidget* nowPlayingProgress_ = nullptr;
+    GtkWidget* nowPlayingPauseButton_ = nullptr;
     GtkWidget* gridToggle_ = nullptr;
     GtkWidget* listToggle_ = nullptr;
 
     LinuxSettingsStore settingsStore_;
     LinuxSettings settings_;
     LinuxAudioService audio_;
+    LinuxPipeWireRoutingService pipeWireRouting_;
+    std::optional<LinuxAudioService::OutputSelection> outputBeforeVirtualMicrophone_;
     cuelet::LibraryScanner scanner_;
     std::vector<cuelet::SoundClip> clips_;
     std::vector<cuelet::Category> categories_;
     std::filesystem::path libraryPath_;
+    std::filesystem::path missingLibraryPath_;
     SidebarSelection selection_;
     std::set<std::string> selectedPaths_;
     guint progressTickId_ = 0;
     bool suppressToggleSignals_ = false;
     bool closedForCliExit_ = false;
+    bool visualCaptureScheduled_ = false;
+    guint visualCaptureSourceId_ = 0;
 
     void buildUi();
     void installActions();
     void installCss();
+    void scheduleVisualCaptureFromEnvironment();
     void applyAppearanceMode();
     void loadInitialLibrary(bool demoMode);
     bool loadLibrary(const std::filesystem::path& folder);
@@ -84,16 +103,38 @@ private:
     bool rescanLibrary();
     void chooseLibrary();
     void importSounds();
+    void importSources(const std::vector<std::filesystem::path>& sources,
+                       std::size_t unavailableSources = 0);
     void showPreferences();
     void refreshAll();
     void refreshSidebar();
     void refreshContent();
     void refreshHeader();
     void refreshNowPlaying();
+    void refreshSelectionVisuals();
+    void selectSound(const std::string& relativePath, bool extendSelection);
+    void selectAllVisible();
+    void clearSelection();
+    std::string focusedSoundPath() const;
+    bool presentSelectedSoundMenu();
+    bool handleEscape();
     void saveSettings();
     void saveMetadata();
     void showToast(const std::string& message);
     void showError(const std::string& message);
+    void notifyPlaybackStarted();
+    void withdrawPlaybackNotification();
+    static bool parseOutputSetting(
+        const std::string& value,
+        LinuxAudioService::OutputSelection& selection);
+    static std::string outputSetting(
+        const LinuxAudioService::OutputSelection& selection);
+    bool enableVirtualMicrophone();
+    bool disableVirtualMicrophone();
+    bool virtualMicrophoneActive();
+    bool virtualMicrophoneNeedsCleanup() const;
+    std::string virtualMicrophoneStatus();
+    std::string virtualMicrophoneEndpoint() const;
 
     std::vector<cuelet::SoundClip> visibleClips() const;
     cuelet::FilterOptions filterOptions() const;
@@ -123,6 +164,7 @@ private:
     void copyGnomeShortcutCommand(const std::string& relativePath);
     bool handleLocalShortcut(guint keyval, GdkModifierType state);
     bool handleSearchKey(guint keyval);
+    void playSelectionOrTopSearchResult();
     void playTopSearchResult();
 
     GtkWidget* makeSidebarRow(const std::string& title,

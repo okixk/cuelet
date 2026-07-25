@@ -18,6 +18,7 @@ enum class CliAction {
     Stop,
     StopAll,
     Hide,
+    Exit,
     Rescan,
     Library,
 };

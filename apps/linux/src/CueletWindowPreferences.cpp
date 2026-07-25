@@ -71,6 +71,17 @@ struct PreferencesCallbackContext {
     }
 };
 
+struct VirtualMicrophonePreferenceData {
+    CueletWindow* self = nullptr;
+    GtkWidget* enabledRow = nullptr;
+    GtkWidget* diagnosticRow = nullptr;
+    GtkWidget* endpointRow = nullptr;
+    GtkWidget* backendDropDown = nullptr;
+    GtkWidget* targetEntry = nullptr;
+    GtkWidget* applyOutputButton = nullptr;
+    bool changing = false;
+};
+
 } // namespace
 
 void CueletWindow::applyAppearanceMode()
@@ -89,28 +100,20 @@ void CueletWindow::applyAppearanceMode()
 
 void CueletWindow::showPreferences()
 {
-    GListModel* topLevels = gtk_window_get_toplevels();
-    const guint topLevelCount = g_list_model_get_n_items(topLevels);
-    for (guint index = 0; index < topLevelCount; ++index) {
-        auto* item = static_cast<GObject*>(g_list_model_get_item(topLevels, index));
-        const bool isExistingPreferences = ADW_IS_PREFERENCES_WINDOW(item)
-            && gtk_window_get_transient_for(GTK_WINDOW(item)) == GTK_WINDOW(window_);
-        if (isExistingPreferences) {
-            gtk_window_present(GTK_WINDOW(item));
-            g_object_unref(item);
-            return;
-        }
-        if (item) {
-            g_object_unref(item);
-        }
+    if (preferencesDialog_) {
+        adw_dialog_present(preferencesDialog_, GTK_WIDGET(window_));
+        return;
     }
 
-    GtkWidget* window = adw_preferences_window_new();
-    gtk_window_set_title(GTK_WINDOW(window), "Preferences");
-    gtk_window_set_default_size(GTK_WINDOW(window), 720, 640);
-    gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(window_));
-    gtk_window_set_modal(GTK_WINDOW(window), TRUE);
-    adw_preferences_window_set_search_enabled(ADW_PREFERENCES_WINDOW(window), TRUE);
+    AdwDialog* dialog = adw_preferences_dialog_new();
+    preferencesDialog_ = dialog;
+    g_object_add_weak_pointer(
+        G_OBJECT(dialog),
+        reinterpret_cast<gpointer*>(&preferencesDialog_));
+    adw_dialog_set_title(dialog, "Preferences");
+    adw_dialog_set_content_width(dialog, 720);
+    adw_dialog_set_content_height(dialog, 640);
+    adw_preferences_dialog_set_search_enabled(ADW_PREFERENCES_DIALOG(dialog), TRUE);
 
     auto* context = new PreferencesCallbackContext{this, G_OBJECT(application_)};
     context->runDeferred = +[](CueletWindow* self, PreferencesDeferredAction action) {
@@ -139,7 +142,7 @@ void CueletWindow::showPreferences()
         }
     };
     g_object_set_data_full(
-        G_OBJECT(window),
+        G_OBJECT(dialog),
         "cuelet-preferences-callback-context",
         context,
         +[](gpointer data) {
@@ -148,6 +151,7 @@ void CueletWindow::showPreferences()
             context->self = nullptr;
             if (context->pendingWork) {
                 context->pendingWork->context = nullptr;
+                context->pendingWork->self = nullptr;
                 context->pendingWork = nullptr;
             }
             if (context->viewDropDown) {
@@ -162,7 +166,7 @@ void CueletWindow::showPreferences()
         GtkWidget* page = adw_preferences_page_new();
         adw_preferences_page_set_title(ADW_PREFERENCES_PAGE(page), title);
         adw_preferences_page_set_icon_name(ADW_PREFERENCES_PAGE(page), icon);
-        adw_preferences_window_add(ADW_PREFERENCES_WINDOW(window), ADW_PREFERENCES_PAGE(page));
+        adw_preferences_dialog_add(ADW_PREFERENCES_DIALOG(dialog), ADW_PREFERENCES_PAGE(page));
         return page;
     };
 
@@ -366,7 +370,9 @@ void CueletWindow::showPreferences()
     GtkWidget* importGroup = addGroup(importPage, "Import Behavior");
     GtkWidget* copyRow = adw_switch_row_new();
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(copyRow), "Copy Imported Files into Library");
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(copyRow), "Imported audio is copied into the selected library folder.");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(copyRow),
+        "Turn off to link original files in place. Linked sources are never moved or deleted by import.");
     adw_switch_row_set_active(ADW_SWITCH_ROW(copyRow), settings_.copiesImportedFiles);
     g_signal_connect(copyRow, "notify::active", G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
         auto* self = static_cast<CueletWindow*>(userData);
@@ -376,11 +382,273 @@ void CueletWindow::showPreferences()
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(importGroup), copyRow);
 
     GtkWidget* audioPage = addPage("Audio", "audio-speakers-symbolic");
-    GtkWidget* audioGroup = addGroup(audioPage, "Output");
-    GtkWidget* outputRow = adw_action_row_new();
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(outputRow), "Output Device");
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(outputRow), "System default through GStreamer. PipeWire device routing is not wired yet.");
-    adw_preferences_group_add(ADW_PREFERENCES_GROUP(audioGroup), outputRow);
+    adw_preferences_page_set_name(ADW_PREFERENCES_PAGE(audioPage), "audio");
+    GtkWidget* audioGroup = addGroup(
+        audioPage,
+        "Output",
+        "Automatic follows the desktop default. Explicit targets are stored as "
+        "pipewire:target-object or pulseaudio:device and never change the system default.");
+    LinuxAudioService::OutputSelection savedOutput;
+    const bool hasSavedOutput =
+        parseOutputSetting(settings_.outputDevice, savedOutput);
+
+    GtkWidget* backendRow = adw_action_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(backendRow), "Output Backend");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(backendRow),
+        "Choose automatic output, or target an existing session device.");
+    const char* backendChoices[] = {
+        "Automatic",
+        "PipeWire",
+        "PulseAudio",
+        nullptr,
+    };
+    GtkWidget* backendDropDown = gtk_drop_down_new_from_strings(backendChoices);
+    gtk_widget_set_valign(backendDropDown, GTK_ALIGN_CENTER);
+    guint backendIndex = 0;
+    if (hasSavedOutput && savedOutput.backend == LinuxAudioService::OutputBackend::PipeWire) {
+        backendIndex = 1;
+    } else if (hasSavedOutput
+               && savedOutput.backend == LinuxAudioService::OutputBackend::PulseAudio) {
+        backendIndex = 2;
+    }
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(backendDropDown), backendIndex);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(backendRow), backendDropDown);
+    adw_action_row_set_activatable_widget(ADW_ACTION_ROW(backendRow), backendDropDown);
+    adw_preferences_group_add(ADW_PREFERENCES_GROUP(audioGroup), backendRow);
+
+    GtkWidget* targetRow = adw_action_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(targetRow), "Device Target");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(targetRow),
+        "Use a PipeWire target-object or PulseAudio device identifier from your current session.");
+    GtkWidget* targetEntry = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(targetEntry), "Device identifier");
+    gtk_widget_set_size_request(targetEntry, 240, -1);
+    gtk_widget_set_valign(targetEntry, GTK_ALIGN_CENTER);
+    gtk_widget_set_sensitive(targetEntry, backendIndex != 0);
+    if (hasSavedOutput) {
+        gtk_editable_set_text(GTK_EDITABLE(targetEntry), savedOutput.deviceId.c_str());
+    }
+    g_signal_connect(backendDropDown, "notify::selected", G_CALLBACK(+[](
+        GObject* object,
+        GParamSpec*,
+        gpointer userData) {
+        gtk_widget_set_sensitive(
+            GTK_WIDGET(userData),
+            gtk_drop_down_get_selected(GTK_DROP_DOWN(object)) != 0);
+    }), targetEntry);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(targetRow), targetEntry);
+    adw_action_row_set_activatable_widget(ADW_ACTION_ROW(targetRow), targetEntry);
+    adw_preferences_group_add(ADW_PREFERENCES_GROUP(audioGroup), targetRow);
+
+    GtkWidget* applyOutputRow = adw_action_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(applyOutputRow), "Apply Output");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(applyOutputRow),
+        "Stop playback before changing output. The selected target is used only by Cuelet.");
+    GtkWidget* applyOutputButton = gtk_button_new_with_label("Apply");
+    gtk_widget_add_css_class(applyOutputButton, "suggested-action");
+    gtk_widget_set_valign(applyOutputButton, GTK_ALIGN_CENTER);
+    auto* outputData = new cuelet_linux::OutputPreferenceData{
+        this,
+        backendDropDown,
+        targetEntry,
+    };
+    g_signal_connect_data(applyOutputButton, "clicked", G_CALLBACK(+[](
+        GtkButton*,
+        gpointer userData) {
+        auto* data = static_cast<cuelet_linux::OutputPreferenceData*>(userData);
+        if (!data || !data->self) {
+            return;
+        }
+        LinuxAudioService::OutputSelection selection;
+        const guint backend =
+            gtk_drop_down_get_selected(GTK_DROP_DOWN(data->backendDropDown));
+        if (backend == 1) {
+            selection.backend = LinuxAudioService::OutputBackend::PipeWire;
+        } else if (backend == 2) {
+            selection.backend = LinuxAudioService::OutputBackend::PulseAudio;
+        }
+        if (selection.backend != LinuxAudioService::OutputBackend::Automatic) {
+            selection.deviceId = cuelet::trim(
+                gtk_editable_get_text(GTK_EDITABLE(data->targetEntry)));
+            if (selection.deviceId.empty()) {
+                data->self->showError("Enter an output device identifier.");
+                return;
+            }
+        }
+        if (!data->self->audio_.setOutputSelection(selection)) {
+            return;
+        }
+        data->self->settings_.outputDevice = outputSetting(selection);
+        data->self->saveSettings();
+        data->self->showToast(
+            selection.backend == LinuxAudioService::OutputBackend::Automatic
+                ? "Using automatic audio output."
+                : "Audio output target updated.");
+    }), outputData, +[](gpointer data, GClosure*) {
+        delete static_cast<cuelet_linux::OutputPreferenceData*>(data);
+    }, G_CONNECT_DEFAULT);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(applyOutputRow), applyOutputButton);
+    adw_action_row_set_activatable_widget(ADW_ACTION_ROW(applyOutputRow), applyOutputButton);
+    adw_preferences_group_add(ADW_PREFERENCES_GROUP(audioGroup), applyOutputRow);
+
+    GtkWidget* virtualMicrophoneGroup = addGroup(
+        audioPage,
+        "Virtual Microphone",
+        "Creates a temporary Cuelet-owned PipeWire sink/source pair for this "
+        "user session. Cuelet never changes the desktop defaults or writes "
+        "PipeWire configuration. Receiving-application compatibility must be "
+        "verified on that application.");
+    GtkWidget* virtualMicrophoneRow = adw_switch_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(virtualMicrophoneRow),
+        "Enable Temporary Cuelet Route");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(virtualMicrophoneRow),
+        "While enabled, Cuelet playback is sent to the temporary virtual "
+        "microphone instead of local speakers.");
+    const bool virtualMicrophoneIsActive = virtualMicrophoneActive();
+    adw_switch_row_set_active(
+        ADW_SWITCH_ROW(virtualMicrophoneRow),
+        virtualMicrophoneIsActive);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
+        virtualMicrophoneRow);
+
+    GtkWidget* virtualMicrophoneDiagnosticRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(virtualMicrophoneDiagnosticRow),
+        "PipeWire Diagnostics");
+    const auto initialVirtualMicrophoneStatus = virtualMicrophoneStatus();
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
+        initialVirtualMicrophoneStatus.c_str());
+    GtkWidget* refreshDiagnosticButton = gtk_button_new_with_label("Refresh");
+    gtk_widget_set_valign(refreshDiagnosticButton, GTK_ALIGN_CENTER);
+    adw_action_row_add_suffix(
+        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
+        refreshDiagnosticButton);
+    adw_action_row_set_activatable_widget(
+        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
+        refreshDiagnosticButton);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
+        virtualMicrophoneDiagnosticRow);
+
+    GtkWidget* virtualMicrophoneEndpointRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(virtualMicrophoneEndpointRow),
+        "Virtual Input Endpoint");
+    const auto initialVirtualMicrophoneEndpoint = virtualMicrophoneEndpoint();
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(virtualMicrophoneEndpointRow),
+        initialVirtualMicrophoneEndpoint.c_str());
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
+        virtualMicrophoneEndpointRow);
+
+    auto* virtualMicrophoneData = new VirtualMicrophonePreferenceData{
+        this,
+        virtualMicrophoneRow,
+        virtualMicrophoneDiagnosticRow,
+        virtualMicrophoneEndpointRow,
+        backendDropDown,
+        targetEntry,
+        applyOutputButton,
+        false,
+    };
+    g_object_set_data_full(
+        G_OBJECT(dialog),
+        "cuelet-virtual-microphone-preferences",
+        virtualMicrophoneData,
+        +[](gpointer data) {
+            delete static_cast<VirtualMicrophonePreferenceData*>(data);
+        });
+    gtk_widget_set_sensitive(backendDropDown, !virtualMicrophoneIsActive);
+    gtk_widget_set_sensitive(
+        targetEntry,
+        !virtualMicrophoneIsActive && backendIndex != 0);
+    gtk_widget_set_sensitive(applyOutputButton, !virtualMicrophoneIsActive);
+
+    g_signal_connect(
+        virtualMicrophoneRow,
+        "notify::active",
+        G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing || !ADW_IS_SWITCH_ROW(object)) {
+                return;
+            }
+
+            data->changing = true;
+            const bool requested =
+                adw_switch_row_get_active(ADW_SWITCH_ROW(object));
+            const bool operationSucceeded = requested
+                ? data->self->enableVirtualMicrophone()
+                : data->self->disableVirtualMicrophone();
+            bool active = data->self->virtualMicrophoneActive();
+            if (!active && data->self->virtualMicrophoneNeedsCleanup()) {
+                data->self->disableVirtualMicrophone();
+                active = false;
+            }
+            if (!operationSucceeded || requested != active) {
+                adw_switch_row_set_active(ADW_SWITCH_ROW(object), active);
+            }
+            const auto status = data->self->virtualMicrophoneStatus();
+            const auto endpoint = data->self->virtualMicrophoneEndpoint();
+            adw_action_row_set_subtitle(
+                ADW_ACTION_ROW(data->diagnosticRow),
+                status.c_str());
+            adw_action_row_set_subtitle(
+                ADW_ACTION_ROW(data->endpointRow),
+                endpoint.c_str());
+            gtk_widget_set_sensitive(data->backendDropDown, !active);
+            const guint backend = gtk_drop_down_get_selected(
+                GTK_DROP_DOWN(data->backendDropDown));
+            gtk_widget_set_sensitive(
+                data->targetEntry,
+                !active && backend != 0);
+            gtk_widget_set_sensitive(data->applyOutputButton, !active);
+            data->changing = false;
+        }),
+        virtualMicrophoneData);
+
+    g_signal_connect(
+        refreshDiagnosticButton,
+        "clicked",
+        G_CALLBACK(+[](GtkButton*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing) {
+                return;
+            }
+            data->changing = true;
+            bool active = data->self->virtualMicrophoneActive();
+            if (!active && data->self->virtualMicrophoneNeedsCleanup()) {
+                data->self->disableVirtualMicrophone();
+                active = false;
+            }
+            adw_switch_row_set_active(
+                ADW_SWITCH_ROW(data->enabledRow),
+                active);
+            const auto status = data->self->virtualMicrophoneStatus();
+            const auto endpoint = data->self->virtualMicrophoneEndpoint();
+            adw_action_row_set_subtitle(
+                ADW_ACTION_ROW(data->diagnosticRow),
+                status.c_str());
+            adw_action_row_set_subtitle(
+                ADW_ACTION_ROW(data->endpointRow),
+                endpoint.c_str());
+            gtk_widget_set_sensitive(data->backendDropDown, !active);
+            const guint backend = gtk_drop_down_get_selected(
+                GTK_DROP_DOWN(data->backendDropDown));
+            gtk_widget_set_sensitive(
+                data->targetEntry,
+                !active && backend != 0);
+            gtk_widget_set_sensitive(data->applyOutputButton, !active);
+            data->changing = false;
+        }),
+        virtualMicrophoneData);
 
     GtkWidget* shortcutsPage = addPage("Shortcuts", "input-keyboard-symbolic");
     const char* sessionType = g_getenv("XDG_SESSION_TYPE");
@@ -479,10 +747,10 @@ void CueletWindow::showPreferences()
     adw_action_row_set_activatable_widget(ADW_ACTION_ROW(rescanRow), rescanButton);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(maintenanceGroup), rescanRow);
 
-    g_signal_connect(window, "close-request", G_CALLBACK(+[](GtkWindow*, gpointer userData) -> gboolean {
+    g_signal_connect(dialog, "closed", G_CALLBACK(+[](AdwDialog*, gpointer userData) {
         auto* context = static_cast<PreferencesCallbackContext*>(userData);
         if (!context) {
-            return FALSE;
+            return;
         }
 
         context->closing = true;
@@ -490,8 +758,7 @@ void CueletWindow::showPreferences()
             g_signal_handler_disconnect(context->viewDropDown, context->viewModeHandler);
             context->viewModeHandler = 0;
         }
-        return FALSE;
     }), context);
 
-    gtk_window_present(GTK_WINDOW(window));
+    adw_dialog_present(dialog, GTK_WIDGET(window_));
 }

@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <string>
+#include <vector>
 
 struct LinuxSettings {
     std::string libraryPath;
@@ -17,6 +18,7 @@ struct LinuxSettings {
     bool copiesImportedFiles = true;
     std::string appearanceMode = "system";
     std::string outputDevice;
+    std::vector<std::string> approvedLinkedPaths;
 };
 
 class LinuxSettingsStore {
@@ -26,6 +28,13 @@ public:
 
     std::filesystem::path filePath() const;
     std::string lastError() const;
+
+    static bool isLinkedPathApproved(
+        const LinuxSettings& settings,
+        const std::filesystem::path& path);
+    static LinuxSettings approvingLinkedPath(
+        const LinuxSettings& settings,
+        const std::filesystem::path& path);
 
 private:
     mutable std::string lastError_;

@@ -1,7 +1,5 @@
 #include "CueletCli.h"
-
-#include <cassert>
-#include <iostream>
+#include "TestSupport.h"
 
 using cuelet_linux::CliAction;
 
@@ -10,43 +8,47 @@ namespace {
 void parsesCommandsAndModifiers()
 {
     const auto list = cuelet_linux::parseCliArguments({"list-sounds", "--json"});
-    assert(list.ok());
-    assert(list.command.action == CliAction::ListSounds);
-    assert(list.command.json);
+    CUELET_REQUIRE(list.ok());
+    CUELET_REQUIRE(list.command.action == CliAction::ListSounds);
+    CUELET_REQUIRE(list.command.json);
 
     const auto play = cuelet_linux::parseCliArguments({"--play-name", "Door Knock"});
-    assert(play.ok());
-    assert(play.command.action == CliAction::PlayName);
-    assert(play.command.value == "Door Knock");
+    CUELET_REQUIRE(play.ok());
+    CUELET_REQUIRE(play.command.action == CliAction::PlayName);
+    CUELET_REQUIRE(play.command.value == "Door Knock");
 
     const auto library = cuelet_linux::parseCliArguments({"library", "/tmp/sounds"});
-    assert(library.ok());
-    assert(library.command.action == CliAction::Library);
-    assert(library.command.value == "/tmp/sounds");
+    CUELET_REQUIRE(library.ok());
+    CUELET_REQUIRE(library.command.action == CliAction::Library);
+    CUELET_REQUIRE(library.command.value == "/tmp/sounds");
 
     const auto stop = cuelet_linux::parseCliArguments({"stop-id", "sound-1"});
-    assert(stop.ok());
-    assert(stop.command.action == CliAction::Stop);
-    assert(stop.command.value == "sound-1");
+    CUELET_REQUIRE(stop.ok());
+    CUELET_REQUIRE(stop.command.action == CliAction::Stop);
+    CUELET_REQUIRE(stop.command.value == "sound-1");
+
+    const auto exit = cuelet_linux::parseCliArguments({"--exit"});
+    CUELET_REQUIRE(exit.ok());
+    CUELET_REQUIRE(exit.command.action == CliAction::Exit);
 
     const auto defaultCommand = cuelet_linux::parseCliArguments({});
-    assert(defaultCommand.ok());
-    assert(defaultCommand.command.action == CliAction::Show);
+    CUELET_REQUIRE(defaultCommand.ok());
+    CUELET_REQUIRE(defaultCommand.command.action == CliAction::Show);
 }
 
 void rejectsInvalidCommands()
 {
-    assert(!cuelet_linux::parseCliArguments({"play-id"}).ok());
-    assert(!cuelet_linux::parseCliArguments({"show", "hide"}).ok());
-    assert(!cuelet_linux::parseCliArguments({"play-id", "one", "--json"}).ok());
-    assert(!cuelet_linux::parseCliArguments({"unknown"}).ok());
+    CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"play-id"}).ok());
+    CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"show", "hide"}).ok());
+    CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"play-id", "one", "--json"}).ok());
+    CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"unknown"}).ok());
 }
 
 void resolvesForwardedPathsAgainstCallingDirectory()
 {
-    assert(cuelet_linux::resolveCliPath("sounds/hit.wav", "/home/user")
+    CUELET_REQUIRE(cuelet_linux::resolveCliPath("sounds/hit.wav", "/home/user")
         == "/home/user/sounds/hit.wav");
-    assert(cuelet_linux::resolveCliPath("/srv/sounds/hit.wav", "/home/user")
+    CUELET_REQUIRE(cuelet_linux::resolveCliPath("/srv/sounds/hit.wav", "/home/user")
         == "/srv/sounds/hit.wav");
 }
 
@@ -64,42 +66,42 @@ void formatsTextAndJsonSafely()
     clip.absolutePath = "/sounds/fx/hit.wav";
     clip.shortcut = cuelet::Shortcut{1, 2, "Ctrl+1"};
     const auto text = cuelet_linux::formatSoundList({clip}, false, "/opt/Cuelet App/cuelet");
-    assert(text.find("id: sound-1\nname: Impact \"Hit\"\nfile: hit.wav\n") != std::string::npos);
-    assert(text.find("relative-path: fx/hit.wav\nabsolute-path: /sounds/fx/hit.wav\n") != std::string::npos);
-    assert(text.find("favorite: yes\nduration: 0:01\n") != std::string::npos);
-    assert(text.find("shortcut: Ctrl+1\ncommand: '/opt/Cuelet App/cuelet' --play-id 'sound-1'\n\n") != std::string::npos);
+    CUELET_REQUIRE(text.find("id: sound-1\nname: Impact \"Hit\"\nfile: hit.wav\n") != std::string::npos);
+    CUELET_REQUIRE(text.find("relative-path: fx/hit.wav\nabsolute-path: /sounds/fx/hit.wav\n") != std::string::npos);
+    CUELET_REQUIRE(text.find("favorite: yes\nduration: 0:01\n") != std::string::npos);
+    CUELET_REQUIRE(text.find("shortcut: Ctrl+1\ncommand: '/opt/Cuelet App/cuelet' --play-id 'sound-1'\n\n") != std::string::npos);
 
     const auto json = cuelet_linux::formatSoundList({clip}, true, "/opt/cuelet");
-    assert(json.find("\"name\":\"Impact \\\"Hit\\\"\"") != std::string::npos);
-    assert(json.find("\"filename\":\"hit.wav\"") != std::string::npos);
-    assert(json.find("\"relativePath\":\"fx/hit.wav\"") != std::string::npos);
-    assert(json.find("\"absolutePath\":\"/sounds/fx/hit.wav\"") != std::string::npos);
-    assert(json.find("\"durationFormatted\":\"0:01\"") != std::string::npos);
-    assert(json.find("\"shortcut\":\"Ctrl+1\"") != std::string::npos);
-    assert(json.find("\"command\":\"'/opt/cuelet' --play-id 'sound-1'\"") != std::string::npos);
-    assert(json.find("\"favorite\":true") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"name\":\"Impact \\\"Hit\\\"\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"filename\":\"hit.wav\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"relativePath\":\"fx/hit.wav\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"absolutePath\":\"/sounds/fx/hit.wav\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"durationFormatted\":\"0:01\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"shortcut\":\"Ctrl+1\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"command\":\"'/opt/cuelet' --play-id 'sound-1'\"") != std::string::npos);
+    CUELET_REQUIRE(json.find("\"favorite\":true") != std::string::npos);
 
     clip.id = "quote'check";
-    assert(cuelet_linux::shortcutCommandForSound(clip, "/opt/cuelet")
+    CUELET_REQUIRE(cuelet_linux::shortcutCommandForSound(clip, "/opt/cuelet")
         == "'/opt/cuelet' --play-id 'quote'\\''check'");
 
     clip.shortcut.reset();
     const auto noShortcut = cuelet_linux::formatSoundList({clip}, false, "/opt/cuelet");
-    assert(noShortcut.find("shortcut: none\n") != std::string::npos);
+    CUELET_REQUIRE(noShortcut.find("shortcut: none\n") != std::string::npos);
 
     const cuelet::Category category{"fx", "Effects", "#123456", "bolt", true};
     const auto categories = cuelet_linux::formatCategoryList({category}, true);
-    assert(categories == "[{\"id\":\"fx\",\"name\":\"Effects\",\"color\":\"#123456\",\"icon\":\"bolt\",\"editable\":true}]\n");
+    CUELET_REQUIRE(categories == "[{\"id\":\"fx\",\"name\":\"Effects\",\"color\":\"#123456\",\"icon\":\"bolt\",\"editable\":true}]\n");
 }
 
 } // namespace
 
 int main()
 {
-    parsesCommandsAndModifiers();
-    rejectsInvalidCommands();
-    resolvesForwardedPathsAgainstCallingDirectory();
-    formatsTextAndJsonSafely();
-    std::cout << "cuelet CLI tests passed\n";
-    return 0;
+    return cuelet_linux::tests::run("cuelet CLI tests", [] {
+        parsesCommandsAndModifiers();
+        rejectsInvalidCommands();
+        resolvesForwardedPathsAgainstCallingDirectory();
+        formatsTextAndJsonSafely();
+    });
 }
