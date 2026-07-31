@@ -81,6 +81,7 @@ std::string nodeProperties(
         ",\"node.virtual\":true" +
         ",\"node.autoconnect\":false" +
         ",\"object.linger\":false" +
+        ",\"state.restore-props\":false" +
         ",\"priority.driver\":0" +
         ",\"priority.session\":0" +
         ",\"audio.channels\":2" +
@@ -111,8 +112,10 @@ LinuxPipeWireRoutingPlan::Plan LinuxPipeWireRoutingPlan::create(const Request& r
 
     const auto identifier = stableIdentifier(request.sessionKey);
     const auto ownershipToken = "cuelet-pipewire-session-" + identifier;
-    const auto virtualSinkNode = "cuelet_virtual_sink_" + identifier;
-    const auto virtualSourceNode = "cuelet_virtual_source_" + identifier;
+    // Applications retain microphone selection by node.name, while the
+    // ownership token remains session-specific for exact process cleanup.
+    const auto virtualSinkNode = std::string("cuelet.soundboard-input");
+    const auto virtualSourceNode = std::string("cuelet.virtual-microphone");
     const auto sinkDescription = request.sinkDescription.empty()
         ? std::string("Cuelet Virtual Microphone Input")
         : request.sinkDescription;

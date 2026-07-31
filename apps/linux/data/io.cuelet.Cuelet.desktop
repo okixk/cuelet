@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Cuelet
+Comment=Play and organize soundboard audio
+Exec=cuelet
+Icon=audio-x-generic
+Terminal=false
+StartupNotify=true
+Categories=AudioVideo;Audio;
+Keywords=soundboard;audio;sounds;

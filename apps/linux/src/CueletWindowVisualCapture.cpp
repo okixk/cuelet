@@ -60,6 +60,9 @@ void CueletWindow::scheduleVisualCaptureFromEnvironment()
         }
     } else if (state == "collapsed") {
         gtk_window_set_default_size(GTK_WINDOW(window_), 720, 720);
+    } else if (state == "narrow-grid") {
+        gtk_window_set_default_size(GTK_WINDOW(window_), 720, 720);
+        adw_navigation_split_view_set_show_content(splitView_, TRUE);
     } else if (state == "maximized") {
         gtk_window_maximize(GTK_WINDOW(window_));
     }
@@ -95,6 +98,20 @@ void CueletWindow::scheduleVisualCaptureFromEnvironment()
                         });
                     if (category != self->categories_.end()) {
                         self->promptRenameCategory(category->id);
+                    }
+                    return G_SOURCE_CONTINUE;
+                }
+                if (request->state == "delete-managed-file") {
+                    const auto clip = std::find_if(
+                        self->clips_.begin(),
+                        self->clips_.end(),
+                        [](const cuelet::SoundClip& item) {
+                            return item.storageMode == cuelet::SoundStorageMode::Managed
+                                && !item.missing
+                                && !item.absolutePath.empty();
+                        });
+                    if (clip != self->clips_.end()) {
+                        self->confirmDeleteManagedFile(clip->relativePath);
                     }
                     return G_SOURCE_CONTINUE;
                 }
@@ -160,7 +177,9 @@ void CueletWindow::scheduleVisualCaptureFromEnvironment()
                     request->path.c_str());
             }
             self->audio_.stopAll();
-            self->pipeWireRouting_.stop();
+            if (self->virtualMicrophoneService_) {
+                self->virtualMicrophoneService_->shutdown();
+            }
             self->visualCaptureSourceId_ = 0;
             g_application_quit(G_APPLICATION(self->application_));
             return G_SOURCE_REMOVE;

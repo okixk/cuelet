@@ -97,6 +97,7 @@ bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
     }
     selection_ = SidebarSelection{};
     selectedPaths_.clear();
+    syncGlobalShortcuts();
     refreshAll();
     if (unapprovedLinkedSounds > 0) {
         showToast(
@@ -155,6 +156,7 @@ void CueletWindow::loadDemoLibrary(bool persistChoice)
         settings_.showsDemoLibrary = true;
         saveSettings();
     }
+    syncGlobalShortcuts();
     refreshAll();
 }
 

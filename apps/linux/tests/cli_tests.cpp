@@ -84,6 +84,10 @@ void formatsTextAndJsonSafely()
     clip.id = "quote'check";
     CUELET_REQUIRE(cuelet_linux::shortcutCommandForSound(clip, "/opt/cuelet")
         == "'/opt/cuelet' --play-id 'quote'\\''check'");
+    const auto forwarded = cuelet_linux::parseCliArguments({"--play-id", clip.id});
+    CUELET_REQUIRE(forwarded.ok());
+    CUELET_REQUIRE(forwarded.command.action == CliAction::PlayId);
+    CUELET_REQUIRE(forwarded.command.value == clip.id);
 
     clip.shortcut.reset();
     const auto noShortcut = cuelet_linux::formatSoundList({clip}, false, "/opt/cuelet");

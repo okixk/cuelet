@@ -162,6 +162,11 @@ void checkDefaults(const LinuxSettings& settings)
     CHECK(settings.copiesImportedFiles);
     CHECK(settings.appearanceMode == "system");
     CHECK(settings.outputDevice.empty());
+    CHECK(settings.virtualMicrophoneMode == "speakersOnly");
+    CHECK(!settings.mixesPhysicalMicrophone);
+    CHECK(settings.physicalMicrophoneDevice.empty());
+    CHECK(std::abs(settings.virtualMicrophoneLevel - 0.25) < 0.000001);
+    CHECK(std::abs(settings.physicalMicrophoneLevel - 0.25) < 0.000001);
     CHECK(settings.approvedLinkedPaths.empty());
 }
 
@@ -191,6 +196,11 @@ void testCompleteRoundTrip()
     expected.copiesImportedFiles = false;
     expected.appearanceMode = "dark";
     expected.outputDevice = "alsa_output.usb-test";
+    expected.virtualMicrophoneMode = "speakersAndVirtualMicrophone";
+    expected.mixesPhysicalMicrophone = true;
+    expected.physicalMicrophoneDevice = "alsa_input.usb-test";
+    expected.virtualMicrophoneLevel = 0.42;
+    expected.physicalMicrophoneLevel = 0.35;
     expected.approvedLinkedPaths = {
         "/tmp/Cuelet links/one.wav",
         "/tmp/Cuelet links/two.ogg",
@@ -215,6 +225,11 @@ void testCompleteRoundTrip()
     CHECK(actual.copiesImportedFiles == expected.copiesImportedFiles);
     CHECK(actual.appearanceMode == expected.appearanceMode);
     CHECK(actual.outputDevice == expected.outputDevice);
+    CHECK(actual.virtualMicrophoneMode == expected.virtualMicrophoneMode);
+    CHECK(actual.mixesPhysicalMicrophone == expected.mixesPhysicalMicrophone);
+    CHECK(actual.physicalMicrophoneDevice == expected.physicalMicrophoneDevice);
+    CHECK(std::abs(actual.virtualMicrophoneLevel - expected.virtualMicrophoneLevel) < 0.000001);
+    CHECK(std::abs(actual.physicalMicrophoneLevel - expected.physicalMicrophoneLevel) < 0.000001);
     CHECK(actual.approvedLinkedPaths == expected.approvedLinkedPaths);
     CHECK(fixture.store.lastError().empty());
 }
@@ -399,8 +414,13 @@ void testVolumeIsClampedOnLoadAndSave()
     CHECK(fixture.store.load().volume == 0.0);
 
     settings.volume = std::nan("");
+    settings.virtualMicrophoneLevel = std::nan("");
+    settings.physicalMicrophoneLevel = 9.0;
     CHECK(fixture.store.save(settings));
-    CHECK(std::abs(fixture.store.load().volume - 0.8) < 0.000001);
+    const auto normalized = fixture.store.load();
+    CHECK(std::abs(normalized.volume - 0.8) < 0.000001);
+    CHECK(std::abs(normalized.virtualMicrophoneLevel - 0.25) < 0.000001);
+    CHECK(normalized.physicalMicrophoneLevel == 1.0);
 }
 
 void testInvalidValuesAreNormalizedOnSave()

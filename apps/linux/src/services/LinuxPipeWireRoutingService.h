@@ -21,6 +21,7 @@ public:
         virtual StopResult stop(
             const LinuxPipeWireRoutingPlan::ProcessStop& request) = 0;
         virtual bool isRunning() const = 0;
+        virtual std::string errorDetail() const { return {}; }
     };
 
     struct SpawnResult {

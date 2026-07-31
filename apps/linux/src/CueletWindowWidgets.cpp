@@ -1,5 +1,6 @@
 #include "CueletWindow.h"
 #include "CueletWindowHelpers.h"
+#include "CueletPopoverLifecycle.h"
 
 #include <cmath>
 #include <functional>
@@ -64,12 +65,7 @@ void CueletWindow::presentPopover(GtkWidget* popover, GtkWidget* source, double 
     }
 
     gtk_widget_set_parent(popover, parent);
-    g_signal_connect(popover, "closed", G_CALLBACK(+[](GtkPopover* popover, gpointer) {
-        GtkWidget* widget = GTK_WIDGET(popover);
-        if (gtk_widget_get_parent(widget)) {
-            gtk_widget_unparent(widget);
-        }
-    }), nullptr);
+    installDeferredPopoverCleanup(GTK_POPOVER(popover));
 
     GdkRectangle rect;
     rect.x = static_cast<int>(std::round(parentPoint.x));
@@ -133,7 +129,7 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     const bool playing = audio_.isPlaying(clip.relativePath);
     const std::string displayName =
         settings_.showFileExtensions ? clip.filename : clip.searchableName();
-    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+    GtkWidget* card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_widget_add_css_class(card, "cuelet-sound-card");
     if (playing) {
         gtk_widget_add_css_class(card, "playing");
@@ -147,10 +143,11 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     if (selectedPaths_.find(clip.relativePath) != selectedPaths_.end()) {
         gtk_widget_add_css_class(card, "selected");
     }
-    gtk_widget_set_size_request(card, 220, -1);
-    gtk_widget_set_halign(card, GTK_ALIGN_START);
+    gtk_widget_set_size_request(card, 200, -1);
+    gtk_widget_set_hexpand(card, TRUE);
+    gtk_widget_set_halign(card, GTK_ALIGN_FILL);
     gtk_widget_set_vexpand(card, FALSE);
-    gtk_widget_set_valign(card, GTK_ALIGN_START);
+    gtk_widget_set_valign(card, GTK_ALIGN_FILL);
     setObjectString(G_OBJECT(card), "relative-path", clip.relativePath);
     std::string accessibleDescription =
         categoryName(clip.categoryId) + ", " + formatDuration(clip.durationSeconds);
@@ -202,6 +199,12 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
         data->self->toggleFavorite(data->value);
     }), favData, +[](gpointer data, GClosure*) { delete static_cast<WindowStringData*>(data); }, G_CONNECT_DEFAULT);
     gtk_box_append(GTK_BOX(top), play);
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        gtk_box_append(GTK_BOX(top), makeStatusBadge("Linked", "linked"));
+    }
+    if (clip.missing) {
+        gtk_box_append(GTK_BOX(top), makeStatusBadge("Missing", "missing"));
+    }
     GtkWidget* spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_widget_set_hexpand(spacer, TRUE);
     gtk_box_append(GTK_BOX(top), spacer);
@@ -216,17 +219,8 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_label_set_lines(GTK_LABEL(name), 2);
     gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
     gtk_label_set_max_width_chars(GTK_LABEL(name), 22);
+    gtk_widget_set_valign(name, GTK_ALIGN_START);
     gtk_widget_add_css_class(name, "cuelet-sound-name");
-
-    GtkWidget* status = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-    gtk_widget_add_css_class(status, "cuelet-status-row");
-    if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
-        gtk_box_append(GTK_BOX(status), makeStatusBadge("Linked", "linked"));
-    }
-    if (clip.missing) {
-        gtk_box_append(GTK_BOX(status), makeStatusBadge("Missing", "missing"));
-    }
-    gtk_widget_set_visible(status, gtk_widget_get_first_child(status) != nullptr);
 
     GtkWidget* meta = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget* category = categoryChip(categoryName(clip.categoryId), categoryColor(clip.categoryId));
@@ -236,7 +230,8 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_widget_set_hexpand(metaSpacer, TRUE);
     gtk_box_append(GTK_BOX(meta), metaSpacer);
     if (clip.shortcut) {
-        GtkWidget* shortcut = gtk_label_new(clip.shortcut->label.c_str());
+        const std::string badge = shortcutBadgeText(clip);
+        GtkWidget* shortcut = gtk_label_new(badge.c_str());
         gtk_widget_add_css_class(shortcut, "cuelet-shortcut-badge");
         gtk_box_append(GTK_BOX(meta), shortcut);
     }
@@ -245,7 +240,6 @@ GtkWidget* CueletWindow::makeSoundCard(const cuelet::SoundClip& clip)
     gtk_box_append(GTK_BOX(card), top);
     gtk_box_append(GTK_BOX(card), waveform);
     gtk_box_append(GTK_BOX(card), name);
-    gtk_box_append(GTK_BOX(card), status);
     gtk_box_append(GTK_BOX(card), meta);
 
     GtkGesture* click = gtk_gesture_click_new();
@@ -314,7 +308,7 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
         GTK_ACCESSIBLE_PROPERTY_LABEL, displayName.c_str(),
         GTK_ACCESSIBLE_PROPERTY_DESCRIPTION, accessibleDescription.c_str(),
         -1);
-    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
+    GtkWidget* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     gtk_widget_add_css_class(box, "cuelet-sound-row-content");
 
     const std::string playLabel = clip.missing
@@ -328,6 +322,7 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
     if (playing) {
         gtk_widget_add_css_class(play, "suggested-action");
     }
+    gtk_widget_set_valign(play, GTK_ALIGN_CENTER);
     auto* playData = new WindowStringData{this, clip.relativePath};
     g_signal_connect_data(play, "clicked", G_CALLBACK(+[](GtkButton*, gpointer userData) {
         auto* data = static_cast<WindowStringData*>(userData);
@@ -337,38 +332,38 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
 
     GtkWidget* textBox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_hexpand(textBox, TRUE);
+    gtk_widget_set_valign(textBox, GTK_ALIGN_CENTER);
     GtkWidget* name = gtk_label_new(displayName.c_str());
     gtk_label_set_xalign(GTK_LABEL(name), 0.0f);
     gtk_label_set_ellipsize(GTK_LABEL(name), PANGO_ELLIPSIZE_END);
     gtk_widget_add_css_class(name, "cuelet-list-name");
-    const std::string pathText = clip.relativePath.empty() ? clip.filename : clip.relativePath;
+    std::string pathText = clip.relativePath.empty() ? clip.filename : clip.relativePath;
+    if (clip.storageMode == cuelet::SoundStorageMode::Linked && clip.missing) {
+        pathText = "Linked · Missing · " + pathText;
+    } else if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
+        pathText = "Linked · " + pathText;
+    } else if (clip.missing) {
+        pathText = "Missing · " + pathText;
+    }
     GtkWidget* sub = secondaryLabel(pathText);
     gtk_box_append(GTK_BOX(textBox), name);
     gtk_box_append(GTK_BOX(textBox), sub);
-    if (clip.storageMode == cuelet::SoundStorageMode::Linked || clip.missing) {
-        GtkWidget* status = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6);
-        gtk_widget_add_css_class(status, "cuelet-status-row");
-        if (clip.storageMode == cuelet::SoundStorageMode::Linked) {
-            gtk_box_append(GTK_BOX(status), makeStatusBadge("Linked", "linked"));
-        }
-        if (clip.missing) {
-            gtk_box_append(GTK_BOX(status), makeStatusBadge("Missing", "missing"));
-        }
-        gtk_box_append(GTK_BOX(textBox), status);
-    }
     gtk_box_append(GTK_BOX(box), textBox);
 
     GtkWidget* chip = categoryChip(categoryName(clip.categoryId), categoryColor(clip.categoryId));
-    gtk_widget_set_size_request(chip, 128, -1);
+    gtk_widget_set_size_request(chip, 120, -1);
+    gtk_widget_set_valign(chip, GTK_ALIGN_CENTER);
     gtk_box_append(GTK_BOX(box), chip);
 
     GtkWidget* duration = secondaryLabel(formatDuration(clip.durationSeconds));
     gtk_widget_add_css_class(duration, "cuelet-duration");
-    gtk_widget_set_size_request(duration, 54, -1);
+    gtk_widget_set_size_request(duration, 48, -1);
+    gtk_widget_set_valign(duration, GTK_ALIGN_CENTER);
     gtk_box_append(GTK_BOX(box), duration);
 
     if (clip.shortcut) {
-        GtkWidget* shortcut = gtk_label_new(clip.shortcut->label.c_str());
+        const std::string badge = shortcutBadgeText(clip);
+        GtkWidget* shortcut = gtk_label_new(badge.c_str());
         gtk_widget_add_css_class(shortcut, "cuelet-shortcut-badge");
         gtk_box_append(GTK_BOX(box), shortcut);
     }
@@ -382,6 +377,7 @@ GtkWidget* CueletWindow::makeSoundRow(const cuelet::SoundClip& clip)
     if (clip.favorite) {
         gtk_widget_add_css_class(fav, "accent");
     }
+    gtk_widget_set_valign(fav, GTK_ALIGN_CENTER);
     auto* favData = new WindowStringData{this, clip.relativePath};
     g_signal_connect_data(fav, "clicked", G_CALLBACK(+[](GtkButton*, gpointer userData) {
         auto* data = static_cast<WindowStringData*>(userData);
@@ -417,9 +413,16 @@ GtkWidget* CueletWindow::makeSoundPopover(const std::string& relativePath)
 {
     const auto* clip = clipByPath(relativePath);
     GMenu* menu = g_menu_new();
+    if (!clip) {
+        g_menu_append(menu, "Sound Unavailable", nullptr);
+        GtkWidget* popover = gtk_popover_menu_new_from_model(G_MENU_MODEL(menu));
+        g_object_unref(menu);
+        return popover;
+    }
+    const auto policy = soundMenuPolicy(clip);
 
     GMenu* playbackSection = g_menu_new();
-    if (clip && clip->missing) {
+    if (!policy.canPlay) {
         g_menu_append(playbackSection, "File Missing", nullptr);
     } else {
         addMenuItem(playbackSection, "Play", "win.play-sound", relativePath.c_str());
@@ -427,7 +430,7 @@ GtkWidget* CueletWindow::makeSoundPopover(const std::string& relativePath)
             addMenuItem(playbackSection, "Stop", "win.stop-sound", relativePath.c_str());
         }
     }
-    addMenuItem(playbackSection, clip && clip->favorite ? "Unfavorite" : "Favorite", "win.toggle-favorite", relativePath.c_str());
+    addMenuItem(playbackSection, clip->favorite ? "Unfavorite" : "Favorite", "win.toggle-favorite", relativePath.c_str());
     g_menu_append_section(menu, nullptr, G_MENU_MODEL(playbackSection));
     g_object_unref(playbackSection);
 
@@ -450,12 +453,23 @@ GtkWidget* CueletWindow::makeSoundPopover(const std::string& relativePath)
     GMenu* editSection = g_menu_new();
     addMenuItem(editSection, "Change Shortcut...", "win.record-shortcut", relativePath.c_str());
     addMenuItem(editSection, "Copy GNOME Shortcut Command", "win.copy-shortcut-command", relativePath.c_str());
-    if (clip && clip->shortcut) {
+    if (clip->shortcut) {
         addMenuItem(editSection, "Clear Shortcut", "win.clear-shortcut", relativePath.c_str());
     }
-    addMenuItem(editSection, "Rename...", "win.rename-sound", relativePath.c_str());
-    addMenuItem(editSection, "Reveal in Files", "win.reveal-sound", relativePath.c_str());
+    if (policy.canRename) {
+        addMenuItem(editSection, "Rename...", "win.rename-sound", relativePath.c_str());
+    }
+    if (policy.canReveal) {
+        addMenuItem(editSection, "Reveal in Files", "win.reveal-sound", relativePath.c_str());
+    }
     addMenuItem(editSection, "Remove from Library...", "win.remove-sound", relativePath.c_str());
+    if (policy.canDeleteManagedFile) {
+        addMenuItem(
+            editSection,
+            "Delete Managed File...",
+            "win.delete-managed-file",
+            relativePath.c_str());
+    }
     g_menu_append_section(menu, nullptr, G_MENU_MODEL(editSection));
     g_object_unref(editSection);
 

@@ -97,6 +97,15 @@ public:
         bool metadataOnly = true;
         std::string metadataKey;
         std::optional<std::filesystem::path> fileToDelete;
+        std::uint64_t fileDevice = 0;
+        std::uint64_t fileInode = 0;
+        std::string message;
+    };
+
+    struct RemovalResult {
+        bool succeeded = false;
+        bool fileDeleted = false;
+        std::string metadataKey;
         std::string message;
     };
 
@@ -131,11 +140,13 @@ public:
     static bool pathsReferToSameFile(const std::filesystem::path& left,
                                      const std::filesystem::path& right) noexcept;
 
-    // These methods never delete or rename files. Callers must present the
-    // described external effect to the user and revalidate before executing it.
+    // Planning is read-only. executeRemoval only deletes a planned managed file
+    // after revalidating its type and device/inode identity; callers must still
+    // present the destructive effect and obtain explicit confirmation.
     static RemovalPlan planRemoval(const cuelet::SoundClip& clip,
                                    const std::filesystem::path& libraryFolder,
                                    RemovalMode mode);
+    static RemovalResult executeRemoval(const RemovalPlan& plan);
     static RenamePlan planRename(const cuelet::SoundClip& clip,
                                  const std::string& newName,
                                  const std::filesystem::path& libraryFolder,

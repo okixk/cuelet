@@ -516,6 +516,7 @@ void CueletWindow::saveSettings()
 
 void CueletWindow::saveMetadata()
 {
+    syncGlobalShortcuts();
     if (libraryPath_.empty()) {
         return;
     }
@@ -672,7 +673,7 @@ bool CueletWindow::handleLocalShortcut(guint keyval, GdkModifierType state)
         return false;
     }
     if (modifiers == 0
-        && (keyval == GDK_KEY_Return || keyval == GDK_KEY_KP_Enter)
+        && isSoundActivationKey(keyval)
         && !GTK_IS_BUTTON(focus)
         && !GTK_IS_MENU_BUTTON(focus)
         && !focusedSoundPath().empty()) {
@@ -684,7 +685,12 @@ bool CueletWindow::handleLocalShortcut(guint keyval, GdkModifierType state)
     for (const auto& clip : clips_) {
         if (clip.shortcut
             && clip.shortcut->keyval == keyval
-            && clip.shortcut->modifiers == shortcutModifiers) {
+            && clip.shortcut->modifiers == shortcutModifiers
+            && cuelet_linux::shouldHandleShortcutLocally(
+                *clip.shortcut,
+                globalShortcuts_
+                    ? globalShortcuts_->statusForSound(clip.id)
+                    : std::nullopt)) {
             playSound(clip.relativePath);
             return true;
         }

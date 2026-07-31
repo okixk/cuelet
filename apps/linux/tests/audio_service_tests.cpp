@@ -113,8 +113,78 @@ LinuxAudioService::Configuration fakeSinkConfiguration()
 {
     LinuxAudioService::Configuration configuration;
     configuration.audioSinkFactoryName = "fakesink";
+    configuration.virtualAudioSinkFactoryName = "fakesink";
     configuration.synchronizeSink = true;
     return configuration;
+}
+
+cuelet::SoundClip clipFor(
+    const std::filesystem::path& path,
+    std::string relativePath);
+
+void testVirtualMicrophoneRoutingModesAndLevels(const TestDirectory& temporary)
+{
+    const auto wavPath = temporary.path() / "routing.wav";
+    writeSilentWav(wavPath, 1.0);
+    const auto clip = clipFor(wavPath, "routing.wav");
+    LinuxAudioService audio(fakeSinkConfiguration());
+
+    require(audio.routingConfiguration().mode ==
+                LinuxAudioService::PlaybackRoutingMode::SpeakersOnly,
+            "audio must start in speakers-only mode");
+    require(audio.setRoutingConfiguration({
+                LinuxAudioService::PlaybackRoutingMode::VirtualMicrophoneOnly,
+                "cuelet.soundboard-input",
+                0.5,
+            }),
+            "a stable virtual target must be accepted");
+    require(audio.play(clip), "virtual-only playback must start with an injected sink");
+    require(audio.activePlaybackBranchCount(clip.relativePath) == 1,
+            "virtual-only playback must have exactly one output branch");
+    require(audio.activeVirtualMicrophoneLevel(clip.relativePath).has_value() &&
+                std::abs(*audio.activeVirtualMicrophoneLevel(clip.relativePath) - 0.5) <
+                    0.000001,
+            "the actual virtual playback pipeline must apply the configured level");
+    audio.setVirtualMicrophoneLevel(0.3);
+    require(audio.activeVirtualMicrophoneLevel(clip.relativePath).has_value() &&
+                std::abs(*audio.activeVirtualMicrophoneLevel(clip.relativePath) - 0.3) <
+                    0.000001,
+            "live virtual level changes must reach the playback pipeline");
+    require(!audio.setRoutingConfiguration({
+                LinuxAudioService::PlaybackRoutingMode::SpeakersAndVirtualMicrophone,
+                "cuelet.soundboard-input",
+                0.3,
+            }),
+            "topology changes must not race active playback");
+    audio.stopAll();
+
+    require(audio.setRoutingConfiguration({
+                LinuxAudioService::PlaybackRoutingMode::SpeakersAndVirtualMicrophone,
+                "cuelet.soundboard-input",
+                0.4,
+            }),
+            "dual routing must be accepted after playback stops");
+    require(audio.play(clip), "dual-output playback must start");
+    require(audio.activePlaybackBranchCount(clip.relativePath) == 2,
+            "dual-output playback must isolate two output branches");
+    require(audio.activeVirtualMicrophoneLevel(clip.relativePath).has_value() &&
+                std::abs(*audio.activeVirtualMicrophoneLevel(clip.relativePath) - 0.4) <
+                    0.000001,
+            "dual-output playback must apply its virtual level independently");
+    require(audio.pause(clip.relativePath) && audio.resume(clip.relativePath),
+            "pause and resume must update both dual-output players");
+    audio.setVolume(0.6);
+    audio.setVirtualMicrophoneLevel(0.25);
+    audio.stopAll();
+
+    require(!audio.setRoutingConfiguration({
+                LinuxAudioService::PlaybackRoutingMode::VirtualMicrophoneOnly,
+                {},
+                0.5,
+            }),
+            "virtual routing must reject an empty exact target");
+    require(audio.setRoutingConfiguration({}),
+            "speakers-only must disable virtual routing without a target");
 }
 
 void pumpMainContext()
@@ -484,6 +554,7 @@ int main(int argc, char** argv)
         testPauseResumeProgressAndStop(temporary);
         testCompletionSimultaneousPolicyAndCleanup(temporary);
         testOutputSelectionValidation();
+        testVirtualMicrophoneRoutingModesAndLevels(temporary);
     } catch (const std::exception& error) {
         std::cerr << "cuelet audio service tests failed: " << error.what() << '\n';
         return 1;

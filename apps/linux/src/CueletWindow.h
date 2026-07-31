@@ -5,14 +5,16 @@
 #include "cuelet/MetadataStore.h"
 #include "cuelet/SoundSearch.h"
 #include "services/LinuxAudioService.h"
+#include "services/LinuxGlobalShortcutsPortal.h"
 #include "services/LinuxLibraryImportService.h"
-#include "services/LinuxPipeWireRoutingService.h"
 #include "services/LinuxSettingsStore.h"
+#include "services/LinuxVirtualMicrophoneService.h"
 
 #include <adwaita.h>
 
 #include <cstddef>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -77,8 +79,9 @@ private:
     LinuxSettingsStore settingsStore_;
     LinuxSettings settings_;
     LinuxAudioService audio_;
-    LinuxPipeWireRoutingService pipeWireRouting_;
-    std::optional<LinuxAudioService::OutputSelection> outputBeforeVirtualMicrophone_;
+    std::shared_ptr<cuelet_linux::LinuxGlobalShortcutsController> globalShortcuts_;
+    std::unique_ptr<cuelet_linux::VirtualMicrophoneBackend> virtualMicrophoneBackend_;
+    std::unique_ptr<cuelet_linux::LinuxVirtualMicrophoneService> virtualMicrophoneService_;
     cuelet::LibraryScanner scanner_;
     std::vector<cuelet::SoundClip> clips_;
     std::vector<cuelet::Category> categories_;
@@ -87,10 +90,12 @@ private:
     SidebarSelection selection_;
     std::set<std::string> selectedPaths_;
     guint progressTickId_ = 0;
+    guint virtualMicrophonePollId_ = 0;
     bool suppressToggleSignals_ = false;
     bool closedForCliExit_ = false;
     bool visualCaptureScheduled_ = false;
     guint visualCaptureSourceId_ = 0;
+    bool globalShortcutsStarted_ = false;
 
     void buildUi();
     void installActions();
@@ -120,6 +125,11 @@ private:
     bool handleEscape();
     void saveSettings();
     void saveMetadata();
+    void syncGlobalShortcuts();
+    void handleGlobalShortcutActivation(const std::string& soundId);
+    void refreshShortcutPreferenceRows();
+    std::string shortcutStatusText(const cuelet::SoundClip& clip) const;
+    std::string shortcutBadgeText(const cuelet::SoundClip& clip) const;
     void showToast(const std::string& message);
     void showError(const std::string& message);
     void notifyPlaybackStarted();
@@ -131,10 +141,13 @@ private:
         const LinuxAudioService::OutputSelection& selection);
     bool enableVirtualMicrophone();
     bool disableVirtualMicrophone();
+    bool applyVirtualMicrophoneSettings(bool reportFailure = true);
+    void pollVirtualMicrophone();
     bool virtualMicrophoneActive();
     bool virtualMicrophoneNeedsCleanup() const;
     std::string virtualMicrophoneStatus();
     std::string virtualMicrophoneEndpoint() const;
+    std::vector<cuelet_linux::PhysicalMicrophoneInfo> physicalMicrophones();
 
     std::vector<cuelet::SoundClip> visibleClips() const;
     cuelet::FilterOptions filterOptions() const;
@@ -158,9 +171,12 @@ private:
     void confirmDeleteCategory(const std::string& categoryId);
     void promptRenameSound(const std::string& relativePath);
     void revealSound(const std::string& relativePath);
+    void eraseClipEntry(const std::string& relativePath);
     void confirmRemoveSound(const std::string& relativePath);
+    void confirmDeleteManagedFile(const std::string& relativePath);
     void recordShortcut(const std::string& relativePath);
     void clearShortcut(const std::string& relativePath);
+    void setShortcutGlobal(const std::string& relativePath, bool global);
     void copyGnomeShortcutCommand(const std::string& relativePath);
     bool handleLocalShortcut(guint keyval, GdkModifierType state);
     bool handleSearchKey(guint keyval);

@@ -86,6 +86,24 @@ bool isAllowedAppearanceMode(std::string_view value)
     return value == "system" || value == "light" || value == "dark";
 }
 
+bool isAllowedVirtualMicrophoneMode(std::string_view value)
+{
+    return value == "speakersOnly" ||
+        value == "virtualMicrophoneOnly" ||
+        value == "speakersAndVirtualMicrophone";
+}
+
+std::string normalizedPipeWireNodeName(std::string value)
+{
+    if (value.size() > 1024 ||
+        std::any_of(value.begin(), value.end(), [](unsigned char character) {
+            return character < 0x20 || character == 0x7f;
+        })) {
+        return {};
+    }
+    return value;
+}
+
 std::optional<std::string> stringMember(
     JsonObject* object,
     const char* name,
@@ -206,6 +224,11 @@ double normalizedVolume(double volume)
     return std::clamp(volume, 0.0, 1.0);
 }
 
+double normalizedMixLevel(double level)
+{
+    return std::isfinite(level) ? std::clamp(level, 0.0, 1.0) : 0.25;
+}
+
 std::vector<std::string> normalizedApprovedLinkedPaths(
     const std::vector<std::string>& paths,
     bool* invalidValue = nullptr)
@@ -258,6 +281,13 @@ LinuxSettings normalizedSettings(const LinuxSettings& input)
         input.copiesImportedFiles,
         isAllowedAppearanceMode(input.appearanceMode) ? input.appearanceMode : "system",
         input.outputDevice,
+        isAllowedVirtualMicrophoneMode(input.virtualMicrophoneMode)
+            ? input.virtualMicrophoneMode
+            : "speakersOnly",
+        input.mixesPhysicalMicrophone,
+        normalizedPipeWireNodeName(input.physicalMicrophoneDevice),
+        normalizedMixLevel(input.virtualMicrophoneLevel),
+        normalizedMixLevel(input.physicalMicrophoneLevel),
         normalizedApprovedLinkedPaths(input.approvedLinkedPaths),
     };
 }
@@ -348,6 +378,35 @@ LinuxSettings LinuxSettingsStore::load() const
     if (const auto value = stringMember(object, "outputDevice", invalidValue)) {
         settings.outputDevice = *value;
     }
+    if (const auto value = stringMember(
+            object, "virtualMicrophoneMode", invalidValue)) {
+        if (isAllowedVirtualMicrophoneMode(*value)) {
+            settings.virtualMicrophoneMode = *value;
+        } else {
+            invalidValue = true;
+        }
+    }
+    if (const auto value = boolMember(
+            object, "mixesPhysicalMicrophone", invalidValue)) {
+        settings.mixesPhysicalMicrophone = *value;
+    }
+    if (const auto value = stringMember(
+            object, "physicalMicrophoneDevice", invalidValue)) {
+        const auto normalized = normalizedPipeWireNodeName(*value);
+        if (!value->empty() && normalized.empty()) {
+            invalidValue = true;
+        } else {
+            settings.physicalMicrophoneDevice = normalized;
+        }
+    }
+    if (const auto value = doubleMember(
+            object, "virtualMicrophoneLevel", invalidValue)) {
+        settings.virtualMicrophoneLevel = normalizedMixLevel(*value);
+    }
+    if (const auto value = doubleMember(
+            object, "physicalMicrophoneLevel", invalidValue)) {
+        settings.physicalMicrophoneLevel = normalizedMixLevel(*value);
+    }
     if (const auto value = stringArrayMember(
             object, "approvedLinkedPaths", invalidValue)) {
         settings.approvedLinkedPaths =
@@ -401,6 +460,19 @@ bool LinuxSettingsStore::save(const LinuxSettings& settings) const
     json_builder_add_string_value(builder, normalized.appearanceMode.c_str());
     json_builder_set_member_name(builder, "outputDevice");
     json_builder_add_string_value(builder, normalized.outputDevice.c_str());
+    json_builder_set_member_name(builder, "virtualMicrophoneMode");
+    json_builder_add_string_value(
+        builder, normalized.virtualMicrophoneMode.c_str());
+    json_builder_set_member_name(builder, "mixesPhysicalMicrophone");
+    json_builder_add_boolean_value(
+        builder, normalized.mixesPhysicalMicrophone);
+    json_builder_set_member_name(builder, "physicalMicrophoneDevice");
+    json_builder_add_string_value(
+        builder, normalized.physicalMicrophoneDevice.c_str());
+    json_builder_set_member_name(builder, "virtualMicrophoneLevel");
+    json_builder_add_double_value(builder, normalized.virtualMicrophoneLevel);
+    json_builder_set_member_name(builder, "physicalMicrophoneLevel");
+    json_builder_add_double_value(builder, normalized.physicalMicrophoneLevel);
     json_builder_set_member_name(builder, "approvedLinkedPaths");
     json_builder_begin_array(builder);
     for (const auto& approvedPath : normalized.approvedLinkedPaths) {

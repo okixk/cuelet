@@ -58,6 +58,37 @@ struct CategoryIconChoice {
     std::string linuxIconName;
 };
 
+struct SoundMenuPolicy {
+    bool canPlay = false;
+    bool canReveal = false;
+    bool canRename = false;
+    bool canDeleteManagedFile = false;
+};
+
+inline SoundMenuPolicy soundMenuPolicy(const cuelet::SoundClip* clip)
+{
+    if (!clip) {
+        return {};
+    }
+    const bool fileAvailable = !clip->missing && !clip->absolutePath.empty();
+    return SoundMenuPolicy{
+        fileAvailable,
+        fileAvailable,
+        clip->storageMode == cuelet::SoundStorageMode::Linked || !clip->missing,
+        fileAvailable && clip->storageMode == cuelet::SoundStorageMode::Managed,
+    };
+}
+
+inline std::string escapeMarkup(const std::string& text)
+{
+    char* escaped = g_markup_escape_text(
+        text.c_str(),
+        static_cast<gssize>(text.size()));
+    const std::string result = escaped ? escaped : "";
+    g_free(escaped);
+    return result;
+}
+
 inline const std::vector<std::pair<std::string, std::string>>& colorPalette()
 {
     static const std::vector<std::pair<std::string, std::string>> colors = {
@@ -218,6 +249,13 @@ inline bool isModifierOnly(guint keyval)
     default:
         return false;
     }
+}
+
+inline bool isSoundActivationKey(guint keyval)
+{
+    return keyval == GDK_KEY_Return
+        || keyval == GDK_KEY_KP_Enter
+        || keyval == GDK_KEY_space;
 }
 
 inline GtkWidget* iconButton(const char* iconName, const char* tooltip)

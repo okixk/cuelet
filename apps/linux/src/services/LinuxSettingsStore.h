@@ -18,6 +18,11 @@ struct LinuxSettings {
     bool copiesImportedFiles = true;
     std::string appearanceMode = "system";
     std::string outputDevice;
+    std::string virtualMicrophoneMode = "speakersOnly";
+    bool mixesPhysicalMicrophone = false;
+    std::string physicalMicrophoneDevice;
+    double virtualMicrophoneLevel = 0.25;
+    double physicalMicrophoneLevel = 0.25;
     std::vector<std::string> approvedLinkedPaths;
 };
 

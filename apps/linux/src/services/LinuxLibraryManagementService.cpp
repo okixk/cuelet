@@ -1,7 +1,10 @@
 #include "services/LinuxLibraryImportService.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #include <optional>
+#include <sys/stat.h>
 #include <system_error>
 #include <utility>
 
@@ -23,6 +26,13 @@ fs::path normalizedAbsolutePath(const fs::path& value)
     }
     const auto canonical = fs::weakly_canonical(absolute, error);
     return error ? absolute.lexically_normal() : canonical;
+}
+
+fs::path lexicalAbsolutePath(const fs::path& value)
+{
+    std::error_code error;
+    const auto absolute = fs::absolute(value, error);
+    return (error ? value : absolute).lexically_normal();
 }
 
 NormalizedDirectory normalizedDirectory(const fs::path& value)
@@ -87,12 +97,34 @@ std::optional<fs::path> managedClipPath(
         return std::nullopt;
     }
 
-    const auto fromRelative = normalizedAbsolutePath(library.path / relative);
+    const auto lexicalLibrary = lexicalAbsolutePath(libraryFolder);
+    const auto fromRelative = (lexicalLibrary / relative).lexically_normal();
     const auto actual = clip.absolutePath.empty()
         ? fromRelative
-        : normalizedAbsolutePath(fs::u8path(clip.absolutePath));
-    if (!pathIsWithin(library.path, actual) || actual != fromRelative) {
+        : lexicalAbsolutePath(fs::u8path(clip.absolutePath));
+    const auto lexicalRelative = fromRelative.lexically_relative(lexicalLibrary);
+    if (containsParentTraversal(lexicalRelative)
+        || actual != fromRelative
+        || !pathIsWithin(library.path, normalizedAbsolutePath(fromRelative))) {
         return std::nullopt;
+    }
+
+    auto inspected = lexicalLibrary;
+    for (const auto& part : relative) {
+        inspected /= part;
+        std::error_code statusError;
+        const auto status = fs::symlink_status(inspected, statusError);
+        if (statusError) {
+            if (inspected == fromRelative
+                && statusError == std::errc::no_such_file_or_directory) {
+                continue;
+            }
+            return std::nullopt;
+        }
+        if (fs::is_symlink(status)
+            || (inspected != fromRelative && !fs::is_directory(status))) {
+            return std::nullopt;
+        }
     }
     return actual;
 }
@@ -136,14 +168,19 @@ LinuxLibraryImportService::RemovalPlan LinuxLibraryImportService::planRemoval(
         plan.message = "The managed file is not safely contained by the library folder.";
         return plan;
     }
-    std::error_code error;
-    if (!fs::exists(*actual, error) && !error) {
-        plan.valid = true;
-        plan.metadataOnly = true;
-        plan.message = "The missing metadata entry will be removed.";
+    struct stat status {};
+    if (::lstat(actual->c_str(), &status) != 0) {
+        if (errno == ENOENT) {
+            plan.valid = true;
+            plan.metadataOnly = true;
+            plan.message = "The missing metadata entry will be removed.";
+            return plan;
+        }
+        plan.message = "The managed path could not be inspected: "
+            + std::string(std::strerror(errno)) + ".";
         return plan;
     }
-    if (error || !fs::is_regular_file(*actual, error) || error) {
+    if (!S_ISREG(status.st_mode)) {
         plan.message = "The managed path is not a removable regular file.";
         return plan;
     }
@@ -151,8 +188,58 @@ LinuxLibraryImportService::RemovalPlan LinuxLibraryImportService::planRemoval(
     plan.valid = true;
     plan.metadataOnly = false;
     plan.fileToDelete = *actual;
+    plan.fileDevice = static_cast<std::uint64_t>(status.st_dev);
+    plan.fileInode = static_cast<std::uint64_t>(status.st_ino);
     plan.message = "The managed library file and its Cuelet entry may be removed.";
     return plan;
+}
+
+LinuxLibraryImportService::RemovalResult LinuxLibraryImportService::executeRemoval(
+    const RemovalPlan& plan)
+{
+    RemovalResult result;
+    result.metadataKey = plan.metadataKey;
+    if (!plan.valid || plan.metadataKey.empty()) {
+        result.message = plan.message.empty()
+            ? "The removal plan is invalid."
+            : plan.message;
+        return result;
+    }
+    if (plan.metadataOnly) {
+        result.succeeded = true;
+        result.message = plan.message;
+        return result;
+    }
+    if (!plan.fileToDelete.has_value() || !plan.fileToDelete->is_absolute()) {
+        result.message = "The managed deletion target is invalid.";
+        return result;
+    }
+
+    struct stat status {};
+    if (::lstat(plan.fileToDelete->c_str(), &status) != 0) {
+        result.message = "The managed file could not be revalidated: "
+            + std::string(std::strerror(errno)) + ".";
+        return result;
+    }
+    if (!S_ISREG(status.st_mode)
+        || static_cast<std::uint64_t>(status.st_dev) != plan.fileDevice
+        || static_cast<std::uint64_t>(status.st_ino) != plan.fileInode) {
+        result.message = "The managed file changed before it could be deleted.";
+        return result;
+    }
+
+    std::error_code error;
+    if (!fs::remove(*plan.fileToDelete, error) || error) {
+        result.message = error
+            ? "The managed file could not be deleted: " + error.message()
+            : "The managed file could not be deleted.";
+        return result;
+    }
+
+    result.succeeded = true;
+    result.fileDeleted = true;
+    result.message = "The managed library file was deleted.";
+    return result;
 }
 
 LinuxLibraryImportService::RenamePlan LinuxLibraryImportService::planRename(

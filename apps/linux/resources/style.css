@@ -91,9 +91,13 @@
   font-weight: 700;
 }
 
+.cuelet-sound-name {
+  min-height: 2.5em;
+}
+
 .cuelet-waveform {
-  min-height: 32px;
-  padding: 5px 8px;
+  min-height: 30px;
+  padding: 4px 6px;
   border-radius: 7px;
   background: alpha(currentColor, 0.055);
 }
@@ -152,11 +156,11 @@
 }
 
 .cuelet-sound-row {
-  min-height: 64px;
+  min-height: 60px;
 }
 
 .cuelet-sound-row-content {
-  padding: 8px 12px;
+  padding: 7px 10px;
 }
 
 .cuelet-sound-row.playing {

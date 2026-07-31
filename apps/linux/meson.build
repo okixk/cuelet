@@ -44,21 +44,27 @@ cuelet_core = static_library(
 linux_sources = files(
   'src/main.cpp',
   'src/CueletCli.cpp',
+  'src/CueletPopoverLifecycle.cpp',
   'src/CueletWindow.cpp',
   'src/CueletWindowCli.cpp',
   'src/CueletWindowLibrary.cpp',
   'src/CueletWindowManagement.cpp',
   'src/CueletWindowPreferences.cpp',
   'src/CueletWindowRouting.cpp',
+  'src/CueletWindowShortcuts.cpp',
   'src/CueletWindowState.cpp',
   'src/CueletWindowVisualCapture.cpp',
   'src/CueletWindowWidgets.cpp',
   'src/services/LinuxAudioService.cpp',
+  'src/services/GioGlobalShortcutsPortalAdapter.cpp',
+  'src/services/LinuxGlobalShortcutsController.cpp',
   'src/services/LinuxLibraryImportService.cpp',
   'src/services/LinuxLibraryManagementService.cpp',
   'src/services/LinuxPipeWireRoutingPlan.cpp',
   'src/services/LinuxPipeWireRoutingService.cpp',
   'src/services/LinuxSettingsStore.cpp',
+  'src/services/LinuxVirtualMicrophoneService.cpp',
+  'src/services/PipeWireVirtualMicrophoneBackend.cpp',
 )
 
 executable(
@@ -69,6 +75,11 @@ executable(
   dependencies: [gtk_dep, adw_dep, gio_dep, gst_dep, gst_pbutils_dep, json_glib_dep],
   link_with: cuelet_core,
   install: true,
+)
+
+install_data(
+  'data/io.cuelet.Cuelet.desktop',
+  install_dir: get_option('datadir') / 'applications',
 )
 
 test_core = executable(
@@ -102,6 +113,27 @@ test_category_helpers = executable(
   files('tests/category_helper_tests.cpp'),
   include_directories: [linux_include, core_include],
   dependencies: [gtk_dep, adw_dep],
+)
+
+test_popover_lifecycle = executable(
+  'cuelet-popover-lifecycle-tests',
+  files(
+    'tests/popover_lifecycle_tests.cpp',
+    'src/CueletPopoverLifecycle.cpp',
+  ),
+  include_directories: [linux_include, core_include],
+  dependencies: [gtk_dep],
+)
+
+test_global_shortcuts = executable(
+  'cuelet-global-shortcuts-tests',
+  files(
+    'tests/global_shortcuts_tests.cpp',
+    'src/services/LinuxGlobalShortcutsController.cpp',
+  ),
+  include_directories: [linux_include, core_include],
+  dependencies: [gtk_dep, gio_dep, json_glib_dep],
+  link_with: cuelet_core,
 )
 
 test_settings_store = executable(
@@ -146,6 +178,16 @@ test_pipewire_routing_service = executable(
   dependencies: [gio_dep],
 )
 
+test_virtual_microphone = executable(
+  'cuelet-virtual-microphone-tests',
+  files(
+    'tests/virtual_microphone_tests.cpp',
+    'src/services/LinuxVirtualMicrophoneService.cpp',
+  ),
+  include_directories: [linux_include, core_include],
+  dependencies: [gio_dep, gst_dep],
+)
+
 test_cli = executable(
   'cuelet-cli-tests',
   files(
@@ -162,7 +204,10 @@ test('metadata-store', test_metadata_store)
 test('audio-service', test_audio_service)
 test('cli', test_cli)
 test('category-helpers', test_category_helpers)
+test('popover-lifecycle', test_popover_lifecycle)
+test('global-shortcuts', test_global_shortcuts)
 test('settings-store', test_settings_store)
 test('library-import', test_library_import)
 test('pipewire-routing', test_pipewire_routing)
 test('pipewire-routing-service', test_pipewire_routing_service)
+test('virtual-microphone', test_virtual_microphone)

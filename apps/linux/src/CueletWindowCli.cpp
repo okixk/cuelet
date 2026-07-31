@@ -36,9 +36,7 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
         return 1;
     };
     auto findById = [&](const std::string& id) {
-        return std::find_if(clips_.begin(), clips_.end(), [&](const cuelet::SoundClip& clip) {
-            return clip.id == id;
-        });
+        return cuelet_linux::soundByStableId(clips_, id);
     };
     auto playClip = [&](cuelet::SoundClip& clip) {
         if (clip.missing || clip.absolutePath.empty()) {
@@ -70,7 +68,7 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
         return 0;
     case CliAction::PlayId: {
         const auto clip = findById(command.value);
-        if (clip == clips_.end()) {
+        if (!clip) {
             return fail("no sound has ID '" + command.value + "'.");
         }
         return playClip(*clip);
@@ -119,7 +117,7 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
     }
     case CliAction::Stop: {
         const auto clip = findById(command.value);
-        const std::string path = clip == clips_.end() ? command.value : clip->relativePath;
+        const std::string path = clip ? clip->relativePath : command.value;
         if (!audio_.isPlaying(path)) {
             return fail("sound is not playing: " + command.value);
         }

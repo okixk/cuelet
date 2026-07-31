@@ -34,17 +34,19 @@ The reliable replacement workflow remains [`tools/MANUAL_CAPTURE_GUIDE.md`](tool
 
 ## Linux GNOME/Wayland captures
 
-The Linux app was run under the active GNOME Wayland session with generated
-WAV files and an isolated `XDG_CONFIG_HOME`. GNOME Shell denied external
-window capture, so Cuelet's test-only application renderer produced these
-images from the real GTK widget tree. The renderer requires the explicit
-`CUELET_TEST_CAPTURE_ENABLED=1` opt-in plus an absolute PNG destination; an
-ordinary launch ignores capture-path environment values. Every PNG was opened for visual
-inspection and validated with `file` and ImageMagick `identify`.
+The Linux app was freshly run on 2026-07-31 under the active GNOME Wayland
+session with generated WAV files and an isolated `XDG_CONFIG_HOME`. GNOME
+Shell denied external window capture, so Cuelet's test-only application
+renderer produced these images from the real GTK widget tree. The renderer
+requires the explicit `CUELET_TEST_CAPTURE_ENABLED=1` opt-in plus an absolute
+PNG destination; an ordinary launch ignores capture-path environment values.
+Every PNG was opened for visual inspection and validated with `file` and
+ImageMagick `identify`.
 
 | Filename | State | Validation note |
 |---|---|---|
 | [`library-populated.png`](linux-screenshots/library-populated.png) | populated library | Five managed/linked/missing fixture entries, categories, favorite, and durations visible |
+| [`list-view.png`](linux-screenshots/list-view.png) | list layout | Five fixture rows with categories, durations, favorite, linked, and missing states visible |
 | [`category.png`](linux-screenshots/category.png) | selected category | Alerts scope, sidebar selection, and three matching sounds visible |
 | [`category-editor.png`](linux-screenshots/category-editor.png) | category editor | Native libadwaita dialog with name, color, icon, cancel, and save controls |
 | [`search-results.png`](linux-screenshots/search-results.png) | search results | Four fixture matches and active search query visible |
@@ -54,6 +56,8 @@ inspection and validated with `file` and ImageMagick `identify`.
 | [`audio-routing.png`](linux-screenshots/audio-routing.png) | output and virtual routing settings | Explicit output targeting, temporary route switch, diagnostics, and safety copy visible |
 | [`empty-state.png`](linux-screenshots/empty-state.png) | selected empty library | Import action, supported formats, and zero count visible |
 | [`collapsed.png`](linux-screenshots/collapsed.png) | collapsed navigation | Narrow responsive navigation-only state visible at 720×720 |
+| [`narrow-grid.png`](linux-screenshots/narrow-grid.png) | narrow grid | Responsive 720×720 grid with fixture cards and sidebar visible |
+| [`delete-managed-file.png`](linux-screenshots/delete-managed-file.png) | managed deletion confirmation | Native confirmation dialog visibly identifies the managed file and destructive action |
 | [`maximized.png`](linux-screenshots/maximized.png) | maximized window | Real maximized 1920×1048 GTK state |
 
 No Linux context-menu PNG is claimed. The popover was opened, but it occupies

@@ -2,6 +2,7 @@
 
 #include <gio/gio.h>
 #include <glib/gi18n.h>
+#include <unistd.h>
 
 #include "CueletWindowHelpers.h"
 
@@ -27,6 +28,17 @@ CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
     });
 
     buildUi();
+    globalShortcuts_ = cuelet_linux::LinuxGlobalShortcutsController::create(
+        cuelet_linux::makeGioGlobalShortcutsPortalAdapter(),
+        [this](const std::string& soundId) {
+            handleGlobalShortcutActivation(soundId);
+        },
+        [this] {
+            if (flowBox_ && listBox_) {
+                refreshContent();
+            }
+            refreshShortcutPreferenceRows();
+        });
     LinuxAudioService::OutputSelection configuredOutput;
     const bool validOutputSetting =
         parseOutputSetting(settings_.outputDevice, configuredOutput);
@@ -39,23 +51,52 @@ CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
         audio_.setOutputSelection({});
         showToast("The saved audio output is unavailable; using automatic output.");
     }
+    virtualMicrophoneBackend_ =
+        cuelet_linux::makePipeWireVirtualMicrophoneBackend();
+    virtualMicrophoneService_ =
+        std::make_unique<cuelet_linux::LinuxVirtualMicrophoneService>(
+            *virtualMicrophoneBackend_,
+            "io.cuelet.Cuelet-" +
+                std::to_string(static_cast<long long>(getpid())),
+            3000);
+    applyVirtualMicrophoneSettings(false);
+    virtualMicrophonePollId_ = g_timeout_add_seconds(
+        1,
+        +[](gpointer userData) -> gboolean {
+            static_cast<CueletWindow*>(userData)->pollVirtualMicrophone();
+            return G_SOURCE_CONTINUE;
+        },
+        this);
     loadInitialLibrary(demoMode);
 }
 
 CueletWindow::~CueletWindow()
 {
+    if (globalShortcuts_) {
+        globalShortcuts_->shutdown();
+    }
     if (visualCaptureSourceId_ != 0) {
         g_source_remove(visualCaptureSourceId_);
     }
     if (progressTickId_ != 0) {
         g_source_remove(progressTickId_);
     }
+    if (virtualMicrophonePollId_ != 0) {
+        g_source_remove(virtualMicrophonePollId_);
+    }
     audio_.stopAll();
-    pipeWireRouting_.stop();
+    if (virtualMicrophoneService_) {
+        virtualMicrophoneService_->shutdown();
+    }
 }
 
 void CueletWindow::present()
 {
+    syncGlobalShortcuts();
+    if (globalShortcuts_ && !globalShortcutsStarted_) {
+        globalShortcutsStarted_ = true;
+        globalShortcuts_->start();
+    }
     scheduleVisualCaptureFromEnvironment();
     gtk_window_present(GTK_WINDOW(window_));
 }
@@ -422,13 +463,15 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(flowBox_, "cuelet-grid");
     gtk_flow_box_set_selection_mode(GTK_FLOW_BOX(flowBox_), GTK_SELECTION_NONE);
     gtk_flow_box_set_min_children_per_line(GTK_FLOW_BOX(flowBox_), 2);
-    gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(flowBox_), 4);
-    gtk_flow_box_set_row_spacing(GTK_FLOW_BOX(flowBox_), 16);
-    gtk_flow_box_set_column_spacing(GTK_FLOW_BOX(flowBox_), 16);
+    gtk_flow_box_set_max_children_per_line(GTK_FLOW_BOX(flowBox_), 6);
+    gtk_flow_box_set_homogeneous(GTK_FLOW_BOX(flowBox_), TRUE);
+    gtk_flow_box_set_row_spacing(GTK_FLOW_BOX(flowBox_), 12);
+    gtk_flow_box_set_column_spacing(GTK_FLOW_BOX(flowBox_), 12);
+    gtk_widget_set_valign(flowBox_, GTK_ALIGN_START);
     gtk_widget_set_margin_top(flowBox_, 4);
-    gtk_widget_set_margin_start(flowBox_, 24);
-    gtk_widget_set_margin_end(flowBox_, 24);
-    gtk_widget_set_margin_bottom(flowBox_, 28);
+    gtk_widget_set_margin_start(flowBox_, 16);
+    gtk_widget_set_margin_end(flowBox_, 16);
+    gtk_widget_set_margin_bottom(flowBox_, 20);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(gridScroll), flowBox_);
     gtk_stack_add_named(GTK_STACK(stack_), gridScroll, "grid");
 
@@ -438,9 +481,9 @@ void CueletWindow::buildUi()
     gtk_widget_add_css_class(listBox_, "boxed-list");
     gtk_widget_add_css_class(listBox_, "cuelet-list");
     gtk_widget_set_margin_top(listBox_, 4);
-    gtk_widget_set_margin_start(listBox_, 24);
-    gtk_widget_set_margin_end(listBox_, 24);
-    gtk_widget_set_margin_bottom(listBox_, 28);
+    gtk_widget_set_margin_start(listBox_, 16);
+    gtk_widget_set_margin_end(listBox_, 16);
+    gtk_widget_set_margin_bottom(listBox_, 20);
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(listScroll), listBox_);
     gtk_stack_add_named(GTK_STACK(stack_), listScroll, "list");
 
@@ -721,6 +764,16 @@ void CueletWindow::installActions()
     }), this);
     g_action_map_add_action(G_ACTION_MAP(group), G_ACTION(removeSoundAction));
     g_object_unref(removeSoundAction);
+
+    GSimpleAction* deleteManagedFileAction =
+        g_simple_action_new("delete-managed-file", G_VARIANT_TYPE_STRING);
+    g_signal_connect(deleteManagedFileAction, "activate", G_CALLBACK(+[](GSimpleAction*, GVariant* parameter, gpointer userData) {
+        static_cast<CueletWindow*>(userData)->confirmDeleteManagedFile(
+            g_variant_get_string(parameter, nullptr));
+    }), this);
+    g_action_map_add_action(
+        G_ACTION_MAP(group), G_ACTION(deleteManagedFileAction));
+    g_object_unref(deleteManagedFileAction);
 
     GSimpleAction* renameCategoryAction = g_simple_action_new("rename-category", G_VARIANT_TYPE_STRING);
     g_signal_connect(renameCategoryAction, "activate", G_CALLBACK(+[](GSimpleAction*, GVariant* parameter, gpointer userData) {

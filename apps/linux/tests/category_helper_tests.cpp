@@ -40,6 +40,57 @@ void iconSelectionsCanonicalizeAliases()
     }
 }
 
+void soundMenuPolicyMatchesStorageSafety()
+{
+    cuelet::SoundClip managed;
+    managed.storageMode = cuelet::SoundStorageMode::Managed;
+    managed.absolutePath = "/library/managed.wav";
+    const auto managedPolicy = cuelet_linux::soundMenuPolicy(&managed);
+    CUELET_REQUIRE(managedPolicy.canPlay);
+    CUELET_REQUIRE(managedPolicy.canReveal);
+    CUELET_REQUIRE(managedPolicy.canRename);
+    CUELET_REQUIRE(managedPolicy.canDeleteManagedFile);
+
+    cuelet::SoundClip linked = managed;
+    linked.storageMode = cuelet::SoundStorageMode::Linked;
+    linked.absolutePath = "/external/linked.wav";
+    const auto linkedPolicy = cuelet_linux::soundMenuPolicy(&linked);
+    CUELET_REQUIRE(linkedPolicy.canPlay);
+    CUELET_REQUIRE(linkedPolicy.canReveal);
+    CUELET_REQUIRE(linkedPolicy.canRename);
+    CUELET_REQUIRE(!linkedPolicy.canDeleteManagedFile);
+
+    cuelet::SoundClip missing = managed;
+    missing.missing = true;
+    const auto missingPolicy = cuelet_linux::soundMenuPolicy(&missing);
+    CUELET_REQUIRE(!missingPolicy.canPlay);
+    CUELET_REQUIRE(!missingPolicy.canReveal);
+    CUELET_REQUIRE(!missingPolicy.canRename);
+    CUELET_REQUIRE(!missingPolicy.canDeleteManagedFile);
+
+    const auto stalePolicy = cuelet_linux::soundMenuPolicy(nullptr);
+    CUELET_REQUIRE(!stalePolicy.canPlay);
+    CUELET_REQUIRE(!stalePolicy.canReveal);
+    CUELET_REQUIRE(!stalePolicy.canRename);
+    CUELET_REQUIRE(!stalePolicy.canDeleteManagedFile);
+}
+
+void soundActivationKeysMatchGtkExpectations()
+{
+    CUELET_REQUIRE(cuelet_linux::isSoundActivationKey(GDK_KEY_Return));
+    CUELET_REQUIRE(cuelet_linux::isSoundActivationKey(GDK_KEY_KP_Enter));
+    CUELET_REQUIRE(cuelet_linux::isSoundActivationKey(GDK_KEY_space));
+    CUELET_REQUIRE(!cuelet_linux::isSoundActivationKey(GDK_KEY_Escape));
+}
+
+void actionRowMarkupEscapesPortalAndCommandText()
+{
+    CUELET_REQUIRE(
+        cuelet_linux::escapeMarkup("Press <Control><Alt>9 & play")
+        == "Press &lt;Control&gt;&lt;Alt&gt;9 &amp; play");
+    CUELET_REQUIRE(cuelet_linux::escapeMarkup("").empty());
+}
+
 } // namespace
 
 int main()
@@ -47,5 +98,8 @@ int main()
     return cuelet_linux::tests::run("cuelet category helper tests", [] {
         colorSelectionsAreStable();
         iconSelectionsCanonicalizeAliases();
+        soundMenuPolicyMatchesStorageSafety();
+        soundActivationKeysMatchGtkExpectations();
+        actionRowMarkupEscapesPortalAndCommandText();
     });
 }

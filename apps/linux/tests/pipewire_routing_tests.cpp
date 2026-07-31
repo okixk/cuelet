@@ -125,11 +125,17 @@ void testEnabledPlanIsScopedAndSymmetric()
             std::string::npos,
         "the playback side must expose a virtual source");
     require(
-        plan.virtualSinkNode.find("cuelet_virtual_sink_") == 0,
-        "the render target must have a Cuelet-owned node name");
+        argumentStartingWith(arguments, "--capture-props=").find("\"state.restore-props\":false") !=
+                std::string::npos &&
+            argumentStartingWith(arguments, "--playback-props=").find("\"state.restore-props\":false") !=
+                std::string::npos,
+        "Cuelet-owned virtual nodes must not inherit stale session volumes");
     require(
-        plan.virtualSourceNode.find("cuelet_virtual_source_") == 0,
-        "the capture source must have a Cuelet-owned node name");
+        plan.virtualSinkNode == "cuelet.soundboard-input",
+        "the render target must have Cuelet's stable internal node name");
+    require(
+        plan.virtualSourceNode == "cuelet.virtual-microphone",
+        "the capture source must have Cuelet's stable public node name");
 }
 
 void testHostileStringsRemainSingleEscapedArguments()
@@ -203,8 +209,9 @@ void testGenerationIsDeterministicAndSessionSpecific()
             second.startProcesses.front().ownershipToken,
         "different sessions must not share process ownership");
     require(
-        first.virtualSinkNode != second.virtualSinkNode,
-        "different sessions must not share virtual sinks");
+        first.virtualSinkNode == second.virtualSinkNode &&
+            first.virtualSourceNode == second.virtualSourceNode,
+        "the externally visible endpoints must remain stable across restarts");
 }
 
 void testDiagnosticsClassifyInjectedRuntimeState()

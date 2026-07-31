@@ -76,9 +76,10 @@ struct VirtualMicrophonePreferenceData {
     GtkWidget* enabledRow = nullptr;
     GtkWidget* diagnosticRow = nullptr;
     GtkWidget* endpointRow = nullptr;
-    GtkWidget* backendDropDown = nullptr;
-    GtkWidget* targetEntry = nullptr;
-    GtkWidget* applyOutputButton = nullptr;
+    GtkWidget* modeDropDown = nullptr;
+    GtkWidget* microphoneRow = nullptr;
+    GtkWidget* microphoneDropDown = nullptr;
+    std::vector<std::string> microphoneIds;
     bool changing = false;
 };
 
@@ -248,6 +249,10 @@ void CueletWindow::showPreferences()
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(volumeRow), "Volume");
     adw_action_row_set_subtitle(ADW_ACTION_ROW(volumeRow), "Default volume for newly played sounds.");
     GtkWidget* volumeScale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 100, 1);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(volumeScale),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Playback Volume",
+        -1);
     gtk_range_set_value(GTK_RANGE(volumeScale), settings_.volume * 100.0);
     gtk_widget_set_valign(volumeScale, GTK_ALIGN_CENTER);
     gtk_widget_set_size_request(volumeScale, 220, -1);
@@ -305,6 +310,10 @@ void CueletWindow::showPreferences()
     adw_action_row_set_subtitle(ADW_ACTION_ROW(viewModeRow), "Choose how library results are shown.");
     const char* viewModes[] = {"Grid", "List", nullptr};
     GtkWidget* viewDropDown = gtk_drop_down_new_from_strings(viewModes);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(viewDropDown),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Default View",
+        -1);
     gtk_drop_down_set_selected(GTK_DROP_DOWN(viewDropDown), settings_.viewMode == "list" ? 1 : 0);
     gtk_widget_set_valign(viewDropDown, GTK_ALIGN_CENTER);
     context->viewDropDown = viewDropDown;
@@ -404,6 +413,10 @@ void CueletWindow::showPreferences()
         nullptr,
     };
     GtkWidget* backendDropDown = gtk_drop_down_new_from_strings(backendChoices);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(backendDropDown),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Output Backend",
+        -1);
     gtk_widget_set_valign(backendDropDown, GTK_ALIGN_CENTER);
     guint backendIndex = 0;
     if (hasSavedOutput && savedOutput.backend == LinuxAudioService::OutputBackend::PipeWire) {
@@ -423,6 +436,10 @@ void CueletWindow::showPreferences()
         ADW_ACTION_ROW(targetRow),
         "Use a PipeWire target-object or PulseAudio device identifier from your current session.");
     GtkWidget* targetEntry = gtk_entry_new();
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(targetEntry),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Device Target",
+        -1);
     gtk_entry_set_placeholder_text(GTK_ENTRY(targetEntry), "Device identifier");
     gtk_widget_set_size_request(targetEntry, 240, -1);
     gtk_widget_set_valign(targetEntry, GTK_ALIGN_CENTER);
@@ -497,66 +514,157 @@ void CueletWindow::showPreferences()
     GtkWidget* virtualMicrophoneGroup = addGroup(
         audioPage,
         "Virtual Microphone",
-        "Creates a temporary Cuelet-owned PipeWire sink/source pair for this "
-        "user session. Cuelet never changes the desktop defaults or writes "
-        "PipeWire configuration. Receiving-application compatibility must be "
-        "verified on that application.");
+        "Creates a temporary app-owned PipeWire graph. Select “Cuelet Virtual "
+        "Microphone” in the receiving application; Cuelet never changes the "
+        "desktop default input or output.");
     GtkWidget* virtualMicrophoneRow = adw_switch_row_new();
     adw_preferences_row_set_title(
         ADW_PREFERENCES_ROW(virtualMicrophoneRow),
-        "Enable Temporary Cuelet Route");
+        "Cuelet Virtual Microphone");
     adw_action_row_set_subtitle(
         ADW_ACTION_ROW(virtualMicrophoneRow),
-        "While enabled, Cuelet playback is sent to the temporary virtual "
-        "microphone instead of local speakers.");
+        "The source exists only while Cuelet is running and this switch is on.");
     const bool virtualMicrophoneIsActive = virtualMicrophoneActive();
     adw_switch_row_set_active(
-        ADW_SWITCH_ROW(virtualMicrophoneRow),
-        virtualMicrophoneIsActive);
+        ADW_SWITCH_ROW(virtualMicrophoneRow), virtualMicrophoneIsActive);
     adw_preferences_group_add(
-        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
-        virtualMicrophoneRow);
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), virtualMicrophoneRow);
+
+    GtkWidget* modeRow = adw_action_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(modeRow), "Cuelet Sound Routing");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(modeRow),
+        "Choose whether Cuelet sounds also play through speakers or headphones.");
+    const char* modeNames[] = {
+        "Virtual microphone only",
+        "Speakers and virtual microphone",
+        nullptr,
+    };
+    GtkWidget* modeDropDown = gtk_drop_down_new_from_strings(modeNames);
+    gtk_drop_down_set_selected(
+        GTK_DROP_DOWN(modeDropDown),
+        settings_.virtualMicrophoneMode == "speakersAndVirtualMicrophone" ? 1 : 0);
+    gtk_widget_set_valign(modeDropDown, GTK_ALIGN_CENTER);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(modeRow), modeDropDown);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), modeRow);
+
+    GtkWidget* virtualLevelRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(virtualLevelRow), "Soundboard Level in Virtual Microphone");
+    GtkWidget* virtualLevel = gtk_scale_new_with_range(
+        GTK_ORIENTATION_HORIZONTAL, 0.0, 1.0, 0.05);
+    gtk_range_set_value(GTK_RANGE(virtualLevel), settings_.virtualMicrophoneLevel);
+    gtk_widget_set_size_request(virtualLevel, 220, -1);
+    gtk_widget_set_valign(virtualLevel, GTK_ALIGN_CENTER);
+    gtk_scale_set_draw_value(GTK_SCALE(virtualLevel), TRUE);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(virtualLevelRow), virtualLevel);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), virtualLevelRow);
+
+    GtkWidget* physicalRow = adw_switch_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(physicalRow),
+        "Mix Physical Microphone into Virtual Microphone");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(physicalRow),
+        "Cuelet opens only the explicitly selected input while this is enabled.");
+    adw_switch_row_set_active(
+        ADW_SWITCH_ROW(physicalRow), settings_.mixesPhysicalMicrophone);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), physicalRow);
+
+    const auto microphones = physicalMicrophones();
+    std::vector<const char*> microphoneNames;
+    std::vector<std::string> microphoneIds;
+    guint selectedMicrophone = 0;
+    if (microphones.empty()) {
+        microphoneNames.push_back("No physical microphones available");
+        microphoneIds.emplace_back();
+    } else {
+        microphoneNames.push_back("Select a physical microphone");
+        microphoneIds.emplace_back();
+        for (const auto& microphone : microphones) {
+            microphoneIds.push_back(microphone.stableId);
+            microphoneNames.push_back(microphone.description.c_str());
+            if (microphone.stableId == settings_.physicalMicrophoneDevice) {
+                selectedMicrophone = microphoneNames.size() - 1;
+            }
+        }
+    }
+    microphoneNames.push_back(nullptr);
+    GtkWidget* microphoneDeviceRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(microphoneDeviceRow), "Physical Microphone");
+    GtkWidget* microphoneDropDown = gtk_drop_down_new_from_strings(
+        microphoneNames.data());
+    gtk_drop_down_set_selected(
+        GTK_DROP_DOWN(microphoneDropDown), selectedMicrophone);
+    gtk_widget_set_valign(microphoneDropDown, GTK_ALIGN_CENTER);
+    adw_action_row_add_suffix(
+        ADW_ACTION_ROW(microphoneDeviceRow), microphoneDropDown);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), microphoneDeviceRow);
+
+    GtkWidget* microphoneLevelRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(microphoneLevelRow), "Physical Microphone Mix Level");
+    GtkWidget* microphoneLevel = gtk_scale_new_with_range(
+        GTK_ORIENTATION_HORIZONTAL, 0.0, 1.0, 0.05);
+    gtk_range_set_value(GTK_RANGE(microphoneLevel), settings_.physicalMicrophoneLevel);
+    gtk_widget_set_size_request(microphoneLevel, 220, -1);
+    gtk_widget_set_valign(microphoneLevel, GTK_ALIGN_CENTER);
+    gtk_scale_set_draw_value(GTK_SCALE(microphoneLevel), TRUE);
+    adw_action_row_add_suffix(
+        ADW_ACTION_ROW(microphoneLevelRow), microphoneLevel);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), microphoneLevelRow);
+
+    GtkWidget* echoRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(echoRow), "Echo Consideration");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(echoRow),
+        "An open microphone can acoustically pick up speakers. Use headphones "
+        "when mixing a physical microphone; Cuelet does not add sidetone or echo cancellation.");
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), echoRow);
 
     GtkWidget* virtualMicrophoneDiagnosticRow = adw_action_row_new();
     adw_preferences_row_set_title(
-        ADW_PREFERENCES_ROW(virtualMicrophoneDiagnosticRow),
-        "PipeWire Diagnostics");
-    const auto initialVirtualMicrophoneStatus = virtualMicrophoneStatus();
+        ADW_PREFERENCES_ROW(virtualMicrophoneDiagnosticRow), "Virtual Microphone Status");
+    const auto initialStatus = virtualMicrophoneStatus();
     adw_action_row_set_subtitle(
-        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
-        initialVirtualMicrophoneStatus.c_str());
+        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow), initialStatus.c_str());
     GtkWidget* refreshDiagnosticButton = gtk_button_new_with_label("Refresh");
     gtk_widget_set_valign(refreshDiagnosticButton, GTK_ALIGN_CENTER);
     adw_action_row_add_suffix(
-        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
-        refreshDiagnosticButton);
-    adw_action_row_set_activatable_widget(
-        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow),
-        refreshDiagnosticButton);
+        ADW_ACTION_ROW(virtualMicrophoneDiagnosticRow), refreshDiagnosticButton);
     adw_preferences_group_add(
-        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
-        virtualMicrophoneDiagnosticRow);
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), virtualMicrophoneDiagnosticRow);
 
     GtkWidget* virtualMicrophoneEndpointRow = adw_action_row_new();
     adw_preferences_row_set_title(
-        ADW_PREFERENCES_ROW(virtualMicrophoneEndpointRow),
-        "Virtual Input Endpoint");
-    const auto initialVirtualMicrophoneEndpoint = virtualMicrophoneEndpoint();
+        ADW_PREFERENCES_ROW(virtualMicrophoneEndpointRow), "PipeWire Source Visibility");
+    const auto initialEndpoint = virtualMicrophoneEndpoint();
     adw_action_row_set_subtitle(
-        ADW_ACTION_ROW(virtualMicrophoneEndpointRow),
-        initialVirtualMicrophoneEndpoint.c_str());
+        ADW_ACTION_ROW(virtualMicrophoneEndpointRow), initialEndpoint.c_str());
     adw_preferences_group_add(
-        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup),
-        virtualMicrophoneEndpointRow);
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), virtualMicrophoneEndpointRow);
+    g_object_set_data(
+        G_OBJECT(dialog), "cuelet-vmic-status-row", virtualMicrophoneDiagnosticRow);
+    g_object_set_data(
+        G_OBJECT(dialog), "cuelet-vmic-endpoint-row", virtualMicrophoneEndpointRow);
 
     auto* virtualMicrophoneData = new VirtualMicrophonePreferenceData{
         this,
         virtualMicrophoneRow,
         virtualMicrophoneDiagnosticRow,
         virtualMicrophoneEndpointRow,
-        backendDropDown,
-        targetEntry,
-        applyOutputButton,
+        modeDropDown,
+        physicalRow,
+        microphoneDropDown,
+        std::move(microphoneIds),
         false,
     };
     g_object_set_data_full(
@@ -566,11 +674,18 @@ void CueletWindow::showPreferences()
         +[](gpointer data) {
             delete static_cast<VirtualMicrophonePreferenceData*>(data);
         });
-    gtk_widget_set_sensitive(backendDropDown, !virtualMicrophoneIsActive);
-    gtk_widget_set_sensitive(
-        targetEntry,
-        !virtualMicrophoneIsActive && backendIndex != 0);
-    gtk_widget_set_sensitive(applyOutputButton, !virtualMicrophoneIsActive);
+
+    const auto updateSensitivity = +[](VirtualMicrophonePreferenceData* data) {
+        const bool enabled = adw_switch_row_get_active(
+            ADW_SWITCH_ROW(data->enabledRow));
+        const bool mix = adw_switch_row_get_active(
+            ADW_SWITCH_ROW(data->microphoneRow));
+        gtk_widget_set_sensitive(data->modeDropDown, enabled);
+        gtk_widget_set_sensitive(
+            data->microphoneDropDown,
+            enabled && mix && data->microphoneIds.size() > 1);
+    };
+    updateSensitivity(virtualMicrophoneData);
 
     g_signal_connect(
         virtualMicrophoneRow,
@@ -580,85 +695,208 @@ void CueletWindow::showPreferences()
             if (!data || data->changing || !ADW_IS_SWITCH_ROW(object)) {
                 return;
             }
-
             data->changing = true;
-            const bool requested =
-                adw_switch_row_get_active(ADW_SWITCH_ROW(object));
-            const bool operationSucceeded = requested
+            const bool requested = adw_switch_row_get_active(ADW_SWITCH_ROW(object));
+            const bool succeeded = requested
                 ? data->self->enableVirtualMicrophone()
                 : data->self->disableVirtualMicrophone();
-            bool active = data->self->virtualMicrophoneActive();
-            if (!active && data->self->virtualMicrophoneNeedsCleanup()) {
-                data->self->disableVirtualMicrophone();
-                active = false;
-            }
-            if (!operationSucceeded || requested != active) {
+            const bool active = data->self->virtualMicrophoneActive();
+            if (!succeeded || active != requested) {
                 adw_switch_row_set_active(ADW_SWITCH_ROW(object), active);
             }
             const auto status = data->self->virtualMicrophoneStatus();
             const auto endpoint = data->self->virtualMicrophoneEndpoint();
             adw_action_row_set_subtitle(
-                ADW_ACTION_ROW(data->diagnosticRow),
-                status.c_str());
+                ADW_ACTION_ROW(data->diagnosticRow), status.c_str());
             adw_action_row_set_subtitle(
-                ADW_ACTION_ROW(data->endpointRow),
-                endpoint.c_str());
-            gtk_widget_set_sensitive(data->backendDropDown, !active);
-            const guint backend = gtk_drop_down_get_selected(
-                GTK_DROP_DOWN(data->backendDropDown));
+                ADW_ACTION_ROW(data->endpointRow), endpoint.c_str());
+            gtk_widget_set_sensitive(data->modeDropDown, active);
+            const bool mix = adw_switch_row_get_active(
+                ADW_SWITCH_ROW(data->microphoneRow));
             gtk_widget_set_sensitive(
-                data->targetEntry,
-                !active && backend != 0);
-            gtk_widget_set_sensitive(data->applyOutputButton, !active);
+                data->microphoneDropDown,
+                active && mix && data->microphoneIds.size() > 1);
             data->changing = false;
         }),
         virtualMicrophoneData);
+
+    g_signal_connect(
+        modeDropDown,
+        "notify::selected",
+        G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing || !GTK_IS_DROP_DOWN(object)) {
+                return;
+            }
+            const std::string previous = data->self->settings_.virtualMicrophoneMode;
+            data->self->settings_.virtualMicrophoneMode =
+                gtk_drop_down_get_selected(GTK_DROP_DOWN(object)) == 1
+                ? "speakersAndVirtualMicrophone"
+                : "virtualMicrophoneOnly";
+            if (data->self->virtualMicrophoneActive() &&
+                !data->self->applyVirtualMicrophoneSettings()) {
+                data->self->settings_.virtualMicrophoneMode = previous;
+                data->changing = true;
+                gtk_drop_down_set_selected(
+                    GTK_DROP_DOWN(object),
+                    previous == "speakersAndVirtualMicrophone" ? 1 : 0);
+                data->changing = false;
+                return;
+            }
+            data->self->saveSettings();
+        }),
+        virtualMicrophoneData);
+
+    g_signal_connect(
+        physicalRow,
+        "notify::active",
+        G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing || !ADW_IS_SWITCH_ROW(object)) {
+                return;
+            }
+            data->self->settings_.mixesPhysicalMicrophone =
+                adw_switch_row_get_active(ADW_SWITCH_ROW(object));
+            data->self->applyVirtualMicrophoneSettings();
+            data->self->saveSettings();
+            gtk_widget_set_sensitive(
+                data->microphoneDropDown,
+                data->self->virtualMicrophoneActive() &&
+                    data->self->settings_.mixesPhysicalMicrophone &&
+                    data->microphoneIds.size() > 1);
+        }),
+        virtualMicrophoneData);
+
+    g_signal_connect(
+        microphoneDropDown,
+        "notify::selected",
+        G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing || !GTK_IS_DROP_DOWN(object)) {
+                return;
+            }
+            const guint selected = gtk_drop_down_get_selected(GTK_DROP_DOWN(object));
+            data->self->settings_.physicalMicrophoneDevice =
+                selected < data->microphoneIds.size()
+                ? data->microphoneIds[selected]
+                : std::string{};
+            data->self->applyVirtualMicrophoneSettings();
+            data->self->saveSettings();
+        }),
+        virtualMicrophoneData);
+
+    g_signal_connect_swapped(
+        virtualLevel,
+        "value-changed",
+        G_CALLBACK(+[](VirtualMicrophonePreferenceData* data) {
+            data->self->settings_.virtualMicrophoneLevel = gtk_range_get_value(
+                GTK_RANGE(g_object_get_data(
+                    G_OBJECT(data->enabledRow), "cuelet-virtual-level")));
+            data->self->applyVirtualMicrophoneSettings();
+            data->self->saveSettings();
+        }),
+        virtualMicrophoneData);
+    g_object_set_data(
+        G_OBJECT(virtualMicrophoneRow), "cuelet-virtual-level", virtualLevel);
+
+    g_signal_connect_swapped(
+        microphoneLevel,
+        "value-changed",
+        G_CALLBACK(+[](VirtualMicrophonePreferenceData* data) {
+            data->self->settings_.physicalMicrophoneLevel = gtk_range_get_value(
+                GTK_RANGE(g_object_get_data(
+                    G_OBJECT(data->enabledRow), "cuelet-microphone-level")));
+            data->self->applyVirtualMicrophoneSettings();
+            data->self->saveSettings();
+        }),
+        virtualMicrophoneData);
+    g_object_set_data(
+        G_OBJECT(virtualMicrophoneRow), "cuelet-microphone-level", microphoneLevel);
 
     g_signal_connect(
         refreshDiagnosticButton,
         "clicked",
         G_CALLBACK(+[](GtkButton*, gpointer userData) {
             auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
-            if (!data || data->changing) {
+            if (!data) {
                 return;
             }
-            data->changing = true;
-            bool active = data->self->virtualMicrophoneActive();
-            if (!active && data->self->virtualMicrophoneNeedsCleanup()) {
-                data->self->disableVirtualMicrophone();
-                active = false;
+            data->self->pollVirtualMicrophone();
+            const auto microphones = data->self->physicalMicrophones();
+            GtkStringList* model = gtk_string_list_new(nullptr);
+            data->microphoneIds.clear();
+            guint selected = 0;
+            if (microphones.empty()) {
+                gtk_string_list_append(model, "No physical microphones available");
+                data->microphoneIds.emplace_back();
+            } else {
+                gtk_string_list_append(model, "Select a physical microphone");
+                data->microphoneIds.emplace_back();
+                for (const auto& microphone : microphones) {
+                    data->microphoneIds.push_back(microphone.stableId);
+                    gtk_string_list_append(model, microphone.description.c_str());
+                    if (microphone.stableId ==
+                        data->self->settings_.physicalMicrophoneDevice) {
+                        selected = data->microphoneIds.size() - 1;
+                    }
+                }
             }
-            adw_switch_row_set_active(
-                ADW_SWITCH_ROW(data->enabledRow),
-                active);
+            data->changing = true;
+            gtk_drop_down_set_model(
+                GTK_DROP_DOWN(data->microphoneDropDown), G_LIST_MODEL(model));
+            gtk_drop_down_set_selected(
+                GTK_DROP_DOWN(data->microphoneDropDown), selected);
+            data->changing = false;
+            g_object_unref(model);
+            gtk_widget_set_sensitive(
+                data->microphoneDropDown,
+                data->self->virtualMicrophoneActive() &&
+                    data->self->settings_.mixesPhysicalMicrophone &&
+                    data->microphoneIds.size() > 1);
             const auto status = data->self->virtualMicrophoneStatus();
             const auto endpoint = data->self->virtualMicrophoneEndpoint();
             adw_action_row_set_subtitle(
-                ADW_ACTION_ROW(data->diagnosticRow),
-                status.c_str());
+                ADW_ACTION_ROW(data->diagnosticRow), status.c_str());
             adw_action_row_set_subtitle(
-                ADW_ACTION_ROW(data->endpointRow),
-                endpoint.c_str());
-            gtk_widget_set_sensitive(data->backendDropDown, !active);
-            const guint backend = gtk_drop_down_get_selected(
-                GTK_DROP_DOWN(data->backendDropDown));
-            gtk_widget_set_sensitive(
-                data->targetEntry,
-                !active && backend != 0);
-            gtk_widget_set_sensitive(data->applyOutputButton, !active);
-            data->changing = false;
+                ADW_ACTION_ROW(data->endpointRow), endpoint.c_str());
         }),
         virtualMicrophoneData);
 
     GtkWidget* shortcutsPage = addPage("Shortcuts", "input-keyboard-symbolic");
-    const char* sessionType = g_getenv("XDG_SESSION_TYPE");
-    const bool isWayland = g_strcmp0(sessionType, "wayland") == 0;
+    GtkWidget* portalGroup = addGroup(
+        shortcutsPage,
+        "Desktop-Wide Shortcuts",
+        "Cuelet uses the XDG GlobalShortcuts portal first. GNOME may show a "
+        "system confirmation dialog, and the shortcut shown here is the "
+        "actual trigger returned by the portal.");
+    GtkWidget* portalStatusRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(portalStatusRow),
+        "Global Shortcuts Portal");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(portalStatusRow),
+        "Checking portal availability…");
+    g_object_set_data(
+        G_OBJECT(portalStatusRow),
+        "cuelet-portal-summary",
+        GINT_TO_POINTER(1));
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(portalGroup),
+        portalStatusRow);
+    g_object_set_data(
+        G_OBJECT(dialog),
+        "cuelet-portal-status-row",
+        portalStatusRow);
+
     GtkWidget* shortcutsGroup = addGroup(
         shortcutsPage,
         "Assigned Shortcuts",
-        isWayland
-            ? "Local shortcuts work while Cuelet is focused. For GNOME global shortcuts, copy a sound command from its context menu and assign it in Settings → Keyboard → Custom Shortcuts."
-            : "Local shortcuts work while Cuelet is focused. Copy a GNOME shortcut command from a sound's context menu for desktop-wide shortcuts.");
+        "Global portal shortcuts work across applications while Cuelet remains "
+        "running. Local application shortcuts work only while Cuelet is focused.");
+    g_object_set_data(
+        G_OBJECT(dialog),
+        "cuelet-shortcuts-group",
+        shortcutsGroup);
     int shortcutCount = 0;
     for (const auto& clip : clips_) {
         if (!clip.shortcut) {
@@ -667,7 +905,55 @@ void CueletWindow::showPreferences()
         ++shortcutCount;
         GtkWidget* row = adw_action_row_new();
         adw_preferences_row_set_title(ADW_PREFERENCES_ROW(row), clip.searchableName().c_str());
-        adw_action_row_set_subtitle(ADW_ACTION_ROW(row), clip.shortcut->label.c_str());
+        const std::string status = shortcutStatusText(clip);
+        const std::string escapedStatus = cuelet_linux::escapeMarkup(status);
+        adw_action_row_set_subtitle(
+            ADW_ACTION_ROW(row),
+            escapedStatus.c_str());
+        g_object_set_data_full(
+            G_OBJECT(row),
+            "cuelet-shortcut-sound-id",
+            g_strdup(clip.id.c_str()),
+            g_free);
+
+        GtkWidget* globalButton = gtk_button_new_with_label(
+            clip.shortcut->global ? "Use Locally Only" : "Request Global");
+        gtk_widget_set_valign(globalButton, GTK_ALIGN_CENTER);
+        g_object_set_data_full(
+            G_OBJECT(globalButton),
+            "cuelet-shortcut-global-toggle-id",
+            g_strdup(clip.id.c_str()),
+            g_free);
+        auto* globalData = new cuelet_linux::WindowStringData{this, clip.relativePath};
+        g_signal_connect_data(globalButton, "clicked", G_CALLBACK(+[](GtkButton*, gpointer userData) {
+            auto* data = static_cast<cuelet_linux::WindowStringData*>(userData);
+            const auto* clip = data->self->clipByPath(data->value);
+            if (clip && clip->shortcut) {
+                data->self->setShortcutGlobal(data->value, !clip->shortcut->global);
+            }
+        }), globalData, +[](gpointer userData, GClosure*) {
+            delete static_cast<cuelet_linux::WindowStringData*>(userData);
+        }, G_CONNECT_DEFAULT);
+        adw_action_row_add_suffix(ADW_ACTION_ROW(row), globalButton);
+
+        GtkWidget* copyButton = gtk_button_new_from_icon_name("edit-copy-symbolic");
+        gtk_widget_set_tooltip_text(copyButton, "Copy GNOME custom-shortcut command");
+        gtk_accessible_update_property(
+            GTK_ACCESSIBLE(copyButton),
+            GTK_ACCESSIBLE_PROPERTY_LABEL,
+            "Copy GNOME Shortcut Command",
+            -1);
+        gtk_widget_set_valign(copyButton, GTK_ALIGN_CENTER);
+        gtk_widget_add_css_class(copyButton, "flat");
+        auto* copyData = new cuelet_linux::WindowStringData{this, clip.relativePath};
+        g_signal_connect_data(copyButton, "clicked", G_CALLBACK(+[](GtkButton*, gpointer userData) {
+            auto* data = static_cast<cuelet_linux::WindowStringData*>(userData);
+            data->self->copyGnomeShortcutCommand(data->value);
+        }), copyData, +[](gpointer userData, GClosure*) {
+            delete static_cast<cuelet_linux::WindowStringData*>(userData);
+        }, G_CONNECT_DEFAULT);
+        adw_action_row_add_suffix(ADW_ACTION_ROW(row), copyButton);
+
         GtkWidget* clearButton = gtk_button_new_from_icon_name("edit-clear-symbolic");
         gtk_widget_set_tooltip_text(clearButton, "Clear Shortcut");
         gtk_widget_set_valign(clearButton, GTK_ALIGN_CENTER);
@@ -688,6 +974,23 @@ void CueletWindow::showPreferences()
         adw_action_row_set_subtitle(ADW_ACTION_ROW(emptyShortcutRow), "Assign shortcuts from a sound context menu.");
         adw_preferences_group_add(ADW_PREFERENCES_GROUP(shortcutsGroup), emptyShortcutRow);
     }
+
+    GtkWidget* fallbackGroup = addGroup(
+        shortcutsPage,
+        "GNOME Custom-Shortcut Fallback",
+        "If portal registration is unavailable or denied, copy a sound command "
+        "above and assign it in GNOME Settings → Keyboard → Custom Shortcuts. "
+        "Cuelet never changes GNOME keybindings automatically.");
+    GtkWidget* fallbackRow = adw_action_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(fallbackRow),
+        "Stable Command Format");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(fallbackRow),
+        "cuelet --play-id &lt;stable-sound-id&gt;");
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(fallbackGroup),
+        fallbackRow);
 
     GtkWidget* shortcutToolsGroup = addGroup(shortcutsPage, "Shortcut Tools");
     GtkWidget* clearAllRow = adw_action_row_new();
@@ -712,6 +1015,7 @@ void CueletWindow::showPreferences()
     adw_action_row_add_suffix(ADW_ACTION_ROW(clearAllRow), clearAllButton);
     adw_action_row_set_activatable_widget(ADW_ACTION_ROW(clearAllRow), clearAllButton);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(shortcutToolsGroup), clearAllRow);
+    refreshShortcutPreferenceRows();
 
     GtkWidget* advancedPage = addPage("Advanced", "applications-system-symbolic");
     GtkWidget* pathsGroup = addGroup(advancedPage, "Paths");

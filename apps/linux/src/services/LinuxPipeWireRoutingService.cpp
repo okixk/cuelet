@@ -8,10 +8,12 @@
 #include <cstdlib>
 #include <limits>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string_view>
 #include <sys/wait.h>
+#include <sys/prctl.h>
 #include <utility>
 
 namespace {
@@ -20,7 +22,43 @@ class GioChildProcess final : public LinuxPipeWireRoutingService::ChildProcess {
 public:
     explicit GioChildProcess(GSubprocess* process)
         : process_(process)
+        , capture_(std::make_shared<CaptureState>())
     {
+        g_subprocess_communicate_utf8_async(
+            process_,
+            nullptr,
+            nullptr,
+            [](GObject* source, GAsyncResult* result, gpointer userData) {
+                std::unique_ptr<std::shared_ptr<CaptureState>> holder(
+                    static_cast<std::shared_ptr<CaptureState>*>(userData));
+                gchar* standardOutput = nullptr;
+                gchar* standardError = nullptr;
+                GError* error = nullptr;
+                g_subprocess_communicate_utf8_finish(
+                    G_SUBPROCESS(source),
+                    result,
+                    &standardOutput,
+                    &standardError,
+                    &error);
+                {
+                    std::lock_guard<std::mutex> lock((*holder)->mutex);
+                    if (standardError) {
+                        (*holder)->standardError = standardError;
+                        if ((*holder)->standardError.size() > 8192) {
+                            (*holder)->standardError.resize(8192);
+                        }
+                    }
+                    if (error && (*holder)->standardError.empty()) {
+                        (*holder)->standardError = error->message
+                            ? error->message
+                            : "Could not read pw-loopback diagnostics.";
+                    }
+                }
+                g_free(standardOutput);
+                g_free(standardError);
+                g_clear_error(&error);
+            },
+            new std::shared_ptr<CaptureState>(capture_));
     }
 
     ~GioChildProcess() override
@@ -132,8 +170,20 @@ public:
         return errno != ECHILD;
     }
 
+    std::string errorDetail() const override
+    {
+        std::lock_guard<std::mutex> lock(capture_->mutex);
+        return capture_->standardError;
+    }
+
 private:
+    struct CaptureState {
+        mutable std::mutex mutex;
+        std::string standardError;
+    };
+
     GSubprocess* process_ = nullptr;
+    std::shared_ptr<CaptureState> capture_;
     bool stopped_ = false;
 };
 
@@ -183,10 +233,24 @@ public:
         directArgv.push_back(nullptr);
 
         GError* error = nullptr;
-        GSubprocess* process = g_subprocess_newv(
-            directArgv.data(),
-            G_SUBPROCESS_FLAGS_STDOUT_SILENCE,
-            &error);
+        GSubprocessLauncher* launcher = g_subprocess_launcher_new(
+            static_cast<GSubprocessFlags>(
+                G_SUBPROCESS_FLAGS_STDOUT_SILENCE |
+                G_SUBPROCESS_FLAGS_STDERR_PIPE));
+        g_subprocess_launcher_set_child_setup(
+            launcher,
+            [](gpointer) {
+                // The helper owns no permanent state. Make a crash of Cuelet
+                // terminate this exact child so its transient nodes disappear.
+                if (prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() == 1) {
+                    _exit(127);
+                }
+            },
+            nullptr,
+            nullptr);
+        GSubprocess* process = g_subprocess_launcher_spawnv(
+            launcher, directArgv.data(), &error);
+        g_object_unref(launcher);
         if (!process) {
             std::string message = error && error->message
                 ? error->message
@@ -283,6 +347,7 @@ bool isGeneratedPropertyArgument(
         ",\"node.virtual\":true"
         ",\"node.autoconnect\":false"
         ",\"object.linger\":false"
+        ",\"state.restore-props\":false"
         ",\"priority.driver\":0"
         ",\"priority.session\":0"
         ",\"audio.channels\":2"
@@ -367,8 +432,8 @@ std::string validatePlan(const LinuxPipeWireRoutingPlan::Plan& plan)
             }
         }
 
-        const auto virtualSinkNode = "cuelet_virtual_sink_" + std::string(identifier);
-        const auto virtualSourceNode = "cuelet_virtual_source_" + std::string(identifier);
+        const auto virtualSinkNode = std::string("cuelet.soundboard-input");
+        const auto virtualSourceNode = std::string("cuelet.virtual-microphone");
         if (start.argv[1] != "--name=" + start.ownershipToken ||
             start.argv[2] != "--group=" + start.ownershipToken ||
             start.argv[3] != "--channels=2" ||
@@ -692,7 +757,9 @@ void LinuxPipeWireRoutingService::refreshDiagnostic()
                     process.ownershipToken,
                     LinuxPipeWireRoutingPlan::ProcessState::ExitedUnexpectedly,
                     {},
-                    "The owned pw-loopback process is no longer running.",
+                    process.process->errorDetail().empty()
+                        ? "The owned pw-loopback process is no longer running."
+                        : process.process->errorDetail(),
                 });
         }
     }

@@ -649,6 +649,117 @@ void removalPlansProtectLinkedAndOutOfLibraryFiles()
         unsafeManaged, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
     require(!unsafeDelete.valid && !unsafeDelete.fileToDelete.has_value(),
             "managed paths outside the library must never be deletion targets");
+
+    const auto realManagedPath = library / "real.wav";
+    const auto symlinkManagedPath = library / "alias.wav";
+    writeFile(realManagedPath, "real managed target");
+    std::error_code error;
+    fs::create_symlink(realManagedPath, symlinkManagedPath, error);
+    require(!error, "could not create the managed deletion symlink fixture");
+    cuelet::SoundClip symlinkManaged = managed;
+    symlinkManaged.relativePath = "alias.wav";
+    symlinkManaged.absolutePath = fs::absolute(symlinkManagedPath).lexically_normal().string();
+    const auto symlinkDelete = LinuxLibraryImportService::planRemoval(
+        symlinkManaged, library,
+        LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    require(!symlinkDelete.valid && !symlinkDelete.fileToDelete.has_value()
+                && fs::is_symlink(fs::symlink_status(symlinkManagedPath))
+                && fs::is_regular_file(realManagedPath),
+            "managed deletion planning must reject symlink paths without touching their targets");
+
+    const auto realLibrary = fixture.path() / "real-library";
+    const auto libraryLink = fixture.path() / "library-link";
+    require(fs::create_directories(realLibrary),
+            "could not create the symlinked library-root fixture");
+    fs::create_directory_symlink(realLibrary, libraryLink, error);
+    require(!error, "could not create the library-root symlink fixture");
+    const auto rootedManagedPath = libraryLink / "rooted.wav";
+    writeFile(rootedManagedPath, "rooted managed file");
+    cuelet::SoundClip rootedManaged = managed;
+    rootedManaged.relativePath = "rooted.wav";
+    rootedManaged.absolutePath = fs::absolute(rootedManagedPath).lexically_normal().string();
+    const auto rootedDelete = LinuxLibraryImportService::planRemoval(
+        rootedManaged, libraryLink,
+        LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    require(rootedDelete.valid && !rootedDelete.metadataOnly
+                && rootedDelete.fileToDelete == fs::absolute(rootedManagedPath).lexically_normal(),
+            "a deliberately selected symlinked library root must remain usable");
+}
+
+void removalExecutionDeletesOnlyRevalidatedManagedFiles()
+{
+    TemporaryDirectory fixture("remove-execution");
+    const auto library = fixture.path() / "library";
+    require(fs::create_directories(library), "could not create removal execution fixture");
+
+    const auto managedPath = library / "managed.wav";
+    const auto externalPath = fixture.path() / "external.wav";
+    writeFile(managedPath, "managed");
+    writeFile(externalPath, "external");
+
+    cuelet::SoundClip managed;
+    managed.id = "managed";
+    managed.relativePath = "managed.wav";
+    managed.absolutePath = normalized(managedPath);
+    managed.storageMode = cuelet::SoundStorageMode::Managed;
+
+    const auto metadataPlan = LinuxLibraryImportService::planRemoval(
+        managed, library, LinuxLibraryImportService::RemovalMode::MetadataOnly);
+    const auto metadataResult = LinuxLibraryImportService::executeRemoval(metadataPlan);
+    require(metadataResult.succeeded && !metadataResult.fileDeleted
+                && metadataResult.metadataKey == managed.relativePath
+                && fs::is_regular_file(managedPath),
+            "metadata-only execution must preserve the managed audio file");
+
+    cuelet::SoundClip linked = managed;
+    linked.id = "linked";
+    linked.relativePath = LinuxLibraryImportService::linkedMetadataKey(externalPath);
+    linked.absolutePath = normalized(externalPath);
+    linked.externalPath = normalized(externalPath);
+    linked.storageMode = cuelet::SoundStorageMode::Linked;
+    const auto linkedPlan = LinuxLibraryImportService::planRemoval(
+        linked, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    const auto linkedResult = LinuxLibraryImportService::executeRemoval(linkedPlan);
+    require(linkedResult.succeeded && !linkedResult.fileDeleted
+                && fs::is_regular_file(externalPath),
+            "linked removal execution must never delete the external source");
+
+    const auto deletePlan = LinuxLibraryImportService::planRemoval(
+        managed, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    const auto deleteResult = LinuxLibraryImportService::executeRemoval(deletePlan);
+    require(deleteResult.succeeded && deleteResult.fileDeleted
+                && !fs::exists(managedPath),
+            "confirmed managed deletion must remove the planned library file");
+
+    writeFile(managedPath, "replacement target");
+    const auto stalePlan = LinuxLibraryImportService::planRemoval(
+        managed, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    std::error_code error;
+    require(fs::remove(managedPath, error) && !error,
+            "could not replace the planned deletion fixture");
+    fs::create_symlink(externalPath, managedPath, error);
+    require(!error, "could not create the deletion symlink race fixture");
+
+    const auto staleResult = LinuxLibraryImportService::executeRemoval(stalePlan);
+    require(!staleResult.succeeded && !staleResult.fileDeleted
+                && fs::is_symlink(fs::symlink_status(managedPath))
+                && fs::is_regular_file(externalPath),
+            "execution must reject a managed path replaced by a symlink");
+
+    require(fs::remove(managedPath, error) && !error,
+            "could not remove the deletion symlink fixture");
+    writeFile(managedPath, "original identity");
+    const auto replacedFilePlan = LinuxLibraryImportService::planRemoval(
+        managed, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    require(fs::remove(managedPath, error) && !error,
+            "could not replace the planned regular file");
+    writeFile(managedPath, "different identity");
+
+    const auto replacedFileResult =
+        LinuxLibraryImportService::executeRemoval(replacedFilePlan);
+    require(!replacedFileResult.succeeded && !replacedFileResult.fileDeleted
+                && fs::is_regular_file(managedPath),
+            "execution must reject a regular file whose identity changed after planning");
 }
 
 void renamePlanningIsNonMutatingAndTraversalSafe()
@@ -765,6 +876,7 @@ int main()
         executionRejectsPathReplacementWithSymbolicLinks();
         symbolicLinksAreRejectedWithoutReadingTheirTargets();
         removalPlansProtectLinkedAndOutOfLibraryFiles();
+        removalExecutionDeletesOnlyRevalidatedManagedFiles();
         renamePlanningIsNonMutatingAndTraversalSafe();
         std::cout << "cuelet Linux library import service tests passed\n";
         return 0;

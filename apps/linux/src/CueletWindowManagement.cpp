@@ -164,6 +164,10 @@ void CueletWindow::promptNewCategory(const std::string& assignRelativePath)
     adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
     GtkWidget* entry = gtk_entry_new();
     gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Category name");
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(entry),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Category Name",
+        -1);
     adw_alert_dialog_set_extra_child(ADW_ALERT_DIALOG(dialog), entry);
 
     auto* data = new TextDialogData{this, entry, "new-category", assignRelativePath};
@@ -217,6 +221,10 @@ void CueletWindow::promptRenameCategory(const std::string& categoryId)
     gtk_label_set_xalign(GTK_LABEL(nameLabel), 0.0f);
     gtk_widget_add_css_class(nameLabel, "heading");
     GtkWidget* nameEntry = gtk_entry_new();
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(nameEntry),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Category Name",
+        -1);
     gtk_editable_set_text(GTK_EDITABLE(nameEntry), category->name.c_str());
     gtk_entry_set_activates_default(GTK_ENTRY(nameEntry), TRUE);
     gtk_box_append(GTK_BOX(form), nameLabel);
@@ -226,6 +234,10 @@ void CueletWindow::promptRenameCategory(const std::string& categoryId)
     gtk_label_set_xalign(GTK_LABEL(colorLabel), 0.0f);
     gtk_widget_add_css_class(colorLabel, "heading");
     GtkWidget* colorDropDown = makeCategoryDropDown(false);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(colorDropDown),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Category Color",
+        -1);
     gtk_drop_down_set_selected(GTK_DROP_DOWN(colorDropDown), categoryColorIndex(category->colorHex));
     gtk_box_append(GTK_BOX(form), colorLabel);
     gtk_box_append(GTK_BOX(form), colorDropDown);
@@ -234,6 +246,10 @@ void CueletWindow::promptRenameCategory(const std::string& categoryId)
     gtk_label_set_xalign(GTK_LABEL(iconLabel), 0.0f);
     gtk_widget_add_css_class(iconLabel, "heading");
     GtkWidget* iconDropDown = makeCategoryDropDown(true);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(iconDropDown),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Category Icon",
+        -1);
     gtk_drop_down_set_selected(GTK_DROP_DOWN(iconDropDown), categoryIconIndex(category->iconName));
     gtk_box_append(GTK_BOX(form), iconLabel);
     gtk_box_append(GTK_BOX(form), iconDropDown);
@@ -384,6 +400,10 @@ void CueletWindow::promptRenameSound(const std::string& relativePath)
     adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "rename");
     adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
     GtkWidget* entry = gtk_entry_new();
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(entry),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Sound Name",
+        -1);
     gtk_editable_set_text(
         GTK_EDITABLE(entry),
         linked
@@ -579,24 +599,122 @@ void CueletWindow::revealSound(const std::string& relativePath)
     }, data);
 }
 
+void CueletWindow::eraseClipEntry(const std::string& relativePath)
+{
+    clips_.erase(
+        std::remove_if(clips_.begin(), clips_.end(), [&](const cuelet::SoundClip& clip) {
+            return clip.relativePath == relativePath;
+        }),
+        clips_.end());
+    selectedPaths_.erase(relativePath);
+    saveMetadata();
+    refreshAll();
+}
+
 void CueletWindow::confirmRemoveSound(const std::string& relativePath)
 {
-    AdwDialog* dialog = adw_alert_dialog_new("Remove Sound", "The audio file will stay on disk. This removes it from the current Cuelet view.");
+    const auto* clip = clipByPath(relativePath);
+    if (!clip) {
+        return;
+    }
+    const auto plan = LinuxLibraryImportService::planRemoval(
+        *clip,
+        libraryPath_,
+        LinuxLibraryImportService::RemovalMode::MetadataOnly);
+    if (!plan.valid) {
+        showError(plan.message);
+        return;
+    }
+
+    std::string message;
+    if (clip->storageMode == cuelet::SoundStorageMode::Linked) {
+        message = "The external audio file will stay on disk. Only its Cuelet entry will be removed.";
+    } else if (clip->missing) {
+        message = "Only the missing Cuelet entry will be removed.";
+    } else {
+        message = "The audio file will stay on disk. A later rescan can add it to Cuelet again.";
+    }
+    AdwDialog* dialog = adw_alert_dialog_new("Remove from Library?", message.c_str());
     adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog), "cancel", "Cancel", "remove", "Remove", nullptr);
     adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "remove", ADW_RESPONSE_DESTRUCTIVE);
+    adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "cancel");
+    adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
     auto* data = new WindowStringData{this, relativePath};
     adw_alert_dialog_choose(ADW_ALERT_DIALOG(dialog), GTK_WIDGET(window_), nullptr, +[](GObject* source, GAsyncResult* result, gpointer userData) {
         auto* data = static_cast<WindowStringData*>(userData);
         const char* response = adw_alert_dialog_choose_finish(ADW_ALERT_DIALOG(source), result);
         if (g_strcmp0(response, "remove") == 0) {
             data->self->stopSound(data->value);
-            data->self->clips_.erase(
-                std::remove_if(data->self->clips_.begin(), data->self->clips_.end(), [&](const cuelet::SoundClip& clip) {
-                    return clip.relativePath == data->value;
-                }),
-                data->self->clips_.end());
-            data->self->saveMetadata();
-            data->self->refreshAll();
+            data->self->eraseClipEntry(data->value);
+        }
+        delete data;
+    }, data);
+}
+
+void CueletWindow::confirmDeleteManagedFile(const std::string& relativePath)
+{
+    const auto* clip = clipByPath(relativePath);
+    if (!clip) {
+        return;
+    }
+    const auto plan = LinuxLibraryImportService::planRemoval(
+        *clip,
+        libraryPath_,
+        LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    if (!plan.valid || plan.metadataOnly || !plan.fileToDelete.has_value()) {
+        showError(plan.message.empty()
+            ? "Only an available managed library file can be deleted."
+            : plan.message);
+        return;
+    }
+
+    const std::string message = "“" + clip->filename
+        + "” will be permanently deleted from the Cuelet library folder. This cannot be undone.";
+    AdwDialog* dialog = adw_alert_dialog_new("Delete Managed File?", message.c_str());
+    adw_alert_dialog_add_responses(
+        ADW_ALERT_DIALOG(dialog),
+        "cancel", "Cancel",
+        "delete", "Delete File",
+        nullptr);
+    adw_alert_dialog_set_response_appearance(
+        ADW_ALERT_DIALOG(dialog), "delete", ADW_RESPONSE_DESTRUCTIVE);
+    adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "cancel");
+    adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
+
+    auto* data = new WindowStringData{this, relativePath};
+    adw_alert_dialog_choose(ADW_ALERT_DIALOG(dialog), GTK_WIDGET(window_), nullptr, +[](GObject* source, GAsyncResult* result, gpointer userData) {
+        auto* data = static_cast<WindowStringData*>(userData);
+        const char* response = adw_alert_dialog_choose_finish(ADW_ALERT_DIALOG(source), result);
+        if (g_strcmp0(response, "delete") == 0) {
+            auto* clip = data->self->clipByPath(data->value);
+            if (!clip) {
+                delete data;
+                return;
+            }
+            const auto freshPlan = LinuxLibraryImportService::planRemoval(
+                *clip,
+                data->self->libraryPath_,
+                LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+            if (!freshPlan.valid
+                || freshPlan.metadataOnly
+                || !freshPlan.fileToDelete.has_value()) {
+                data->self->showError(freshPlan.message.empty()
+                    ? "The managed file is no longer safe to delete."
+                    : freshPlan.message);
+                delete data;
+                return;
+            }
+
+            data->self->stopSound(data->value);
+            const auto removal = LinuxLibraryImportService::executeRemoval(freshPlan);
+            if (!removal.succeeded || !removal.fileDeleted) {
+                data->self->showError(removal.message.empty()
+                    ? "The managed file could not be deleted."
+                    : removal.message);
+                delete data;
+                return;
+            }
+            data->self->eraseClipEntry(data->value);
         }
         delete data;
     }, data);
@@ -604,9 +722,21 @@ void CueletWindow::confirmRemoveSound(const std::string& relativePath)
 
 void CueletWindow::recordShortcut(const std::string& relativePath)
 {
-    AdwDialog* dialog = adw_alert_dialog_new("Record Shortcut", "Press the key combination to assign to this sound.");
-    adw_alert_dialog_add_responses(ADW_ALERT_DIALOG(dialog), "cancel", "Cancel", "assign", "Assign", nullptr);
-    adw_alert_dialog_set_response_appearance(ADW_ALERT_DIALOG(dialog), "assign", ADW_RESPONSE_SUGGESTED);
+    AdwDialog* dialog = adw_alert_dialog_new(
+        "Choose Sound Shortcut",
+        "Press a key combination, then choose Request Global for a desktop-wide "
+        "portal shortcut or Use Locally for a shortcut that works only while "
+        "Cuelet is focused. GNOME may show its own confirmation dialog.");
+    adw_alert_dialog_add_responses(
+        ADW_ALERT_DIALOG(dialog),
+        "cancel", "Cancel",
+        "local", "Use Locally",
+        "global", "Request Global",
+        nullptr);
+    adw_alert_dialog_set_response_appearance(
+        ADW_ALERT_DIALOG(dialog), "global", ADW_RESPONSE_SUGGESTED);
+    adw_alert_dialog_set_default_response(ADW_ALERT_DIALOG(dialog), "global");
+    adw_alert_dialog_set_close_response(ADW_ALERT_DIALOG(dialog), "cancel");
     GtkWidget* label = gtk_label_new("Waiting for shortcut…");
     gtk_widget_add_css_class(label, "shortcut-recorder");
     gtk_widget_set_focusable(label, TRUE);
@@ -632,7 +762,9 @@ void CueletWindow::recordShortcut(const std::string& relativePath)
     adw_alert_dialog_choose(ADW_ALERT_DIALOG(dialog), GTK_WIDGET(window_), nullptr, +[](GObject* source, GAsyncResult* result, gpointer userData) {
         auto* data = static_cast<ShortcutDialogData*>(userData);
         const char* response = adw_alert_dialog_choose_finish(ADW_ALERT_DIALOG(source), result);
-        if (g_strcmp0(response, "assign") == 0 && !data->shortcut.empty()) {
+        const bool requestGlobal = g_strcmp0(response, "global") == 0;
+        const bool useLocally = g_strcmp0(response, "local") == 0;
+        if ((requestGlobal || useLocally) && !data->shortcut.empty()) {
             for (const auto& clip : data->self->clips_) {
                 if (clip.relativePath != data->relativePath
                     && clip.shortcut
@@ -643,9 +775,13 @@ void CueletWindow::recordShortcut(const std::string& relativePath)
                 }
             }
             if (auto* clip = data->self->clipByPath(data->relativePath)) {
+                data->shortcut.global = requestGlobal;
                 clip->shortcut = data->shortcut;
                 data->self->saveMetadata();
                 data->self->refreshContent();
+                data->self->showToast(requestGlobal
+                    ? "Requested a global shortcut. GNOME may ask for confirmation."
+                    : "Assigned a local Cuelet shortcut.");
             }
         }
         delete data;
