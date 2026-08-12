@@ -111,10 +111,35 @@ This creates an unsigned local MSIX. Signing identity, certificate distribution,
 The manifest keeps the existing local identity `ch.oki.cuelet` and the explicit
 development publisher placeholder `CN=Cuelet Development`. These values must be
 replaced together with the real Store identity or the subject of the actual
-production signing certificate. The repository does not contain or generate a
-certificate. The unsigned artifact is suitable for build and content validation,
-but normal installation on another machine and SmartScreen reputation require a
-trusted signed package.
+production signing certificate. `release-identity.psd1` is the checked source of
+truth used by release validation; update it and `Package.appxmanifest` together.
+The repository does not contain or generate a certificate. The unsigned artifact
+is suitable for build and content validation, but normal installation on another
+machine and SmartScreen reputation require a trusted signed package.
+
+For Microsoft Store distribution, reserve Cuelet in Partner Center and copy the
+assigned Package ID, Publisher ID, and publisher display name exactly; do not
+guess them. Store submission packages do not require a CA-trusted signature
+because Microsoft signs accepted packages. For direct MSIX distribution, obtain
+a trusted code-signing certificate whose subject exactly matches the manifest
+Publisher, import it into the current-user or local-machine Personal store, then
+build and sign a copy of the unsigned package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\package-windows.ps1 -Configuration Release
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\sign-windows-package.ps1 `
+  -PackagePath <unsigned.msix> `
+  -CertificateThumbprint <production-code-signing-thumbprint> `
+  -OutputPath <signed.msix> `
+  -TimestampUrl <production-rfc3161-timestamp-url>
+```
+
+The signing helper verifies the configured identity, certificate subject,
+private key, validity period, and code-signing usage. It refuses the development
+publisher unless `-AllowDevelopmentPublisher` is explicitly supplied for a
+disposable local installation test, and it never overwrites the unsigned input.
+PFX files, private keys, and exported certificates are ignored under
+`apps/windows`; keep production credentials in an external secure store.
 
 Before packaging, the script verifies that release metadata matches `VERSION`,
 that only x64 project configurations are present, and that every prepared

@@ -6,12 +6,14 @@ $windowsRoot = Split-Path -Parent $PSScriptRoot
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $windowsRoot '..\..'))
 $projectRoot = Join-Path $windowsRoot 'Cuelet.WinUI'
 $assetRoot = Join-Path $projectRoot 'Assets'
+$releaseIdentity = Import-PowerShellDataFile -LiteralPath (
+    Join-Path $windowsRoot 'release-identity.psd1')
 
 $version = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') {
     throw "VERSION must contain a three-component application version; found '$version'."
 }
-$packageVersion = "$version.0"
+$packageVersion = "$version.$($releaseIdentity.VersionRevision)"
 
 $packagePath = Join-Path $projectRoot 'Package.appxmanifest'
 [xml]$package = Get-Content -LiteralPath $packagePath -Raw
@@ -27,18 +29,26 @@ $splash = $visuals.SelectSingleNode('uap:SplashScreen', $packageNamespaces)
 $targetFamily = $package.SelectSingleNode('/p:Package/p:Dependencies/p:TargetDeviceFamily', $packageNamespaces)
 
 $developmentPublisher = 'CN=Cuelet Development'
-if ($identity.Name -ne 'ch.oki.cuelet' -or $identity.Publisher -ne $developmentPublisher -or
+if ($identity.Name -ne $releaseIdentity.PackageIdentityName -or
+    $identity.Publisher -ne $releaseIdentity.Publisher -or
     $identity.Version -ne $packageVersion) {
-    throw "MSIX identity/version must be ch.oki.cuelet $packageVersion."
+    throw "MSIX identity/version must match release-identity.psd1 and $packageVersion."
 }
-if ($properties.DisplayName -ne 'Cuelet' -or $properties.PublisherDisplayName -ne 'Cuelet' -or
+if ($properties.DisplayName -ne 'Cuelet' -or
+    $properties.PublisherDisplayName -ne $releaseIdentity.PublisherDisplayName -or
     $visuals.DisplayName -ne 'Cuelet' -or $application.Id -ne 'App') {
     throw 'Cuelet package/application display metadata is inconsistent.'
 }
 if ($targetFamily.Name -ne 'Windows.Desktop' -or
-    $targetFamily.MinVersion -ne '10.0.17763.0' -or
-    $targetFamily.MaxVersionTested -ne '10.0.26100.0') {
+    $targetFamily.MinVersion -ne $releaseIdentity.MinimumWindowsVersion -or
+    $targetFamily.MaxVersionTested -ne $releaseIdentity.MaximumWindowsVersionTested) {
     throw 'Windows desktop minimum/target metadata changed unexpectedly.'
+}
+if ($releaseIdentity.Architecture -ne 'x64' -or
+    $releaseIdentity.VersionRevision -ne 0 -or
+    ($releaseIdentity.Publisher -eq $developmentPublisher) -ne
+        [bool]$releaseIdentity.DevelopmentPublisher) {
+    throw 'release-identity.psd1 contains inconsistent release policy values.'
 }
 
 $nativeManifestPath = Join-Path $projectRoot 'app.manifest'
@@ -108,5 +118,9 @@ foreach ($reference in $references) {
 }
 
 & (Join-Path $PSScriptRoot 'generate-windows-icon.ps1') -Check
-Write-Warning 'The MSIX is unsigned and retains the existing development publisher placeholder. Public packages require the real Store/certificate identity and signing.'
+if ($releaseIdentity.DevelopmentPublisher) {
+    Write-Warning 'The MSIX is unsigned and retains the existing development publisher placeholder. Public packages require the real Store/certificate identity and signing.'
+} else {
+    Write-Host 'The configured production identity is consistent. Packaging remains unsigned until the release signing step.'
+}
 Write-Host "Windows release metadata is consistent: Cuelet $version -> MSIX $packageVersion, x64, Windows 10 1809+."

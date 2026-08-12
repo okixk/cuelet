@@ -1,0 +1,6 @@
+# Signing material must remain outside the repository.
+*.cer
+*.key
+*.p12
+*.pfx
+*.pvk
