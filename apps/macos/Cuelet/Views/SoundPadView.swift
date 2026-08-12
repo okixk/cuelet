@@ -10,6 +10,7 @@ struct SoundPadView: View {
     private var isSelected: Bool { appState.isSelected(clip) }
     private var isFocused: Bool { appState.isFocused(clip) }
     private var isPlaying: Bool { appState.playbackState.playingClipIDs.contains(clip.id) }
+    private var actionPolicy: SoundActionPolicy { SoundActionPolicy(clip: clip) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -18,8 +19,14 @@ struct SoundPadView: View {
                     .fill(previewBackground)
                     .frame(height: 78)
                     .overlay {
-                        WaveformPreview(samples: clip.waveform, isPlaying: isPlaying)
-                            .padding(.horizontal, 18)
+                        if clip.isMissing {
+                            Label("Missing", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            WaveformPreview(samples: clip.waveform, isPlaying: isPlaying)
+                                .padding(.horizontal, 18)
+                        }
                     }
 
                 Button {
@@ -49,6 +56,7 @@ struct SoundPadView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isPlaying ? "Stop \(clip.displayName)" : "Play \(clip.displayName)")
+                .disabled(!actionPolicy.canPlay)
                 .padding(4)
             }
 
@@ -57,6 +65,14 @@ struct SoundPadView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+
+            Label(
+                clip.storageLabel,
+                systemImage: clip.isMissing ? "exclamationmark.triangle" : (clip.storageMode == .linked ? "link" : "tray.full")
+            )
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(clip.isMissing ? Color.orange : .secondary)
+            .lineLimit(1)
 
             HStack(spacing: 8) {
                 CategoryChip(
@@ -76,7 +92,7 @@ struct SoundPadView: View {
             .frame(height: 22)
         }
         .padding(14)
-        .frame(height: 168)
+        .frame(height: 188)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
@@ -102,7 +118,9 @@ struct SoundPadView: View {
                     appState.prepareContextMenu(for: clip)
                 }
         }
-        .accessibilityLabel(clip.displayName)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(clip.displayName), \(clip.storageLabel)")
+        .accessibilityValue(isPlaying ? "Playing" : (clip.isFavorite ? "Favorite" : "Not playing"))
     }
 
     private var previewBackground: Color {

@@ -2,16 +2,42 @@ import XCTest
 @testable import Cuelet
 
 final class SearchServiceTests: XCTestCase {
+    private let ambience = SoundCategory.makeUserCategory(named: "Ambience")
+    private let effects = SoundCategory.makeUserCategory(named: "Effects")
+
     func testSearchRankingPromotesExactPrefixBeforeOtherMatches() {
         let clips = [
-            SoundClip(name: "Door Close", filename: "door-close.wav", category: .effects, duration: 1, waveform: []),
-            SoundClip(name: "Soft Door Knock", filename: "soft-door-knock.wav", category: .effects, duration: 1, waveform: []),
-            SoundClip(name: "Door Knock", filename: "door-knock.wav", category: .effects, duration: 1, waveform: [])
+            SoundClip(name: "Door Close", filename: "door-close.wav", category: effects, duration: 1, waveform: []),
+            SoundClip(name: "Soft Door Knock", filename: "soft-door-knock.wav", category: effects, duration: 1, waveform: []),
+            SoundClip(name: "Door Knock", filename: "door-knock.wav", category: effects, duration: 1, waveform: [])
         ]
 
         let results = SearchService().filter(clips: clips, searchText: "door knock", filter: .all)
 
         XCTAssertEqual(results.map(\.name), ["Door Knock", "Soft Door Knock"])
+    }
+
+    func testSearchIncludesNotesAndAliases() {
+        let noted = SoundClip(
+            name: "Impact",
+            filename: "impact.wav",
+            category: effects,
+            duration: 1,
+            waveform: [],
+            notes: "Layered cinematic hit",
+            aliases: ["boom", "slam"]
+        )
+        let other = SoundClip(
+            name: "Rain",
+            filename: "rain.wav",
+            category: ambience,
+            duration: 1,
+            waveform: []
+        )
+        let service = SearchService()
+
+        XCTAssertEqual(service.filter(clips: [other, noted], searchText: "boom", filter: .all).map(\.id), [noted.id])
+        XCTAssertEqual(service.filter(clips: [other, noted], searchText: "cinematic", filter: .all).map(\.id), [noted.id])
     }
 
     @MainActor
@@ -22,9 +48,9 @@ final class SearchServiceTests: XCTestCase {
             installKeyboardShortcuts: false
         )
         appState.clips = [
-            try makeAudioClip(named: "Rain", filename: "rain.wav", category: .ambience, in: root),
-            try makeAudioClip(named: "Door Knock", filename: "door-knock.wav", category: .effects, in: root),
-            try makeAudioClip(named: "Soft Door Knock", filename: "soft-door-knock.wav", category: .effects, in: root)
+            try makeAudioClip(named: "Rain", filename: "rain.wav", category: ambience, in: root),
+            try makeAudioClip(named: "Door Knock", filename: "door-knock.wav", category: effects, in: root),
+            try makeAudioClip(named: "Soft Door Knock", filename: "soft-door-knock.wav", category: effects, in: root)
         ]
         appState.searchText = "door knock"
 

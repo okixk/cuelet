@@ -9,6 +9,18 @@ struct SoundLibraryView: View {
             header
             Divider()
 
+            if !appState.persistenceStatusMessage.isEmpty {
+                Label(appState.persistenceStatusMessage, systemImage: "externaldrive.badge.exclamationmark")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.orange.opacity(0.1))
+                    .accessibilityLabel("Library status: \(appState.persistenceStatusMessage)")
+                Divider()
+            }
+
             if appState.visibleClips.isEmpty {
                 EmptyLibraryView(filter: appState.activeLibraryFilter)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

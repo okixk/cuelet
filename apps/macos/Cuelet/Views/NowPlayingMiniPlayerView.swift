@@ -14,6 +14,7 @@ struct NowPlayingMiniPlayerView: View {
     private func miniPlayer(for currentClip: SoundClip) -> some View {
         let playingCount = appState.playingClips.count
         let progress = appState.playbackProgress(for: currentClip)
+        let isPaused = appState.isPaused(currentClip)
 
         return HStack(spacing: 12) {
             Image(systemName: "speaker.wave.2.fill")
@@ -78,6 +79,20 @@ struct NowPlayingMiniPlayerView: View {
                 .buttonStyle(.borderless)
                 .help("Currently playing")
             }
+
+            Button {
+                if isPaused {
+                    appState.resume(currentClip)
+                } else {
+                    appState.pause(currentClip)
+                }
+            } label: {
+                Label(isPaused ? "Resume" : "Pause", systemImage: isPaused ? "play.fill" : "pause.fill")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(isPaused ? "Resume current sound" : "Pause current sound")
+            .accessibilityValue(isPaused ? "Paused" : "Playing")
 
             Button {
                 appState.stop(currentClip)

@@ -75,7 +75,16 @@ struct CueletApp: App {
         MenuBarExtra(
             "Cuelet",
             systemImage: "waveform",
-            isInserted: $appState.settings.showsMenuBarItem
+            isInserted: Binding(
+                get: { appState.settings.showsMenuBarItem },
+                set: { isInserted in
+                    // macOS may write the current menu-bar visibility back while
+                    // reconciling the scene. Avoid publishing and persisting an
+                    // unchanged settings value from inside that view update.
+                    guard appState.settings.showsMenuBarItem != isInserted else { return }
+                    appState.settings.showsMenuBarItem = isInserted
+                }
+            )
         ) {
             Button("Open Cuelet") {
                 appState.showMainWindow()

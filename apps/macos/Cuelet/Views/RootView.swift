@@ -6,7 +6,15 @@ struct RootView: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(selection: $appState.selectedSidebarItem, categories: appState.categories)
+            SidebarView(
+                selection: Binding(
+                    get: { appState.selectedSidebarItem },
+                    set: { value in
+                        if appState.selectedSidebarItem != value { appState.selectedSidebarItem = value }
+                    }
+                ),
+                categories: appState.categories
+            )
         } detail: {
             detailView
                 .toolbar {

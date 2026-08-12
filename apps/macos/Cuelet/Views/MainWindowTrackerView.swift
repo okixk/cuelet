@@ -8,16 +8,19 @@ struct MainWindowTrackerView: NSViewRepresentable {
         let view = TrackingView()
         view.focusRingType = .none
         view.onWindowChange = { [weak appState] window in
-            appState?.registerMainWindow(window)
+            DispatchQueue.main.async {
+                appState?.registerMainWindow(window)
+            }
         }
         return view
     }
 
     func updateNSView(_ nsView: TrackingView, context: Context) {
         nsView.onWindowChange = { [weak appState] window in
-            appState?.registerMainWindow(window)
+            DispatchQueue.main.async {
+                appState?.registerMainWindow(window)
+            }
         }
-        nsView.reportCurrentWindow()
     }
 
     final class TrackingView: NSView {

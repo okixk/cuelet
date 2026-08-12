@@ -27,10 +27,11 @@ struct EmptyLibraryView: View {
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Button("Show Demo Library") {
-                        appState.loadDemoLibrary()
+                    Button("Import Sounds…") {
+                        appState.importSounds()
                     }
                     .buttonStyle(.bordered)
+
                 }
             }
         }

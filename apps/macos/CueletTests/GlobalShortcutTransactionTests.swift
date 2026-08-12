@@ -99,6 +99,27 @@ final class GlobalShortcutTransactionTests: XCTestCase {
         XCTAssertTrue(registry.registeredClipIDs.isEmpty)
     }
 
+    func testShortcutCaptureTemporarilySuspendsAndRestoresGlobalRegistrations() throws {
+        let registry = FakeGlobalShortcutService()
+        let appState = makeAppState(registry: registry)
+        let clip = try XCTUnwrap(makeClips().first)
+        appState.clips = [clip]
+        let shortcut = SoundShortcut(keyCode: 105, characters: nil, modifiers: [], scope: .global)
+        XCTAssertEqual(appState.assignShortcut(shortcut, to: clip, replacingConflicts: false), .assigned)
+        XCTAssertEqual(registry.registeredClipIDs, [clip.id])
+
+        appState.beginShortcutCapture(for: clip)
+
+        XCTAssertTrue(registry.registeredClipIDs.isEmpty)
+        XCTAssertEqual(registry.unregisterAllCallCount, 1)
+        XCTAssertEqual(appState.globalShortcutStatusMessage, "Global shortcuts paused while editing")
+
+        appState.dismissShortcutCapture()
+
+        XCTAssertEqual(registry.registeredClipIDs, [clip.id])
+        XCTAssertEqual(appState.globalShortcutStatusMessage, "1 global shortcut registered")
+    }
+
     private func makeAppState(registry: FakeGlobalShortcutService) -> AppState {
         AppState(
             settingsStore: SettingsStore(url: FileManager.default.temporaryDirectory
@@ -129,6 +150,7 @@ private final class FakeGlobalShortcutService: GlobalShortcutRegistering {
     var registeredClipIDs: Set<SoundClip.ID> = []
     var lastErrorMessage: String?
     var failingKeyCode: UInt16?
+    var unregisterAllCallCount = 0
     private var handler: ((SoundClip.ID) -> Void)?
 
     func setHandler(_ handler: @escaping (SoundClip.ID) -> Void) {
@@ -147,6 +169,7 @@ private final class FakeGlobalShortcutService: GlobalShortcutRegistering {
     }
 
     func unregisterAll() {
+        unregisterAllCallCount += 1
         registeredClipIDs.removeAll()
         lastErrorMessage = nil
     }

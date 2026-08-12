@@ -21,7 +21,12 @@ struct CueletToolbar: ToolbarContent {
             .help("Stop All")
 
             Menu {
-                Picker("Sort By", selection: $appState.sortOption) {
+                Picker("Sort By", selection: Binding(
+                    get: { appState.sortOption },
+                    set: { value in
+                        if appState.sortOption != value { appState.sortOption = value }
+                    }
+                )) {
                     ForEach(SoundSortOption.allCases) { sortOption in
                         Text(sortOption.title).tag(sortOption)
                     }
@@ -32,13 +37,20 @@ struct CueletToolbar: ToolbarContent {
             .menuStyle(.button)
             .help("Sort")
 
-            Picker("View", selection: $appState.viewMode) {
+            Picker("View", selection: Binding(
+                get: { appState.viewMode },
+                set: { value in
+                    if appState.viewMode != value { appState.viewMode = value }
+                }
+            )) {
                 ForEach(ViewMode.allCases) { viewMode in
                     Label(viewMode.title, systemImage: viewMode.systemImage).tag(viewMode)
                 }
             }
             .pickerStyle(.segmented)
             .frame(width: 88)
+            .accessibilityLabel("Library View")
+            .accessibilityValue(appState.viewMode.title)
         }
     }
 }

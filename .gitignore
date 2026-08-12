@@ -4,7 +4,6 @@ CMakeFiles/
 CMakeCache.txt
 CTestTestfile.cmake
 cmake_install.cmake
-Makefile
 
 *.o
 *.a
@@ -49,6 +48,7 @@ xcuserdata/
 /apps/linux/build/
 /apps/linux/build.backup.*/
 /apps/macos/.build/
+/apps/macos/dist/macos/*.pkg
 /apps/windows/.vs/
 /apps/windows/AppPackages/
 /apps/windows/packages/

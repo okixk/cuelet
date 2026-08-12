@@ -60,6 +60,7 @@ private struct SoundListRow: View {
     private var isSelected: Bool { appState.isSelected(clip) }
     private var isFocused: Bool { appState.isFocused(clip) }
     private var isPlaying: Bool { appState.playbackState.playingClipIDs.contains(clip.id) }
+    private var actionPolicy: SoundActionPolicy { SoundActionPolicy(clip: clip) }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -75,6 +76,7 @@ private struct SoundListRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isPlaying ? "Stop \(clip.displayName)" : "Play \(clip.displayName)")
+                .disabled(!actionPolicy.canPlay)
 
                 Image(systemName: appState.systemImage(for: clip.category))
                     .foregroundStyle(appState.color(for: clip.category))
@@ -82,6 +84,12 @@ private struct SoundListRow: View {
                 Text(clip.displayName)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if clip.storageMode == .linked || clip.isMissing {
+                    Label(clip.storageLabel, systemImage: clip.isMissing ? "exclamationmark.triangle" : "link")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(clip.isMissing ? Color.orange : .secondary)
+                        .help(clip.storageLabel)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -127,6 +135,7 @@ private struct SoundListRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(isPlaying ? "Stop \(clip.displayName)" : "Play \(clip.displayName)")
+            .disabled(!actionPolicy.canPlay)
         }
         .font(.callout)
         .padding(.horizontal, 12)
@@ -157,6 +166,9 @@ private struct SoundListRow: View {
                     appState.prepareContextMenu(for: clip)
                 }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(clip.displayName), \(clip.storageLabel)")
+        .accessibilityValue(isPlaying ? "Playing" : (clip.isFavorite ? "Favorite" : "Not playing"))
     }
 
     private var rowBackground: Color {

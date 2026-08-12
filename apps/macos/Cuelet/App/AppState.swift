@@ -23,6 +23,19 @@ enum ShortcutAssignmentResult: Equatable {
     case notFound
 }
 
+enum AppPersistenceError: LocalizedError {
+    case metadata(String)
+    case migrationBackup
+
+    var errorDescription: String? {
+        switch self {
+        case .metadata(let message): message
+        case .migrationBackup:
+            "Cuelet could not create a safety copy of the existing macOS metadata, so migration was stopped before changing it."
+        }
+    }
+}
+
 @MainActor
 final class AppState: ObservableObject {
     enum SidebarItem: Hashable, Identifiable {
@@ -74,38 +87,52 @@ final class AppState: ObservableObject {
     }
 
     @Published var selectedSidebarItem: SidebarItem = .library {
-        didSet { synchronizeSelectionWithVisibleClips() }
+        didSet {
+            guard selectedSidebarItem != oldValue else { return }
+            synchronizeSelectionWithVisibleClips()
+        }
     }
     @Published var searchText = "" {
-        didSet { synchronizeSelectionWithVisibleClips() }
+        didSet {
+            guard searchText != oldValue else { return }
+            synchronizeSelectionWithVisibleClips()
+        }
     }
     @Published var selectedSoundIDs: Set<SoundClip.ID> = []
     @Published var focusedSoundID: SoundClip.ID?
     @Published var selectionAnchorSoundID: SoundClip.ID?
     @Published var clips: [SoundClip] = [] {
-        didSet { synchronizeSelectionWithVisibleClips() }
+        didSet {
+            guard clips != oldValue else { return }
+            synchronizeSelectionWithVisibleClips()
+        }
     }
     @Published var playbackState = PlaybackState()
     @Published var settings = CueletSettings() {
         didSet {
-            settingsStore.save(settings)
+            if settingsPersistenceEnabled, !settingsStore.save(settings) {
+                persistenceStatusMessage = "Cuelet could not save settings. Existing settings were left recoverable on disk."
+            }
             playbackService.setVolume(settings.soundboardVolume)
         }
     }
     @Published var viewMode = ViewMode.grid {
         didSet {
+            guard viewMode != oldValue else { return }
             settings.viewMode = viewMode
         }
     }
     @Published var sortOption = SoundSortOption.nameAscending {
         didSet {
+            guard sortOption != oldValue else { return }
             settings.sortOption = sortOption
             synchronizeSelectionWithVisibleClips()
         }
     }
-    @Published var showsMockLibrary = false
     @Published var outputDevices: [AudioDevice] = [.systemOutput]
     @Published var inputDevices: [AudioDevice] = []
+    @Published private(set) var audioRouteStatus = AudioRouteStatus.applyingSystemOutput
+    @Published private(set) var virtualAudioDriverStatus = CueletVirtualAudioDriverStatus.notInstalled
     @Published var microphonePermissionState: MicrophonePermissionState = .unknown
     @Published var inputLevelState: InputLevelState = .inactive
     @Published var audioStatusMessage = ""
@@ -113,15 +140,21 @@ final class AppState: ObservableObject {
     @Published var shortcutCaptureRequest: ShortcutCaptureRequest?
     @Published var categoryEditorRequest: CategoryEditorRequest?
     @Published private(set) var globalShortcutStatusMessage = "No global shortcuts assigned"
+    @Published private(set) var persistenceStatusMessage = ""
     private weak var mainWindow: NSWindow?
     private var didApplyStartupVisibility = false
+    private var settingsPersistenceEnabled = false
+    private var loadedMetadataVersion: Int?
+    private var ignoredManagedPaths: Set<String> = []
+    private var globalShortcutRegistrationsSuspendedForCapture = false
 
     let libraryService: LibraryService
     let playbackService: PlaybackService
     let settingsStore: SettingsStore
     let searchService = SearchService()
     let profileService = ProfileService()
-    let audioDeviceService = AudioDeviceService()
+    let audioDeviceService: AudioDeviceProviding
+    let virtualAudioDriverService: CueletVirtualAudioDriverServicing
     let audioPermissionService = AudioPermissionService()
     let microphoneService = MicrophoneService()
     let launchAtLoginService = LaunchAtLoginService()
@@ -132,21 +165,51 @@ final class AppState: ObservableObject {
         settingsStore: SettingsStore = SettingsStore(),
         libraryService: LibraryService = LibraryService(),
         playbackService: PlaybackService = PlaybackService(),
+        audioDeviceService: AudioDeviceProviding? = nil,
+        virtualAudioDriverService: CueletVirtualAudioDriverServicing? = nil,
         globalShortcutService: GlobalShortcutRegistering = CarbonGlobalShortcutService(),
-        installKeyboardShortcuts: Bool = true,
-        launchArguments: [String] = CommandLine.arguments
+        installKeyboardShortcuts: Bool = true
     ) {
         self.settingsStore = settingsStore
         self.libraryService = libraryService
         self.playbackService = playbackService
+        let resolvedAudioDeviceService = audioDeviceService ?? AudioDeviceService()
+        self.audioDeviceService = resolvedAudioDeviceService
+        self.virtualAudioDriverService = virtualAudioDriverService
+            ?? CueletVirtualAudioDriverService(deviceProvider: resolvedAudioDeviceService)
         self.globalShortcutService = globalShortcutService
         self.localKeyboardShortcutService = installKeyboardShortcuts ? LocalKeyboardShortcutService() : nil
 
-        settings = settingsStore.load()
+        switch settingsStore.loadResult() {
+        case .missing(let loaded), .loaded(let loaded):
+            settings = loaded
+            settingsPersistenceEnabled = true
+        case .recovered(let loaded, let primaryError):
+            settings = loaded
+            settingsPersistenceEnabled = true
+            if settingsStore.save(loaded, preservePrimaryAsBackup: false) {
+                persistenceStatusMessage = "Recovered settings from the safety copy. The unreadable primary was replaced; the recovery copy remains available."
+            } else {
+                persistenceStatusMessage = "Loaded the settings recovery copy, but could not restore the primary: \(primaryError)"
+            }
+        case .failure(let message):
+            settings = CueletSettings()
+            settingsPersistenceEnabled = false
+            persistenceStatusMessage = message
+        }
+#if DEBUG
+        if let isolatedLibraryPath = ProcessInfo.processInfo.environment["CUELET_LIBRARY_PATH"],
+           !isolatedLibraryPath.isEmpty {
+            settings.libraryPath = NSString(string: isolatedLibraryPath).expandingTildeInPath
+        }
+#endif
         viewMode = settings.viewMode
         sortOption = settings.sortOption
         playbackService.playbackDidFinish = { [weak self] clipID in
             self?.handlePlaybackFinished(clipID)
+        }
+        playbackService.outputRouteDidConfirm = { [weak self] requestedUID, actualUID in
+            self?.handleOutputRouteConfirmation(requestedUID: requestedUID, actualUID: actualUID)
         }
         globalShortcutService.setHandler { [weak self] clipID in
             Task { @MainActor in
@@ -182,7 +245,11 @@ final class AppState: ObservableObject {
             )
         }
 
-        loadInitialLibrary(usesDemoArgument: launchArguments.contains("--demo"))
+        self.audioDeviceService.startObserving { [weak self] in
+            self?.refreshAudioRouting()
+        }
+        refreshAudioRouting()
+        loadInitialLibrary()
         refreshGlobalShortcutRegistrations()
     }
 
@@ -225,23 +292,14 @@ final class AppState: ObservableObject {
     }
 
     var categories: [SoundCategory] {
-        var resolvedCategories = [SoundCategory.uncategorized] + settings.customCategories
-        if showsMockLibrary {
-            resolvedCategories.append(contentsOf: clips.map(\.category))
-        }
-        return uniquedCategories(resolvedCategories)
+        uniquedCategories([SoundCategory.uncategorized] + settings.customCategories)
     }
 
     var assignableCategories: [SoundCategory] {
-        var resolvedCategories = [SoundCategory.uncategorized] + settings.customCategories
-        if showsMockLibrary {
-            resolvedCategories.append(contentsOf: SoundCategory.demoCategories)
-        }
-        return uniquedCategories(resolvedCategories)
+        uniquedCategories([SoundCategory.uncategorized] + settings.customCategories)
     }
 
     var librarySubtitle: String {
-        if showsMockLibrary { return "Demo Library" }
         return settings.libraryPath.isEmpty ? "No library selected" : settings.libraryPath
     }
 
@@ -280,6 +338,7 @@ final class AppState: ObservableObject {
     }
 
     func registerMainWindow(_ window: NSWindow?) {
+        guard mainWindow !== window else { return }
         mainWindow = window
         window?.isReleasedWhenClosed = false
     }
@@ -309,6 +368,7 @@ final class AppState: ObservableObject {
 
     func prepareForTermination() {
         stopAllPlayback()
+        audioDeviceService.stopObserving()
         microphoneService.stopMonitoring { [weak self] state in
             self?.inputLevelState = state
         }
@@ -338,57 +398,127 @@ final class AppState: ObservableObject {
         panel.allowedContentTypes = [.audio]
 
         guard panel.runModal() == .OK else { return }
-        clips = applyStoredClipMetadata(to: libraryService.importFiles(panel.urls, into: clips))
-        if !clips.isEmpty {
-            showsMockLibrary = false
-            settings.showsDemoLibrary = false
+
+        let choice = NSAlert()
+        choice.messageText = "How should Cuelet import these sounds?"
+        choice.informativeText = "Copy keeps a durable file in Cuelet's managed library. Link preserves the original location and remembers access to it."
+        let preferredMode: LibraryService.ImportMode = settings.copiesImportedFiles ? .copy : .link
+        choice.addButton(withTitle: preferredMode == .copy ? "Copy into Cuelet Library" : "Link External Files")
+        choice.addButton(withTitle: preferredMode == .copy ? "Link External Files" : "Copy into Cuelet Library")
+        choice.addButton(withTitle: "Cancel")
+
+        let response = choice.runModal()
+        let mode: LibraryService.ImportMode
+        switch response {
+        case .alertFirstButtonReturn: mode = preferredMode
+        case .alertSecondButtonReturn: mode = preferredMode == .copy ? .link : .copy
+        default: return
+        }
+        settings.copiesImportedFiles = mode == .copy
+
+        do {
+            let result = try importSounds(panel.urls, mode: mode)
+            if !result.duplicates.isEmpty {
+                let duplicateAlert = NSAlert()
+                duplicateAlert.alertStyle = .informational
+                duplicateAlert.messageText = result.duplicates.count == 1
+                    ? "That sound is already in Cuelet"
+                    : "\(result.duplicates.count) sounds are already in Cuelet"
+                duplicateAlert.informativeText = "Cuelet did not create duplicate library entries or overwrite any files."
+                duplicateAlert.addButton(withTitle: "OK")
+                duplicateAlert.runModal()
+            }
+        } catch {
+            showError(error.localizedDescription)
         }
     }
 
-    func rescanLibrary() {
-        guard !showsMockLibrary else {
-            clips = libraryService.rescanMockLibrary(currentClips: clips)
-            return
+    @discardableResult
+    func importSounds(_ urls: [URL], mode: LibraryService.ImportMode) throws -> LibraryService.ImportResult {
+        let libraryURL = try ensureManagedLibrary()
+        let result = try libraryService.importFiles(
+            urls,
+            mode: mode,
+            libraryURL: libraryURL,
+            existingClips: clips
+        )
+        guard !result.imported.isEmpty else { return result }
+
+        let updatedClips = clips + result.imported
+        do {
+            try persistLibraryMetadata(clips: updatedClips, libraryURL: libraryURL)
+        } catch {
+            libraryService.rollbackCreatedManagedFiles(result.createdManagedFiles, libraryURL: libraryURL)
+            throw error
         }
 
+        clips = updatedClips
+        selectedSidebarItem = .library
+        refreshGlobalShortcutRegistrations()
+        return result
+    }
+
+    func rescanLibrary() {
         guard !settings.libraryPath.isEmpty else { return }
         loadLibrary(at: URL(fileURLWithPath: expandedPath(settings.libraryPath)))
     }
 
-    func loadDemoLibrary(persistChoice: Bool = true) {
-        clips = libraryService.loadMockLibrary()
-        showsMockLibrary = true
-        if persistChoice {
-            settings.showsDemoLibrary = true
-        }
-        selectedSidebarItem = .library
-        refreshGlobalShortcutRegistrations()
-    }
-
-    func hideDemoLibrary() {
-        settings.showsDemoLibrary = false
-        showsMockLibrary = false
-
-        if settings.libraryPath.isEmpty {
-            clips = []
-            refreshGlobalShortcutRegistrations()
-        } else {
-            loadLibrary(at: URL(fileURLWithPath: expandedPath(settings.libraryPath)))
-        }
-    }
-
     func loadLibrary(at folderURL: URL) {
         do {
-            let scannedClips = applyStoredClipMetadata(
-                to: try libraryService.scanLibrary(at: folderURL, scansSubfolders: settings.scansSubfolders)
-            )
+            let metadataStore = LibraryMetadataStore(libraryURL: folderURL)
+            let loadedClips: [SoundClip]
+
+            switch metadataStore.load() {
+            case .missing:
+                ignoredManagedPaths = []
+                let scanned = try libraryService.scanLibrary(
+                    at: folderURL,
+                    scansSubfolders: settings.scansSubfolders
+                )
+                loadedClips = applyStoredClipMetadata(to: scanned)
+                let hasLegacySoundMetadata = !settings.soundCategoryAssignments.isEmpty
+                    || !settings.soundShortcutAssignments.isEmpty
+                    || !settings.favoriteSoundIDs.isEmpty
+                if hasLegacySoundMetadata, !settingsStore.backupLegacyMetadataIfNeeded() {
+                    throw AppPersistenceError.migrationBackup
+                }
+                try persistLibraryMetadata(clips: loadedClips, libraryURL: folderURL)
+                if hasLegacySoundMetadata {
+                    settings.libraryMetadataMigrationVersion = LibraryMetadataDocument.currentVersion
+                    persistenceStatusMessage = "Migrated existing macOS sound metadata to schema version \(LibraryMetadataDocument.currentVersion). A safety copy of settings.json was retained."
+                }
+            case .loaded(let document, let migratedFromVersion):
+                loadedMetadataVersion = migratedFromVersion
+                ignoredManagedPaths = document.ignoredManagedPaths
+                applyLibraryCategories(document.categories)
+                loadedClips = try libraryService.loadLibrary(
+                    at: folderURL,
+                    scansSubfolders: settings.scansSubfolders,
+                    metadata: document
+                )
+                try persistLibraryMetadata(clips: loadedClips, libraryURL: folderURL)
+                if let migratedFromVersion {
+                    persistenceStatusMessage = "Migrated library metadata from version \(migratedFromVersion) to version \(LibraryMetadataDocument.currentVersion). The original is preserved as .v1.bak."
+                }
+            case .recovered(let document, let primaryError):
+                try metadataStore.restoreRecoveredDocument(document)
+                ignoredManagedPaths = document.ignoredManagedPaths
+                applyLibraryCategories(document.categories)
+                loadedClips = try libraryService.loadLibrary(
+                    at: folderURL,
+                    scansSubfolders: settings.scansSubfolders,
+                    metadata: document
+                )
+                persistenceStatusMessage = "Recovered the library from .cuelet-metadata.json.backup. The damaged primary reported: \(primaryError)"
+            case .failure(let message):
+                throw AppPersistenceError.metadata(message)
+            }
+
             if settings.stopOnLibraryChange {
                 stopAllPlayback()
             }
             settings.libraryPath = folderURL.path
-            settings.showsDemoLibrary = false
-            showsMockLibrary = false
-            clips = scannedClips
+            clips = loadedClips
             selectedSidebarItem = .library
             selectedClipID = nil
             refreshGlobalShortcutRegistrations()
@@ -399,7 +529,7 @@ final class AppState: ObservableObject {
 
     func setScansSubfolders(_ scansSubfolders: Bool) {
         settings.scansSubfolders = scansSubfolders
-        if !showsMockLibrary, !settings.libraryPath.isEmpty {
+        if !settings.libraryPath.isEmpty {
             rescanLibrary()
         }
     }
@@ -609,7 +739,7 @@ final class AppState: ObservableObject {
 
     func togglePlayback(for clip: SoundClip) {
         if playbackState.playingClipIDs.contains(clip.id) {
-            playbackService.stop(clip: clip, playbackState: &playbackState)
+            stop(clip)
         } else {
             _ = startPlayback(clip)
         }
@@ -635,6 +765,19 @@ final class AppState: ObservableObject {
 
     func stop(_ clip: SoundClip) {
         playbackService.stop(clip: clip, playbackState: &playbackState)
+        updateIdleAudioRouteStatusIfNeeded()
+    }
+
+    func pause(_ clip: SoundClip) {
+        playbackService.pause(clip: clip, playbackState: &playbackState)
+    }
+
+    func resume(_ clip: SoundClip) {
+        _ = playbackService.resume(clip: clip, playbackState: &playbackState)
+    }
+
+    func isPaused(_ clip: SoundClip) -> Bool {
+        playbackState.isPaused(clip.id)
     }
 
     func stop(_ clipsToStop: [SoundClip]) {
@@ -648,6 +791,7 @@ final class AppState: ObservableObject {
 
     func stopAllPlayback() {
         playbackService.stopAll(playbackState: &playbackState)
+        updateIdleAudioRouteStatusIfNeeded()
     }
 
     func handleEscapeFromKeyboard() -> Bool {
@@ -667,6 +811,8 @@ final class AppState: ObservableObject {
     }
 
     func toggleFavorite(_ clip: SoundClip) {
+        let previousClips = clips
+        let previousSettings = settings
         guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return }
         clips[index].isFavorite.toggle()
         guard let key = assignmentKey(for: clips[index]) else { return }
@@ -675,9 +821,16 @@ final class AppState: ObservableObject {
         } else {
             settings.favoriteSoundIDs.remove(key)
         }
+        guard persistCurrentLibraryMetadata() else {
+            clips = previousClips
+            settings = previousSettings
+            return
+        }
     }
 
     func setFavorite(_ clipsToUpdate: [SoundClip], isFavorite: Bool) {
+        let previousClips = clips
+        let previousSettings = settings
         for clip in clipsToUpdate {
             guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { continue }
             clips[index].isFavorite = isFavorite
@@ -689,9 +842,16 @@ final class AppState: ObservableObject {
                 settings.favoriteSoundIDs.remove(key)
             }
         }
+        guard persistCurrentLibraryMetadata() else {
+            clips = previousClips
+            settings = previousSettings
+            return
+        }
     }
 
     func assign(_ clip: SoundClip, to category: SoundCategory) {
+        let previousClips = clips
+        let previousSettings = settings
         guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return }
         let resolvedCategory = categoryByID(category.id) ?? category
 
@@ -707,6 +867,11 @@ final class AppState: ObservableObject {
             updatedSettings.soundCategoryAssignments[key] = resolvedCategory.id
         }
         settings = updatedSettings
+        guard persistCurrentLibraryMetadata() else {
+            clips = previousClips
+            settings = previousSettings
+            return
+        }
     }
 
     func assign(_ clipsToAssign: [SoundClip], to category: SoundCategory) {
@@ -718,11 +883,19 @@ final class AppState: ObservableObject {
     }
 
     func beginShortcutCapture(for clip: SoundClip) {
+        if !globalShortcutRegistrationsSuspendedForCapture {
+            globalShortcutService.unregisterAll()
+            globalShortcutRegistrationsSuspendedForCapture = true
+            globalShortcutStatusMessage = "Global shortcuts paused while editing"
+        }
         shortcutCaptureRequest = ShortcutCaptureRequest(clipID: clip.id)
     }
 
     func dismissShortcutCapture() {
         shortcutCaptureRequest = nil
+        guard globalShortcutRegistrationsSuspendedForCapture else { return }
+        globalShortcutRegistrationsSuspendedForCapture = false
+        refreshGlobalShortcutRegistrations()
     }
 
     func clip(withID clipID: SoundClip.ID) -> SoundClip? {
@@ -819,6 +992,22 @@ final class AppState: ObservableObject {
             }
         }
 
+        do {
+            try persistLibraryMetadata(clips: updatedClips)
+        } catch {
+            _ = settingsStore.save(settings)
+            let restoreResult = globalShortcutService.tryUpdate(globalAssignments(from: clips))
+            updateGlobalShortcutStatus()
+            switch restoreResult {
+            case .success:
+                return .persistenceFailed("Could not save shortcut metadata. The previous shortcut was restored.")
+            case .failure:
+                return .persistenceFailed(
+                    "Could not save shortcut metadata, and the previous global registration could not be restored."
+                )
+            }
+        }
+
         clips = updatedClips
         settings = updatedSettings
         updateGlobalShortcutStatus()
@@ -834,11 +1023,13 @@ final class AppState: ObservableObject {
     }
 
     func rename(_ clip: SoundClip) {
-        guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        guard clips.contains(where: { $0.id == clip.id }) else { return }
 
         let alert = NSAlert()
-        alert.messageText = "Rename Sound"
-        alert.informativeText = "Enter a new name for this sound."
+        alert.messageText = "Rename Sound in Cuelet"
+        alert.informativeText = clip.storageMode == .linked
+            ? "This changes only the Cuelet display name. The linked external file will not be renamed."
+            : "This changes only the Cuelet display name. The managed audio filename will stay unchanged."
         alert.addButton(withTitle: "Rename")
         alert.addButton(withTitle: "Cancel")
 
@@ -850,35 +1041,71 @@ final class AppState: ObservableObject {
         let name = textField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
 
-        if playbackState.playingClipIDs.contains(clip.id) {
-            stop(clip)
-        }
+        _ = renameDisplayName(clip, to: name)
+    }
 
-        do {
-            let oldAssignmentKey = assignmentKey(for: clips[index])
-            let wasFavorite = clips[index].isFavorite
-            clips[index] = try libraryService.renameClipFile(clips[index], to: name)
-            if let oldAssignmentKey,
-               let newAssignmentKey = assignmentKey(for: clips[index]),
-               let assignedCategoryID = settings.soundCategoryAssignments.removeValue(forKey: oldAssignmentKey) {
-                settings.soundCategoryAssignments[newAssignmentKey] = assignedCategoryID
-            }
-            if let oldAssignmentKey,
-               let newAssignmentKey = assignmentKey(for: clips[index]),
-               let assignedShortcut = settings.soundShortcutAssignments.removeValue(forKey: oldAssignmentKey) {
-                settings.soundShortcutAssignments[newAssignmentKey] = assignedShortcut
-                clips[index].shortcut = assignedShortcut
-            }
-            if wasFavorite,
-               let oldAssignmentKey,
-               let newAssignmentKey = assignmentKey(for: clips[index]) {
-                settings.favoriteSoundIDs.remove(oldAssignmentKey)
-                settings.favoriteSoundIDs.insert(newAssignmentKey)
-                clips[index].isFavorite = true
-            }
-        } catch {
-            showError(error.localizedDescription)
+    @discardableResult
+    func renameDisplayName(_ clip: SoundClip, to proposedName: String) -> Bool {
+        let name = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, let index = clips.firstIndex(where: { $0.id == clip.id }) else { return false }
+        let previousClips = clips
+        clips[index].name = name
+        guard persistCurrentLibraryMetadata() else {
+            clips = previousClips
+            return false
         }
+        return true
+    }
+
+    func editNotesAndAliases(_ clip: SoundClip) {
+        guard clips.contains(where: { $0.id == clip.id }) else { return }
+        let alert = NSAlert()
+        alert.messageText = "Edit Sound Details"
+        alert.informativeText = "Notes and aliases are searchable in Cuelet. Separate aliases with commas."
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        let notesLabel = NSTextField(labelWithString: "Notes")
+        let notesField = NSTextField(string: clip.notes)
+        notesField.placeholderString = "Optional notes"
+        notesField.setAccessibilityLabel("Sound notes")
+        let aliasesLabel = NSTextField(labelWithString: "Aliases")
+        let aliasesField = NSTextField(string: clip.aliases.joined(separator: ", "))
+        aliasesField.placeholderString = "boom, impact, sting"
+        aliasesField.setAccessibilityLabel("Sound aliases")
+        [notesLabel, notesField, aliasesLabel, aliasesField].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            stack.addArrangedSubview($0)
+        }
+        notesField.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        aliasesField.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        alert.accessoryView = stack
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let aliases = aliasesField.stringValue
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        _ = updateDetails(clip, notes: notesField.stringValue, aliases: aliases)
+    }
+
+    @discardableResult
+    func updateDetails(_ clip: SoundClip, notes: String, aliases: [String]) -> Bool {
+        guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return false }
+        let previous = clips[index]
+        clips[index].notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        clips[index].aliases = Array(Set(aliases.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter { !$0.isEmpty })).sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+        guard persistCurrentLibraryMetadata() else {
+            clips[index] = previous
+            return false
+        }
+        return true
     }
 
     func revealInFinder(_ clip: SoundClip) {
@@ -921,9 +1148,29 @@ final class AppState: ObservableObject {
         alert.addButton(withTitle: "Cancel")
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
+        _ = removeLibraryEntries(uniqueClips)
+    }
+
+    @discardableResult
+    func removeLibraryEntries(_ clipsToRemove: [SoundClip]) -> Bool {
+        let uniqueClips = uniquedClips(clipsToRemove)
+        guard !uniqueClips.isEmpty else { return false }
         let removedIDs = Set(uniqueClips.map(\.id))
+        let remainingClips = clips.filter { !removedIDs.contains($0.id) }
+        let previousIgnoredPaths = ignoredManagedPaths
+        ignoredManagedPaths.formUnion(uniqueClips.compactMap { clip in
+            clip.storageMode == .managed ? clip.managedRelativePath : nil
+        })
+        do {
+            try persistLibraryMetadata(clips: remainingClips)
+        } catch {
+            ignoredManagedPaths = previousIgnoredPaths
+            showError(error.localizedDescription)
+            return false
+        }
+
         uniqueClips.forEach { stop($0) }
-        clips.removeAll { removedIDs.contains($0.id) }
+        clips = remainingClips
         selectedSoundIDs.subtract(removedIDs)
 
         if let focusedSoundID, removedIDs.contains(focusedSoundID) {
@@ -934,6 +1181,83 @@ final class AppState: ObservableObject {
             self.selectionAnchorSoundID = firstSelectedVisibleClipID() ?? selectedSoundIDs.first
         }
         refreshGlobalShortcutRegistrations()
+        return true
+    }
+
+    func deleteManagedFile(_ clip: SoundClip) {
+        guard clip.storageMode == .managed, !clip.isMissing else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Permanently delete “\(clip.displayName)”?"
+        alert.informativeText = "This deletes the managed audio file and removes it from Cuelet. This action cannot be undone."
+        alert.addButton(withTitle: "Delete File")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        _ = deleteManagedFileWithoutConfirmation(clip)
+    }
+
+    @discardableResult
+    func deleteManagedFileWithoutConfirmation(_ clip: SoundClip) -> Bool {
+        guard !settings.libraryPath.isEmpty else { return false }
+        let libraryURL = URL(fileURLWithPath: expandedPath(settings.libraryPath), isDirectory: true)
+        do {
+            let staged = try libraryService.stageManagedDeletion(clip, libraryURL: libraryURL)
+            let remaining = clips.filter { $0.id != clip.id }
+            do {
+                try persistLibraryMetadata(clips: remaining, libraryURL: libraryURL)
+            } catch {
+                libraryService.rollbackManagedDeletion(staged)
+                throw error
+            }
+            do {
+                try libraryService.commitManagedDeletion(staged)
+            } catch {
+                persistenceStatusMessage = "The library entry was removed, but Cuelet could not finish deleting its quarantined managed file: \(error.localizedDescription)"
+                showError(persistenceStatusMessage)
+                return false
+            }
+            stop(clip)
+            clips = remaining
+            selectedSoundIDs.remove(clip.id)
+            refreshGlobalShortcutRegistrations()
+            return true
+        } catch {
+            showError(error.localizedDescription)
+            return false
+        }
+    }
+
+    func locateOrRelink(_ clip: SoundClip) {
+        let panel = NSOpenPanel()
+        panel.title = clip.storageMode == .linked ? "Relink Sound" : "Locate Replacement for Managed Sound"
+        panel.message = "Choose the audio file that should restore “\(clip.displayName)”."
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.audio]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try relink(clip, to: url)
+        } catch {
+            showError(error.localizedDescription)
+        }
+    }
+
+    func relink(_ clip: SoundClip, to url: URL) throws {
+        guard !settings.libraryPath.isEmpty,
+              let index = clips.firstIndex(where: { $0.id == clip.id }) else {
+            throw AppPersistenceError.metadata("Cuelet cannot relink this sound because no managed library is active.")
+        }
+        let libraryURL = URL(fileURLWithPath: expandedPath(settings.libraryPath), isDirectory: true)
+        let previous = clips[index]
+        let updated = try libraryService.relink(previous, to: url, libraryURL: libraryURL)
+        clips[index] = updated
+        do {
+            try persistLibraryMetadata(clips: clips, libraryURL: libraryURL)
+        } catch {
+            clips[index] = previous
+            throw error
+        }
     }
 
     func playbackProgress(for clip: SoundClip) -> PlaybackService.Progress? {
@@ -965,6 +1289,8 @@ final class AppState: ObservableObject {
     }
 
     func changeColor(for category: SoundCategory, to hex: String) {
+        let previousSettings = settings
+        let previousClips = clips
         guard canEditCategory(category),
               SoundCategory.palette.contains(where: { $0.hex == hex }),
               let index = settings.customCategories.firstIndex(where: { $0.id == category.id }) else {
@@ -978,9 +1304,15 @@ final class AppState: ObservableObject {
         updatedSettings.categoryColorHexes[category.id] = hex
         settings = updatedSettings
         refreshCategoryCopies(updatedCategory)
+        if !persistCurrentLibraryMetadata() {
+            settings = previousSettings
+            clips = previousClips
+        }
     }
 
     func changeIcon(for category: SoundCategory, to iconID: String) {
+        let previousSettings = settings
+        let previousClips = clips
         let canonicalID = SoundCategory.canonicalIconID(iconID)
         guard canEditCategory(category),
               SoundCategory.iconChoices.contains(where: { $0.id == canonicalID }),
@@ -994,6 +1326,10 @@ final class AppState: ObservableObject {
         updatedSettings.customCategories[index] = updatedCategory
         settings = updatedSettings
         refreshCategoryCopies(updatedCategory)
+        if !persistCurrentLibraryMetadata() {
+            settings = previousSettings
+            clips = previousClips
+        }
     }
 
     func renameCategory(_ category: SoundCategory) {
@@ -1007,6 +1343,8 @@ final class AppState: ObservableObject {
 
     @discardableResult
     func renameCategory(_ category: SoundCategory, to name: String) -> SoundCategory {
+        let previousSettings = settings
+        let previousClips = clips
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canEditCategory(category), !trimmedName.isEmpty else { return category }
         guard categoryNameValidationError(for: trimmedName, excluding: category.id) == nil else {
@@ -1032,11 +1370,19 @@ final class AppState: ObservableObject {
             selectedSidebarItem = .category(renamedCategory)
         }
 
+        if !persistCurrentLibraryMetadata() {
+            settings = previousSettings
+            clips = previousClips
+            return categoryByID(category.id) ?? category
+        }
+
         return renamedCategory
     }
 
     func deleteCategory(_ category: SoundCategory) {
         guard canEditCategory(category) else { return }
+        let previousSettings = settings
+        let previousClips = clips
 
         var updatedSettings = settings
         updatedSettings.customCategories.removeAll { $0.id == category.id }
@@ -1055,6 +1401,10 @@ final class AppState: ObservableObject {
         if case .category(let selectedCategory) = selectedSidebarItem, selectedCategory.id == category.id {
             selectedSidebarItem = .allCategories
         }
+        if !persistCurrentLibraryMetadata() {
+            settings = previousSettings
+            clips = previousClips
+        }
     }
 
     func newCategory() {
@@ -1069,6 +1419,7 @@ final class AppState: ObservableObject {
             return existingCategory
         }
 
+        let previousSettings = settings
         var category = SoundCategory.makeUserCategory(named: trimmedName, colorHex: colorHex)
         category.iconID = SoundCategory.canonicalIconID(iconID)
         while categories.contains(where: { $0.id == category.id }) {
@@ -1086,6 +1437,10 @@ final class AppState: ObservableObject {
         updatedSettings.categoryColorHexes[category.id] = colorHex
         updatedSettings.categoryNames[category.id] = trimmedName
         settings = updatedSettings
+        if !persistCurrentLibraryMetadata() {
+            settings = previousSettings
+            return .uncategorized
+        }
         return category
     }
 
@@ -1157,16 +1512,9 @@ final class AppState: ObservableObject {
     }
 
     func refreshAudioRouting() {
-        outputDevices = audioDeviceService.outputDevices()
+        outputDevices = [AudioDevice.systemOutput] + audioDeviceService.outputDeviceSnapshots().map(\.device)
         inputDevices = audioDeviceService.inputDevices()
         microphonePermissionState = audioPermissionService.microphonePermissionState()
-
-        if !outputDevices.contains(where: { $0.id == settings.outputDeviceID }) {
-            settings.outputDeviceID = AudioDevice.systemOutput.id
-        }
-        if !settings.audioRoutingMode.isImplemented {
-            settings.audioRoutingMode = .speakerOnly
-        }
 
         if let inputDeviceID = settings.inputDeviceID,
            !inputDevices.contains(where: { $0.id == inputDeviceID }) {
@@ -1177,9 +1525,345 @@ final class AppState: ObservableObject {
         case .denied:
             audioStatusMessage = "Microphone permission denied. Enable access in System Settings to use input metering."
         case .missingUsageDescription:
-            audioStatusMessage = "Microphone access is unavailable in this development executable. Use the Finder-launchable app bundle."
+            audioStatusMessage = "Microphone access is unavailable because this app bundle does not include a microphone usage description."
         default:
             audioStatusMessage = ""
+        }
+
+        reconcileConfiguredOutput()
+        refreshVirtualAudioDriverStatus()
+    }
+
+    @discardableResult
+    func selectOutputDevice(id: String) -> Bool {
+        defer { refreshVirtualAudioDriverStatus() }
+        guard id != settings.outputDeviceID else {
+            reconcileConfiguredOutput()
+            return audioRouteStatus.kind != .failed
+        }
+
+        let targetDevice: AudioDevice
+        let targetUID: String?
+        if id == AudioDevice.systemOutput.id {
+            targetDevice = .systemOutput
+            targetUID = nil
+        } else if let snapshot = audioDeviceService.outputDevice(forPersistentID: id),
+                  let uid = snapshot.device.coreAudioUID {
+            targetDevice = snapshot.device
+            targetUID = uid
+        } else {
+            announceAudioRouteStatus("The selected output device is unavailable.")
+            return false
+        }
+
+        audioRouteStatus = AudioRouteStatus(
+            kind: .applying,
+            selectedDeviceID: targetDevice.id,
+            selectedName: targetDevice.name,
+            activeDeviceID: nil,
+            activeName: nil,
+            message: "Applying \(targetDevice.name)…",
+            technicalDetails: nil
+        )
+
+        let routeWasAlreadyConfigured = playbackService.configuredOutputDeviceUID == targetUID
+        let applyResult: Result<Void, PlaybackService.OutputRouteError> = routeWasAlreadyConfigured
+            ? .success(())
+            : playbackService.applyOutputDeviceUID(targetUID)
+        switch applyResult {
+        case .success:
+            var updatedSettings = settings
+            updatedSettings.outputDeviceID = targetDevice.id
+            updatedSettings.outputDeviceName = targetDevice.name
+            settings = updatedSettings
+            if playbackState.isPlaying, routeWasAlreadyConfigured {
+                handleOutputRouteConfirmation(requestedUID: targetUID, actualUID: targetUID)
+            } else if !playbackState.isPlaying {
+                audioRouteStatus = readyRouteStatus(for: targetDevice)
+            }
+            return true
+        case .failure(let error):
+            audioRouteStatus = AudioRouteStatus(
+                kind: .failed,
+                selectedDeviceID: settings.outputDeviceID,
+                selectedName: settings.outputDeviceName,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "Routing failed. The previous selection was kept.",
+                technicalDetails: error.localizedDescription
+            )
+            announceAudioRouteStatus(audioRouteStatus.message)
+            return false
+        }
+    }
+
+    func setOutputFallbackPolicy(_ policy: AudioOutputFallbackPolicy) {
+        guard settings.outputFallbackPolicy != policy else { return }
+        settings.outputFallbackPolicy = policy
+        reconcileConfiguredOutput()
+        refreshVirtualAudioDriverStatus()
+    }
+
+    func refreshVirtualAudioDriverStatus() {
+        virtualAudioDriverStatus = virtualAudioDriverService.status(
+            selectedOutputDeviceID: settings.outputDeviceID,
+            routingStatus: audioRouteStatus
+        )
+    }
+
+    private func reconcileConfiguredOutput() {
+        if settings.outputDeviceID == AudioDevice.systemOutput.id {
+            applyAvailableRoute(device: .systemOutput, uid: nil)
+            return
+        }
+
+        guard let snapshot = audioDeviceService.outputDevice(forPersistentID: settings.outputDeviceID),
+              let uid = snapshot.device.coreAudioUID else {
+            handleUnavailableSelectedOutput()
+            return
+        }
+
+        if settings.outputDeviceName != snapshot.device.name {
+            settings.outputDeviceName = snapshot.device.name
+        }
+        applyAvailableRoute(device: snapshot.device, uid: uid)
+    }
+
+    private func applyAvailableRoute(device: AudioDevice, uid: String?) {
+        let wasUnavailable = audioRouteStatus.kind == .unavailable
+            || audioRouteStatus.kind == .fallbackSystemOutput
+            || audioRouteStatus.kind == .reconnecting
+        if wasUnavailable {
+            audioRouteStatus = AudioRouteStatus(
+                kind: .reconnecting,
+                selectedDeviceID: device.id,
+                selectedName: device.name,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "Reconnecting to \(device.name)…",
+                technicalDetails: nil
+            )
+        }
+
+        // Core Audio device notifications and opening Settings can both refresh
+        // this catalog. Reassigning AVAudioPlayer.currentDevice to the UID it is
+        // already using can interrupt some physical and virtual drivers, so an
+        // unchanged route is intentionally a no-op.
+        if playbackService.configuredOutputDeviceUID == uid,
+           audioRouteStatus.kind != .failed {
+            if playbackState.isPlaying {
+                handleOutputRouteConfirmation(requestedUID: uid, actualUID: uid)
+            } else {
+                audioRouteStatus = readyRouteStatus(for: device)
+            }
+            return
+        }
+
+        switch playbackService.applyOutputDeviceUID(uid) {
+        case .success:
+            if !playbackState.isPlaying {
+                audioRouteStatus = readyRouteStatus(for: device)
+            }
+        case .failure(let error):
+            stopAllPlayback()
+            audioRouteStatus = AudioRouteStatus(
+                kind: .failed,
+                selectedDeviceID: device.id,
+                selectedName: device.name,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "Cuelet could not route playback to \(device.name).",
+                technicalDetails: error.localizedDescription
+            )
+            announceAudioRouteStatus(audioRouteStatus.message)
+        }
+    }
+
+    private func handleUnavailableSelectedOutput() {
+        let wasAlreadyUnavailable = audioRouteStatus.kind == .unavailable
+            || audioRouteStatus.kind == .fallbackSystemOutput
+        let isLeavingActiveFallback = audioRouteStatus.kind == .fallbackSystemOutput
+            && audioRouteStatus.activeDeviceID != nil
+            && settings.outputFallbackPolicy == .stopAndWait
+        if !wasAlreadyUnavailable || isLeavingActiveFallback {
+            stopAllPlayback()
+        }
+        let savedID = settings.outputDeviceID
+        let savedName = settings.outputDeviceName.isEmpty ? "Selected Output" : settings.outputDeviceName
+
+        switch settings.outputFallbackPolicy {
+        case .stopAndWait:
+            let missingUID = AudioDevice(
+                id: savedID,
+                name: savedName,
+                kind: .output,
+                isDefault: false,
+                isVirtual: false
+            ).coreAudioUID
+            if playbackService.configuredOutputDeviceUID != missingUID {
+                _ = playbackService.applyOutputDeviceUID(missingUID)
+            }
+            audioRouteStatus = AudioRouteStatus(
+                kind: .unavailable,
+                selectedDeviceID: savedID,
+                selectedName: savedName,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "\(savedName) is unavailable. Playback is stopped until that exact device returns.",
+                technicalDetails: "Saved Core Audio device UID could not be resolved."
+            )
+        case .systemOutput:
+            let applyResult: Result<Void, PlaybackService.OutputRouteError> = playbackService.configuredOutputDeviceUID == nil
+                ? .success(())
+                : playbackService.applyOutputDeviceUID(nil)
+            switch applyResult {
+            case .success:
+                if playbackState.isPlaying {
+                    handleOutputRouteConfirmation(requestedUID: nil, actualUID: nil)
+                } else {
+                    audioRouteStatus = AudioRouteStatus(
+                        kind: .fallbackSystemOutput,
+                        selectedDeviceID: savedID,
+                        selectedName: savedName,
+                        activeDeviceID: nil,
+                        activeName: nil,
+                        message: "\(savedName) is unavailable. Future playback will temporarily use System Output.",
+                        technicalDetails: nil
+                    )
+                }
+            case .failure(let error):
+                audioRouteStatus = AudioRouteStatus(
+                    kind: .failed,
+                    selectedDeviceID: savedID,
+                    selectedName: savedName,
+                    activeDeviceID: nil,
+                    activeName: nil,
+                    message: "The selected device is unavailable and System Output fallback could not be prepared.",
+                    technicalDetails: error.localizedDescription
+                )
+            }
+        }
+        if !wasAlreadyUnavailable {
+            announceAudioRouteStatus(audioRouteStatus.message)
+        }
+    }
+
+    private func readyRouteStatus(for device: AudioDevice) -> AudioRouteStatus {
+        let message = device.id == AudioDevice.systemOutput.id
+            ? "Ready. Playback will follow the current macOS System Output."
+            : "Ready to route playback to \(device.name)."
+        return AudioRouteStatus(
+            kind: .ready,
+            selectedDeviceID: device.id,
+            selectedName: device.name,
+            activeDeviceID: nil,
+            activeName: nil,
+            message: message,
+            technicalDetails: nil
+        )
+    }
+
+    private func handleOutputRouteConfirmation(requestedUID: String?, actualUID: String?) {
+        defer { refreshVirtualAudioDriverStatus() }
+        let selectedID = settings.outputDeviceID
+        let isFallback = selectedID != AudioDevice.systemOutput.id
+            && settings.outputFallbackPolicy == .systemOutput
+            && audioDeviceService.outputDevice(forPersistentID: selectedID) == nil
+
+        guard playbackState.isPlaying else {
+            updateIdleAudioRouteStatusIfNeeded()
+            return
+        }
+
+        if isFallback {
+            guard requestedUID == nil else { return }
+            let activeName = audioDeviceService.systemOutputDevice()?.device.name ?? "System Output"
+            audioRouteStatus = AudioRouteStatus(
+                kind: .fallbackSystemOutput,
+                selectedDeviceID: selectedID,
+                selectedName: settings.outputDeviceName,
+                activeDeviceID: AudioDevice.systemOutput.id,
+                activeName: activeName,
+                message: "Playing through System Output temporarily; waiting for \(settings.outputDeviceName).",
+                technicalDetails: nil
+            )
+            return
+        }
+
+        if selectedID == AudioDevice.systemOutput.id {
+            guard requestedUID == nil else { return }
+            let activeName = audioDeviceService.systemOutputDevice()?.device.name ?? "System Output"
+            audioRouteStatus = AudioRouteStatus(
+                kind: .systemOutput,
+                selectedDeviceID: selectedID,
+                selectedName: AudioDevice.systemOutput.name,
+                activeDeviceID: AudioDevice.systemOutput.id,
+                activeName: activeName,
+                message: "Playing through \(activeName) via System Output.",
+                technicalDetails: nil
+            )
+            return
+        }
+
+        guard let expectedUID = AudioDevice(
+            id: selectedID,
+            name: "",
+            kind: .output,
+            isDefault: false,
+            isVirtual: false
+        ).coreAudioUID,
+              requestedUID == expectedUID else { return }
+
+        guard actualUID == expectedUID else {
+            stopAllPlayback()
+            audioRouteStatus = AudioRouteStatus(
+                kind: .failed,
+                selectedDeviceID: selectedID,
+                selectedName: settings.outputDeviceName,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "Core Audio did not confirm the selected output. Playback was stopped.",
+                technicalDetails: "Requested UID and active player UID did not match."
+            )
+            announceAudioRouteStatus(audioRouteStatus.message)
+            return
+        }
+
+        audioRouteStatus = AudioRouteStatus(
+            kind: .explicitDevice,
+            selectedDeviceID: selectedID,
+            selectedName: settings.outputDeviceName,
+            activeDeviceID: selectedID,
+            activeName: settings.outputDeviceName,
+            message: "Playing through \(settings.outputDeviceName).",
+            technicalDetails: nil
+        )
+    }
+
+    private func announceAudioRouteStatus(_ message: String) {
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [.announcement: message]
+        )
+    }
+
+    private func updateIdleAudioRouteStatusIfNeeded() {
+        guard !playbackState.isPlaying else { return }
+        if settings.outputDeviceID == AudioDevice.systemOutput.id {
+            audioRouteStatus = readyRouteStatus(for: .systemOutput)
+        } else if let device = audioDeviceService.outputDevice(forPersistentID: settings.outputDeviceID)?.device {
+            audioRouteStatus = readyRouteStatus(for: device)
+        } else if settings.outputFallbackPolicy == .systemOutput {
+            audioRouteStatus = AudioRouteStatus(
+                kind: .fallbackSystemOutput,
+                selectedDeviceID: settings.outputDeviceID,
+                selectedName: settings.outputDeviceName,
+                activeDeviceID: nil,
+                activeName: nil,
+                message: "\(settings.outputDeviceName) is unavailable. Future playback will temporarily use System Output.",
+                technicalDetails: nil
+            )
         }
     }
 
@@ -1220,11 +1904,18 @@ final class AppState: ObservableObject {
 
     private func markPlayed(_ clip: SoundClip) {
         guard let index = clips.firstIndex(where: { $0.id == clip.id }) else { return }
+        let previousDate = clips[index].lastPlayedAt
         clips[index].lastPlayedAt = Date()
+        do {
+            try persistLibraryMetadata(clips: clips)
+        } catch {
+            clips[index].lastPlayedAt = previousDate
+        }
     }
 
     private func handlePlaybackFinished(_ clipID: SoundClip.ID) {
         playbackState.stop(clipID)
+        updateIdleAudioRouteStatusIfNeeded()
     }
 
     private func playClipFromGlobalShortcut(_ clipID: SoundClip.ID) {
@@ -1261,9 +1952,26 @@ final class AppState: ObservableObject {
 
     @discardableResult
     private func startPlayback(_ clip: SoundClip) -> Bool {
+        defer { refreshVirtualAudioDriverStatus() }
+        guard audioRouteStatus.allowsPlayback else {
+            showError(audioRouteStatus.message)
+            return false
+        }
         let result = playbackService.play(clip: clip, settings: settings, playbackState: &playbackState)
         guard result.didStart else {
             if let error = result.error {
+                if case .outputRoutingFailed(let details) = error {
+                    audioRouteStatus = AudioRouteStatus(
+                        kind: .failed,
+                        selectedDeviceID: settings.outputDeviceID,
+                        selectedName: settings.outputDeviceName,
+                        activeDeviceID: nil,
+                        activeName: nil,
+                        message: "Cuelet could not start playback on the selected output.",
+                        technicalDetails: details
+                    )
+                    announceAudioRouteStatus(audioRouteStatus.message)
+                }
                 showError(error.localizedDescription)
             }
             return false
@@ -1273,52 +1981,111 @@ final class AppState: ObservableObject {
         return true
     }
 
-    private func loadInitialLibrary(usesDemoArgument: Bool) {
-        if usesDemoArgument {
-            loadDemoLibrary(persistChoice: false)
-            return
-        }
-
+    private func loadInitialLibrary() {
         if !settings.libraryPath.isEmpty {
-            do {
-                clips = try libraryService.scanLibrary(
-                    at: URL(fileURLWithPath: expandedPath(settings.libraryPath)),
-                    scansSubfolders: settings.scansSubfolders
-                )
-                clips = applyStoredClipMetadata(to: clips)
-                showsMockLibrary = false
-                selectedClipID = nil
-                return
-            } catch {
-                showError(error.localizedDescription)
-            }
-        }
-
-        if settings.showsDemoLibrary {
-            loadDemoLibrary(persistChoice: false)
+            loadLibrary(at: URL(fileURLWithPath: expandedPath(settings.libraryPath)))
         }
     }
 
     private func synchronizeSelectionWithVisibleClips() {
         let visibleIDs = Set(visibleClips.map(\.id))
-        selectedSoundIDs.formIntersection(visibleIDs)
+        let synchronizedSelection = selectedSoundIDs.intersection(visibleIDs)
+        if synchronizedSelection != selectedSoundIDs {
+            selectedSoundIDs = synchronizedSelection
+        }
 
         if let focusedSoundID, !visibleIDs.contains(focusedSoundID) {
-            self.focusedSoundID = firstSelectedVisibleClipID()
+            let updated = firstSelectedVisibleClipID()
+            if self.focusedSoundID != updated { self.focusedSoundID = updated }
         }
 
         if let selectionAnchorSoundID, !visibleIDs.contains(selectionAnchorSoundID) {
-            self.selectionAnchorSoundID = firstSelectedVisibleClipID()
+            let updated = firstSelectedVisibleClipID()
+            if self.selectionAnchorSoundID != updated { self.selectionAnchorSoundID = updated }
         }
 
         if selectedSoundIDs.isEmpty {
-            focusedSoundID = nil
-            selectionAnchorSoundID = nil
+            if focusedSoundID != nil { focusedSoundID = nil }
+            if selectionAnchorSoundID != nil { selectionAnchorSoundID = nil }
         }
     }
 
     private func expandedPath(_ path: String) -> String {
         NSString(string: path).expandingTildeInPath
+    }
+
+    private func ensureManagedLibrary() throws -> URL {
+        if !settings.libraryPath.isEmpty {
+            return URL(fileURLWithPath: expandedPath(settings.libraryPath), isDirectory: true)
+        }
+
+        let parent = settingsStore.url.deletingLastPathComponent()
+        let libraryURL: URL
+        if settingsStore.url.lastPathComponent == "settings.json" {
+            libraryURL = parent.appendingPathComponent("Library", isDirectory: true)
+        } else {
+            libraryURL = parent.appendingPathComponent(
+                "\(settingsStore.url.deletingPathExtension().lastPathComponent)-Library",
+                isDirectory: true
+            )
+        }
+        try FileManager.default.createDirectory(
+            at: libraryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+        loadLibrary(at: libraryURL)
+        guard settings.libraryPath == libraryURL.path else {
+            throw AppPersistenceError.metadata("Cuelet could not initialize its managed library.")
+        }
+        return libraryURL
+    }
+
+    private func persistLibraryMetadata(clips clipsToPersist: [SoundClip], libraryURL: URL? = nil) throws {
+        let resolvedLibraryURL: URL
+        if let libraryURL {
+            resolvedLibraryURL = libraryURL
+        } else {
+            guard !settings.libraryPath.isEmpty else { return }
+            resolvedLibraryURL = URL(fileURLWithPath: expandedPath(settings.libraryPath), isDirectory: true)
+        }
+
+        let store = LibraryMetadataStore(libraryURL: resolvedLibraryURL)
+        let document = store.document(
+            from: clipsToPersist,
+            categories: settings.customCategories,
+            ignoredManagedPaths: ignoredManagedPaths
+        )
+        do {
+            try store.save(document, loadedLegacyVersion: loadedMetadataVersion)
+            loadedMetadataVersion = nil
+        } catch {
+            persistenceStatusMessage = error.localizedDescription
+            throw error
+        }
+    }
+
+    private func persistCurrentLibraryMetadata() -> Bool {
+        do {
+            try persistLibraryMetadata(clips: clips)
+            return true
+        } catch {
+            showError(error.localizedDescription)
+            return false
+        }
+    }
+
+    private func applyLibraryCategories(_ categories: [SoundCategory]) {
+        var updatedSettings = settings
+        let retainedIDs = Set(categories.map(\.id)).union([SoundCategory.uncategorized.id])
+        updatedSettings.customCategories = categories
+        updatedSettings.categoryColorHexes = updatedSettings.categoryColorHexes.filter { retainedIDs.contains($0.key) }
+        updatedSettings.categoryNames = updatedSettings.categoryNames.filter { retainedIDs.contains($0.key) }
+        for category in categories {
+            updatedSettings.categoryColorHexes[category.id] = category.defaultColorHex
+            updatedSettings.categoryNames[category.id] = category.name
+        }
+        settings = updatedSettings
     }
 
     private func showError(_ message: String) {

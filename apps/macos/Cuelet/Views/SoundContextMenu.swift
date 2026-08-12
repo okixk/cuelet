@@ -9,11 +9,13 @@ struct SoundContextMenu: View {
         let isMultiSelection = targetClips.count > 1
         let isPlaying = appState.playbackState.playingClipIDs.contains(clip.id)
         let hasPlayingSelection = targetClips.contains { appState.playbackState.playingClipIDs.contains($0.id) }
+        let policy = SoundActionPolicy(clip: clip)
 
         if isMultiSelection {
             Button("Play Selected") {
-                appState.play(targetClips)
+                appState.play(targetClips.filter(\.isPlayable))
             }
+            .disabled(!targetClips.contains(where: \.isPlayable))
 
             if hasPlayingSelection {
                 Button("Stop Selected") {
@@ -46,6 +48,7 @@ struct SoundContextMenu: View {
             Button("Reveal Selected in Finder") {
                 appState.revealInFinder(targetClips)
             }
+            .disabled(!targetClips.contains(where: \.isPlayable))
 
             Divider()
 
@@ -56,6 +59,7 @@ struct SoundContextMenu: View {
             Button("Play") {
                 appState.play(clip)
             }
+            .disabled(!policy.canPlay)
 
             if isPlaying {
                 Button("Stop") {
@@ -87,6 +91,10 @@ struct SoundContextMenu: View {
                 appState.rename(clip)
             }
 
+            Button("Edit Notes & Aliases…") {
+                appState.editNotesAndAliases(clip)
+            }
+
             if let shortcut = clip.shortcut {
                 Button("Change Shortcut… \(shortcut.displayLabel)") {
                     appState.updateShortcut(for: clip)
@@ -104,9 +112,22 @@ struct SoundContextMenu: View {
             Button("Reveal in Finder") {
                 appState.revealInFinder(clip)
             }
+            .disabled(!policy.canReveal)
+
+            if policy.canLocateOrRelink {
+                Button(clip.storageMode == .linked ? "Relink…" : "Locate Replacement…") {
+                    appState.locateOrRelink(clip)
+                }
+            }
 
             Button("Remove from Library…", role: .destructive) {
                 appState.removeFromLibrary(clip)
+            }
+
+            if policy.canDeleteManagedFile {
+                Button("Delete Managed File…", role: .destructive) {
+                    appState.deleteManagedFile(clip)
+                }
             }
         }
     }

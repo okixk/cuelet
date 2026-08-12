@@ -2,14 +2,17 @@ import AVFoundation
 import Foundation
 
 struct CueletSettings: Codable, Equatable {
+    static let currentSchemaVersion = 3
+
+    var schemaVersion = currentSchemaVersion
+    var libraryMetadataMigrationVersion = 0
     var libraryPath = ""
     var viewMode = ViewMode.grid
     var sortOption = SoundSortOption.nameAscending
-    var showsDemoLibrary = false
     var outputDeviceName = "System Default"
     var outputDeviceID = AudioDevice.systemOutput.id
+    var outputFallbackPolicy = AudioOutputFallbackPolicy.stopAndWait
     var inputDeviceID: String?
-    var audioRoutingMode = AudioRoutingMode.speakerOnly
     var isInputMonitoringEnabled = false
     var soundboardVolume = 1.0
     var microphoneVolume = 1.0
@@ -22,7 +25,6 @@ struct CueletSettings: Codable, Equatable {
     var preservesFolderStructure = true
     var scansSubfolders = true
     var globalStopShortcut = "⌘."
-    var showAdvancedDiagnostics = false
     var keepsRunningAfterWindowClose = false
     var showsMenuBarItem = false
     var launchesAtLogin = false
@@ -35,14 +37,15 @@ struct CueletSettings: Codable, Equatable {
     var favoriteSoundIDs: Set<String> = []
 
     enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case libraryMetadataMigrationVersion
         case libraryPath
         case viewMode
         case sortOption
-        case showsDemoLibrary
         case outputDeviceName
         case outputDeviceID
+        case outputFallbackPolicy
         case inputDeviceID
-        case audioRoutingMode
         case isInputMonitoringEnabled
         case soundboardVolume
         case microphoneVolume
@@ -55,7 +58,6 @@ struct CueletSettings: Codable, Equatable {
         case preservesFolderStructure
         case scansSubfolders
         case globalStopShortcut
-        case showAdvancedDiagnostics
         case keepsRunningAfterWindowClose
         case showsMenuBarItem
         case launchesAtLogin
@@ -72,14 +74,16 @@ struct CueletSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        schemaVersion = Self.currentSchemaVersion
+        libraryMetadataMigrationVersion = try container.decodeIfPresent(Int.self, forKey: .libraryMetadataMigrationVersion) ?? libraryMetadataMigrationVersion
         libraryPath = try container.decodeIfPresent(String.self, forKey: .libraryPath) ?? libraryPath
         viewMode = try container.decodeIfPresent(ViewMode.self, forKey: .viewMode) ?? viewMode
         sortOption = try container.decodeIfPresent(SoundSortOption.self, forKey: .sortOption) ?? sortOption
-        showsDemoLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsDemoLibrary) ?? showsDemoLibrary
         outputDeviceName = try container.decodeIfPresent(String.self, forKey: .outputDeviceName) ?? outputDeviceName
         outputDeviceID = try container.decodeIfPresent(String.self, forKey: .outputDeviceID) ?? outputDeviceID
+        outputFallbackPolicy = try container.decodeIfPresent(AudioOutputFallbackPolicy.self, forKey: .outputFallbackPolicy) ?? outputFallbackPolicy
         inputDeviceID = try container.decodeIfPresent(String.self, forKey: .inputDeviceID)
-        audioRoutingMode = try container.decodeIfPresent(AudioRoutingMode.self, forKey: .audioRoutingMode) ?? audioRoutingMode
         isInputMonitoringEnabled = try container.decodeIfPresent(Bool.self, forKey: .isInputMonitoringEnabled) ?? isInputMonitoringEnabled
         soundboardVolume = try container.decodeIfPresent(Double.self, forKey: .soundboardVolume) ?? soundboardVolume
         microphoneVolume = try container.decodeIfPresent(Double.self, forKey: .microphoneVolume) ?? microphoneVolume
@@ -92,7 +96,6 @@ struct CueletSettings: Codable, Equatable {
         preservesFolderStructure = try container.decodeIfPresent(Bool.self, forKey: .preservesFolderStructure) ?? preservesFolderStructure
         scansSubfolders = try container.decodeIfPresent(Bool.self, forKey: .scansSubfolders) ?? scansSubfolders
         globalStopShortcut = try container.decodeIfPresent(String.self, forKey: .globalStopShortcut) ?? globalStopShortcut
-        showAdvancedDiagnostics = try container.decodeIfPresent(Bool.self, forKey: .showAdvancedDiagnostics) ?? showAdvancedDiagnostics
         keepsRunningAfterWindowClose = try container.decodeIfPresent(Bool.self, forKey: .keepsRunningAfterWindowClose) ?? keepsRunningAfterWindowClose
         showsMenuBarItem = try container.decodeIfPresent(Bool.self, forKey: .showsMenuBarItem) ?? showsMenuBarItem
         launchesAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchesAtLogin) ?? launchesAtLogin
@@ -103,52 +106,140 @@ struct CueletSettings: Codable, Equatable {
         soundCategoryAssignments = try container.decodeIfPresent([String: String].self, forKey: .soundCategoryAssignments) ?? soundCategoryAssignments
         soundShortcutAssignments = try container.decodeIfPresent([String: SoundShortcut].self, forKey: .soundShortcutAssignments) ?? soundShortcutAssignments
         favoriteSoundIDs = try container.decodeIfPresent(Set<String>.self, forKey: .favoriteSoundIDs) ?? favoriteSoundIDs
+
+        // Older development builds persisted temporary numeric AudioDeviceIDs as
+        // "coreaudio-123". They cannot identify the same device after a reconnect,
+        // so migrate those values to the safe system-output selection. Stable
+        // "coreaudio:<UID>" values introduced by schema 2 remain valid.
+        if decodedSchemaVersion < Self.currentSchemaVersion,
+           outputDeviceID.hasPrefix("coreaudio-"),
+           outputDeviceID.dropFirst("coreaudio-".count).allSatisfy(\.isNumber) {
+            outputDeviceID = AudioDevice.systemOutput.id
+            outputDeviceName = AudioDevice.systemOutput.name
+        }
     }
 }
 
-enum AudioDeviceKind: String, Codable, Hashable {
+enum AudioDeviceKind: String, Hashable {
     case input
     case output
     case virtual
 }
 
-struct AudioDevice: Identifiable, Hashable, Codable {
+struct AudioDevice: Identifiable, Hashable {
     let id: String
     var name: String
     var kind: AudioDeviceKind
     var isDefault: Bool
     var isVirtual: Bool
+    var manufacturer: String?
+    var transportName: String?
+    var isAlive: Bool
+
+    init(
+        id: String,
+        name: String,
+        kind: AudioDeviceKind,
+        isDefault: Bool,
+        isVirtual: Bool,
+        manufacturer: String? = nil,
+        transportName: String? = nil,
+        isAlive: Bool = true
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.isDefault = isDefault
+        self.isVirtual = isVirtual
+        self.manufacturer = manufacturer
+        self.transportName = transportName
+        self.isAlive = isAlive
+    }
+
+    var coreAudioUID: String? {
+        guard id.hasPrefix("coreaudio:") else { return nil }
+        let uid = String(id.dropFirst("coreaudio:".count))
+        return uid.isEmpty ? nil : uid
+    }
+
+    static func persistentID(forCoreAudioUID uid: String) -> String {
+        "coreaudio:\(uid)"
+    }
 
     static let systemOutput = AudioDevice(
         id: "system-output",
         name: "System Default",
         kind: .output,
         isDefault: true,
-        isVirtual: false
+        isVirtual: false,
+        transportName: "Follows macOS"
     )
 }
 
-enum AudioRoutingMode: String, CaseIterable, Identifiable, Codable {
-    case speakerOnly
-    case speakerAndMonitor
-    case virtualDevice
-    case microphonePassthrough
+enum AudioOutputFallbackPolicy: String, CaseIterable, Identifiable, Codable {
+    case stopAndWait
+    case systemOutput
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .speakerOnly: "Speaker Only"
-        case .speakerAndMonitor: "Speaker + Monitor"
-        case .virtualDevice: "Virtual Device Output"
-        case .microphonePassthrough: "Microphone Passthrough Mix"
+        case .stopAndWait: "Stop and Wait"
+        case .systemOutput: "Temporarily Use System Output"
         }
     }
 
-    var isImplemented: Bool {
+    var explanation: String {
         switch self {
-        case .speakerOnly: true
-        case .speakerAndMonitor, .virtualDevice, .microphonePassthrough: false
+        case .stopAndWait:
+            "Stops playback if the selected device disappears and waits for that exact device UID to return."
+        case .systemOutput:
+            "Stops current playback, then sends future playback to System Output until the exact selected UID returns."
+        }
+    }
+}
+
+enum AudioRouteStatusKind: String, Equatable {
+    case applying
+    case ready
+    case systemOutput
+    case explicitDevice
+    case unavailable
+    case fallbackSystemOutput
+    case reconnecting
+    case failed
+}
+
+struct AudioRouteStatus: Equatable {
+    var kind: AudioRouteStatusKind
+    var selectedDeviceID: String
+    var selectedName: String
+    var activeDeviceID: String?
+    var activeName: String?
+    var message: String
+    var technicalDetails: String?
+
+    static let applyingSystemOutput = AudioRouteStatus(
+        kind: .applying,
+        selectedDeviceID: AudioDevice.systemOutput.id,
+        selectedName: AudioDevice.systemOutput.name,
+        activeDeviceID: nil,
+        activeName: nil,
+        message: "Applying System Output…",
+        technicalDetails: nil
+    )
+
+    var isConfirmedActive: Bool {
+        switch kind {
+        case .systemOutput, .explicitDevice, .fallbackSystemOutput: activeDeviceID != nil
+        case .applying, .ready, .unavailable, .reconnecting, .failed: false
+        }
+    }
+
+    var allowsPlayback: Bool {
+        switch kind {
+        case .ready, .systemOutput, .explicitDevice, .fallbackSystemOutput: true
+        case .applying, .unavailable, .reconnecting, .failed: false
         }
     }
 }

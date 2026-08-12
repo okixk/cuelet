@@ -264,9 +264,9 @@ final class AppStateBehaviorTests: XCTestCase {
             installKeyboardShortcuts: false
         )
         let clips = [
-            SoundClip(name: "Rain", filename: "rain.wav", category: .ambience, duration: 1, waveform: []),
-            SoundClip(name: "Door Knock", filename: "door-knock.wav", category: .effects, duration: 1, waveform: []),
-            SoundClip(name: "Soft Door Knock", filename: "soft-door-knock.wav", category: .effects, duration: 1, waveform: [])
+            SoundClip(name: "Rain", filename: "rain.wav", category: SoundCategory.makeUserCategory(named: "Ambience"), duration: 1, waveform: []),
+            SoundClip(name: "Door Knock", filename: "door-knock.wav", category: SoundCategory.makeUserCategory(named: "Effects"), duration: 1, waveform: []),
+            SoundClip(name: "Soft Door Knock", filename: "soft-door-knock.wav", category: SoundCategory.makeUserCategory(named: "Effects"), duration: 1, waveform: [])
         ]
         appState.clips = clips
         appState.selectAllVisibleSounds()
@@ -668,6 +668,98 @@ final class AppStateBehaviorTests: XCTestCase {
         XCTAssertEqual(PlaybackService.Progress(position: 9, duration: 8).fraction, 1)
         XCTAssertEqual(PlaybackService.Progress(position: -1, duration: 8).fraction, 0)
         XCTAssertEqual(PlaybackService.Progress(position: 1, duration: 0).fraction, 0)
+    }
+
+    func testPauseResumeAndStopKeepPlaybackStateSynchronized() async throws {
+        let root = try makeTemporaryDirectory()
+        let fileURL = root.appendingPathComponent("pause.wav")
+        try silentWAVData(duration: 1).write(to: fileURL)
+        let appState = AppState(
+            settingsStore: SettingsStore(url: temporarySettingsURL()),
+            installKeyboardShortcuts: false
+        )
+        let clip = SoundClip(
+            name: "Pause Fixture",
+            filename: fileURL.lastPathComponent,
+            category: .uncategorized,
+            duration: 1,
+            waveform: [],
+            fileURL: fileURL
+        )
+        appState.clips = [clip]
+
+        appState.play(clip)
+        try await Task.sleep(nanoseconds: 80_000_000)
+        appState.pause(clip)
+        let pausedPosition = try XCTUnwrap(appState.playbackProgress(for: clip)?.position)
+        XCTAssertTrue(appState.isPaused(clip))
+        XCTAssertTrue(appState.playbackState.playingClipIDs.contains(clip.id))
+        try await Task.sleep(nanoseconds: 80_000_000)
+        XCTAssertEqual(appState.playbackProgress(for: clip)?.position ?? 0, pausedPosition, accuracy: 0.03)
+
+        appState.resume(clip)
+        XCTAssertFalse(appState.isPaused(clip))
+        appState.stop(clip)
+        XCTAssertFalse(appState.playbackState.playingClipIDs.contains(clip.id))
+    }
+
+    func testSimultaneousPlaybackAndIndependentStop() throws {
+        let root = try makeTemporaryDirectory()
+        let firstURL = root.appendingPathComponent("one.wav")
+        let secondURL = root.appendingPathComponent("two.wav")
+        try silentWAVData(duration: 1).write(to: firstURL)
+        try silentWAVData(duration: 1).write(to: secondURL)
+        let appState = AppState(
+            settingsStore: SettingsStore(url: temporarySettingsURL()),
+            installKeyboardShortcuts: false
+        )
+        let first = SoundClip(name: "One", filename: "one.wav", category: .uncategorized, duration: 1, waveform: [], fileURL: firstURL)
+        let second = SoundClip(name: "Two", filename: "two.wav", category: .uncategorized, duration: 1, waveform: [], fileURL: secondURL)
+        appState.clips = [first, second]
+
+        appState.play(first)
+        appState.play(second)
+        XCTAssertEqual(appState.playbackState.playingClipIDs, [first.id, second.id])
+
+        appState.stop(first)
+        XCTAssertEqual(appState.playbackState.playingClipIDs, [second.id])
+        appState.stopAllPlayback()
+        XCTAssertTrue(appState.playbackState.playingClipIDs.isEmpty)
+    }
+
+    func testRapidReplayReplacesSameClipPlayerAndShutdownCleansUp() throws {
+        let root = try makeTemporaryDirectory()
+        let fileURL = root.appendingPathComponent("rapid.wav")
+        try silentWAVData(duration: 1).write(to: fileURL)
+        let appState = AppState(
+            settingsStore: SettingsStore(url: temporarySettingsURL()),
+            installKeyboardShortcuts: false
+        )
+        let clip = SoundClip(name: "Rapid", filename: "rapid.wav", category: .uncategorized, duration: 1, waveform: [], fileURL: fileURL)
+        appState.clips = [clip]
+
+        appState.play(clip)
+        appState.play(clip)
+        XCTAssertEqual(appState.playbackState.playingClipIDs, [clip.id])
+        appState.prepareForTermination()
+        XCTAssertTrue(appState.playbackState.playingClipIDs.isEmpty)
+    }
+
+    func testDamagedFileDoesNotEnterPlayingState() throws {
+        let root = try makeTemporaryDirectory()
+        let fileURL = root.appendingPathComponent("damaged.wav")
+        try Data("not audio".utf8).write(to: fileURL)
+        let appState = AppState(
+            settingsStore: SettingsStore(url: temporarySettingsURL()),
+            installKeyboardShortcuts: false
+        )
+        let clip = SoundClip(name: "Damaged", filename: "damaged.wav", category: .uncategorized, duration: 0, waveform: [], fileURL: fileURL)
+        var state = PlaybackState()
+
+        let result = appState.playbackService.play(clip: clip, settings: appState.settings, playbackState: &state)
+
+        XCTAssertFalse(result.didStart)
+        XCTAssertFalse(state.isPlaying)
     }
 
     private func makeTemporaryDirectory() throws -> URL {

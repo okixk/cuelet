@@ -55,15 +55,6 @@ struct SoundCategory: Identifiable, Hashable, Codable {
         isUserEditable: false
     )
 
-    static let ambience = SoundCategory(id: "demo-ambience", name: "Ambience", defaultColorHex: "#009688", systemImage: "cloud.rain")
-    static let effects = SoundCategory(id: "demo-effects", name: "Effects", defaultColorHex: "#5856D6", systemImage: "sparkles")
-    static let music = SoundCategory(id: "demo-music", name: "Music", defaultColorHex: "#AF52DE", systemImage: "music.note")
-    static let alerts = SoundCategory(id: "demo-alerts", name: "Alerts", defaultColorHex: "#D9822B", systemImage: "bell")
-    static let voice = SoundCategory(id: "demo-voice", name: "Voice", defaultColorHex: "#D65780", systemImage: "waveform")
-    static let meme = SoundCategory(id: "demo-meme", name: "Meme", defaultColorHex: "#B38B00", systemImage: "quote.bubble")
-
-    static let demoCategories: [SoundCategory] = [.ambience, .effects, .music, .alerts, .voice, .meme]
-
     static let defaultColorHexes: [String: String] = [uncategorized].reduce(into: [:]) { colors, category in
         colors[category.id] = category.defaultColorHex
     }
@@ -136,9 +127,9 @@ struct SoundCategory: Identifiable, Hashable, Codable {
     }
 
     private static func category(forLegacyRawValue rawValue: String) -> SoundCategory {
-        ([uncategorized] + demoCategories).first { category in
-            category.name == rawValue || category.id == rawValue
-        } ?? SoundCategory(id: stableID(for: rawValue), name: rawValue)
+        rawValue == uncategorized.name || rawValue == uncategorized.id
+            ? uncategorized
+            : SoundCategory(id: stableID(for: rawValue), name: rawValue)
     }
 
     static func makeUserCategory(named name: String, colorHex: String = "#3478F6") -> SoundCategory {

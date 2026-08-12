@@ -10,6 +10,8 @@ struct SearchService {
                 || clip.displayName.localizedCaseInsensitiveContains(trimmedSearch)
                 || clip.filename.localizedCaseInsensitiveContains(trimmedSearch)
                 || clip.category.rawValue.localizedCaseInsensitiveContains(trimmedSearch)
+                || clip.notes.localizedCaseInsensitiveContains(trimmedSearch)
+                || clip.aliases.contains { $0.localizedCaseInsensitiveContains(trimmedSearch) }
         }
 
         if case .recent = filter {
@@ -33,17 +35,23 @@ struct SearchService {
         let name = clip.displayName.normalizedForSearch
         let filename = clip.filename.normalizedForSearch
         let category = clip.category.rawValue.normalizedForSearch
+        let notes = clip.notes.normalizedForSearch
+        let aliases = clip.aliases.map(\.normalizedForSearch)
 
         if name == normalizedQuery { return 1_000 }
         if name.hasPrefix(normalizedQuery) { return 900 }
         if filename == normalizedQuery { return 800 }
         if filename.hasPrefix(normalizedQuery) { return 700 }
+        if aliases.contains(normalizedQuery) { return 650 }
 
         let queryTokens = normalizedQuery.split(separator: " ")
         if !queryTokens.isEmpty, queryTokens.allSatisfy({ name.contains($0) }) { return 600 }
         if name.contains(normalizedQuery) { return 500 }
         if filename.contains(normalizedQuery) { return 400 }
         if category.contains(normalizedQuery) { return 300 }
+        if aliases.contains(where: { $0.hasPrefix(normalizedQuery) }) { return 280 }
+        if aliases.contains(where: { $0.contains(normalizedQuery) }) { return 260 }
+        if notes.contains(normalizedQuery) { return 200 }
         return 0
     }
 
