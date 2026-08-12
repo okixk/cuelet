@@ -168,12 +168,12 @@ public:
 
     std::string virtualSinkNode() const override
     {
-        return routing_.virtualSinkNode();
+        return virtualMicrophoneSinkNodeName();
     }
 
     std::string virtualSourceNode() const override
     {
-        return routing_.virtualSourceNode();
+        return virtualMicrophoneSourceNodeName();
     }
 
     std::vector<PipeWireNodeInfo> enumerateNodes() override

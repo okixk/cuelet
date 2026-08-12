@@ -2,9 +2,14 @@
 
 Cuelet is a native cross-platform desktop soundboard for organizing, searching, and playing audio clips quickly during calls, streams, tabletop sessions, voice chat, and live cues.
 
-It is built from scratch with Qt 6, CMake, C++, Qt Multimedia, and CTest. It is not Electron and it is not a wrapper around a script.
+Cuelet now has native platform frontends. The production Linux app is built
+with GTK4/libadwaita, C++, GStreamer, PipeWire integration, and Meson. The Qt
+6/CMake application at the repository root is retained as an earlier prototype.
 
-## Features
+## Legacy Qt Prototype Features
+
+The following list describes the retained root-level prototype. Native
+frontends document their current feature sets in their platform READMEs.
 
 - Choose and remember a sound library folder.
 - Recursively scan `mp3`, `wav`, `ogg`, `flac`, and `m4a` files.
@@ -34,7 +39,7 @@ It is built from scratch with Qt 6, CMake, C++, Qt Multimedia, and CTest. It is 
 
 Screenshots will be added once the first visual pass is captured on each target platform.
 
-## Dependencies
+## Legacy Qt Prototype Dependencies
 
 - CMake 3.21 or newer
 - C++17 compiler
@@ -47,28 +52,36 @@ Screenshots will be added once the first visual pass is captured on each target 
 
 Qt Multimedia uses platform media backends. Codec support can vary by OS and Qt installation, especially for compressed formats such as `mp3`, `m4a`, and `flac`.
 
-## Build
+## Legacy Qt Prototype Build
 
-The main build path is:
+The root prototype build path is:
 
 ```bash
 cmake -S . -B build
 cmake --build build
 ```
 
-On macOS this creates `build/Cuelet.app`. On Windows it creates a `Cuelet.exe` target. On Linux it creates a `Cuelet` executable.
+On macOS this creates `build/Cuelet.app`. On Windows it creates a `Cuelet.exe`
+target. The root prototype can also create a Linux `Cuelet` executable, but the
+supported native Linux release uses the Meson workflow below.
 
 ## Linux
 
-Install Qt 6 development packages with your distribution package manager. Package names vary:
+The production Linux frontend is under `apps/linux`. On Ubuntu, install:
 
 ```bash
-sudo apt install cmake g++ qt6-base-dev qt6-multimedia-dev qt6-tools-dev
-cmake -S . -B build
-cmake --build build
+sudo apt install build-essential meson ninja-build pkg-config \
+  libgtk-4-dev libadwaita-1-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  libjson-glib-dev
+meson setup apps/linux/build/debug apps/linux --buildtype=debug -Dwerror=true
+meson compile -C apps/linux/build/debug
+meson test -C apps/linux/build/debug --print-errorlogs
 ```
 
-For Fedora-style systems, install the equivalent Qt 6 base, multimedia, and tools development packages.
+See [`apps/linux/README.md`](apps/linux/README.md) for runtime dependencies,
+PipeWire virtual-microphone behavior, GNOME/Wayland shortcuts, installation,
+and the reproducible `0.1.0` release archive workflow.
 
 ## macOS
 
@@ -103,7 +116,7 @@ powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\test-windows.ps1
 
 See `apps/windows/README.md` for native Windows requirements, features, and packaging notes.
 
-## Tests
+## Legacy Qt Prototype Tests
 
 ```bash
 cmake -S . -B build
@@ -146,13 +159,18 @@ See `docs/architecture.md` for the main module boundaries.
 
 - macOS: CMake is configured to build `Cuelet.app`.
 - Windows: CMake is configured for a GUI `Cuelet.exe`.
-- Linux: CMake builds a normal desktop executable; AppImage and Flatpak packaging can be added later.
-- Settings are stored with `QSettings`, so their location follows the host OS conventions.
+- Linux: Meson builds the native GTK executable `cuelet`; the `0.1.0` release is
+  distributed as a reproducible archive of its staged `/usr` installation tree.
+- The legacy Qt prototype stores settings with `QSettings`; the native Linux
+  app uses an atomic JSON settings store in the XDG configuration directory.
 - Library metadata is stored as JSON inside the selected library folder so it survives rescans and can travel with the audio folder.
 
-## Settings
+## Legacy Qt Prototype Settings
 
-Cuelet stores application settings with Qt `QSettings`. The exact path depends on the operating system and Qt backend, and the Settings screen shows the active settings file path.
+The legacy prototype stores application settings with Qt `QSettings`. The
+exact path depends on the operating system and Qt backend, and its Settings
+screen shows the active settings file path. See `apps/linux/README.md` for the
+native Linux settings and metadata behavior.
 
 Current app settings include:
 
@@ -202,34 +220,40 @@ Legacy metadata mappings:
 
 Import is intentionally conservative. Existing Cuelet metadata wins, and missing fields are filled from legacy metadata. Legacy favorites are merged, not used to clear existing favorites. Absolute favorite paths are converted to relative paths only when they are inside the selected library; unsafe paths are skipped and recorded in the import summary.
 
-## Known Limitations
+## Legacy Qt Prototype Limitations
 
+- These limitations describe the retained Qt prototype; native platform apps
+  have their own README and validation records.
 - The UI is a solid first Qt Widgets version, not a final design system.
 - Metadata is JSON rather than SQLite. This keeps v1 simple and inspectable, but very large libraries may eventually benefit from indexing.
 - Playback depends on Qt Multimedia and the platform's installed codec support.
 - Waveform previews, hotkey assignment per sound, global shortcuts, tags, and playlists are not implemented yet.
 - Output-device changes affect newly started playback.
-- There is no installer packaging yet.
+- The legacy Qt prototype has no installer packaging; native frontends use
+  their platform-specific release workflows.
 - Loudness normalization is a stored compatibility setting but is not active in playback yet.
 - Legacy virtual microphone settings are preserved but not implemented as routing functionality.
 
 ## Virtual Microphone Notes
 
-Cuelet includes an audio service boundary that can later support routing strategies, but v1 does not fake virtual microphone support.
+Cuelet's native apps use platform-specific routing. The legacy Qt prototype
+only contains an inactive audio-service boundary.
 
-- Linux may later integrate with PipeWire or PulseAudio routing.
+- Linux provides temporary PipeWire routing and works with the desktop's
+  PulseAudio compatibility layer where available.
 - macOS generally needs a virtual device such as BlackHole.
 - Windows generally needs a virtual cable device such as VB-Cable.
 
 See `docs/virtual-microphone.md` for the current design notes.
 
-## Future Roadmap
+## Legacy Prototype Roadmap
 
 - Capture screenshots and refine per-platform visual polish.
 - Add waveform display and clip trimming.
 - Add configurable per-sound keyboard shortcuts.
 - Add global hotkeys with platform-specific permission handling.
 - Add richer import workflows and duplicate detection.
-- Add AppImage, Flatpak, signed macOS app, and Windows installer packaging.
+- Evaluate distro-specific Linux packages after the portable staged-tree
+  archive has been validated across additional distributions.
 - Add a virtual microphone/routing backend where the platform supports it cleanly.
 - Add SQLite or search index support if JSON metadata becomes a bottleneck.

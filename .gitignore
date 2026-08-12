@@ -46,6 +46,7 @@ xcuserdata/
 **/xcuserdata/
 /build/
 /apps/linux/build/
+/apps/linux/dist/
 /apps/linux/build.backup.*/
 /apps/macos/.build/
 /apps/macos/dist/macos/*.pkg

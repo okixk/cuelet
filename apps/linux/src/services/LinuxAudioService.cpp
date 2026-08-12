@@ -444,6 +444,7 @@ bool LinuxAudioService::play(const cuelet::SoundClip& clip)
         virtualVolume,
         dualOutput ? 2U : branchCount,
     };
+    playbackOrder_.push_back(clip.relativePath);
     return true;
 }
 
@@ -491,6 +492,9 @@ void LinuxAudioService::stop(const std::string& relativePath)
         ::close(found->second.secondarySourceFd);
     }
     players_.erase(found);
+    playbackOrder_.erase(
+        std::remove(playbackOrder_.begin(), playbackOrder_.end(), relativePath),
+        playbackOrder_.end());
 }
 
 void LinuxAudioService::stopAll()
@@ -520,12 +524,7 @@ LinuxAudioService::PlaybackState LinuxAudioService::playbackState(
 
 std::vector<std::string> LinuxAudioService::playingPaths() const
 {
-    std::vector<std::string> paths;
-    paths.reserve(players_.size());
-    for (const auto& [path, player] : players_) {
-        paths.push_back(path);
-    }
-    return paths;
+    return playbackOrder_;
 }
 
 std::optional<LinuxAudioService::PlaybackProgress> LinuxAudioService::playbackProgress(
@@ -917,6 +916,9 @@ void LinuxAudioService::finishPath(const std::string& relativePath)
         ::close(found->second.secondarySourceFd);
     }
     players_.erase(found);
+    playbackOrder_.erase(
+        std::remove(playbackOrder_.begin(), playbackOrder_.end(), relativePath),
+        playbackOrder_.end());
 
     if (finishCallback_) {
         finishCallback_(relativePath);

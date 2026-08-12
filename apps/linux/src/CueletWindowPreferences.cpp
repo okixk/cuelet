@@ -123,10 +123,24 @@ void CueletWindow::showPreferences()
             if (self->settings_.showsDemoLibrary) {
                 self->loadDemoLibrary(true);
             } else if (!self->settings_.libraryPath.empty()) {
-                self->loadLibrary(self->settings_.libraryPath);
+                if (!self->loadLibrary(self->settings_.libraryPath)) {
+                    self->demoLibraryActive_ = false;
+                    self->clips_.clear();
+                    self->categories_ = {cuelet::uncategorizedCategory()};
+                    self->selection_ = {};
+                    self->selectedPaths_.clear();
+                    self->syncGlobalShortcuts();
+                    self->refreshAll();
+                }
             } else {
                 self->clips_.clear();
                 self->categories_ = {cuelet::uncategorizedCategory()};
+                self->demoLibraryActive_ = cuelet_linux::demoLibraryActiveAfterReload(
+                    self->settings_.showsDemoLibrary,
+                    !self->settings_.libraryPath.empty());
+                self->selection_ = {};
+                self->selectedPaths_.clear();
+                self->syncGlobalShortcuts();
                 self->refreshAll();
             }
             break;
@@ -524,9 +538,10 @@ void CueletWindow::showPreferences()
     adw_action_row_set_subtitle(
         ADW_ACTION_ROW(virtualMicrophoneRow),
         "The source exists only while Cuelet is running and this switch is on.");
-    const bool virtualMicrophoneIsActive = virtualMicrophoneActive();
+    const bool virtualMicrophoneIsRequested =
+        settings_.virtualMicrophoneMode != "speakersOnly";
     adw_switch_row_set_active(
-        ADW_SWITCH_ROW(virtualMicrophoneRow), virtualMicrophoneIsActive);
+        ADW_SWITCH_ROW(virtualMicrophoneRow), virtualMicrophoneIsRequested);
     adw_preferences_group_add(
         ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), virtualMicrophoneRow);
 
@@ -733,9 +748,9 @@ void CueletWindow::showPreferences()
                 gtk_drop_down_get_selected(GTK_DROP_DOWN(object)) == 1
                 ? "speakersAndVirtualMicrophone"
                 : "virtualMicrophoneOnly";
-            if (data->self->virtualMicrophoneActive() &&
-                !data->self->applyVirtualMicrophoneSettings()) {
+            if (!data->self->applyVirtualMicrophoneSettings()) {
                 data->self->settings_.virtualMicrophoneMode = previous;
+                data->self->applyVirtualMicrophoneSettings(false);
                 data->changing = true;
                 gtk_drop_down_set_selected(
                     GTK_DROP_DOWN(object),

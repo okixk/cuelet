@@ -36,6 +36,23 @@ void scannerRespectsRecursion()
     std::filesystem::remove_all(root);
 }
 
+void scannerRejectsSymlinkedAudioFiles()
+{
+    const auto root = std::filesystem::temp_directory_path()
+        / "cuelet-core-scanner-symlink-test";
+    std::filesystem::remove_all(root);
+    writeFile(root / "real.wav");
+    std::error_code error;
+    std::filesystem::create_symlink(root / "real.wav", root / "linked.wav", error);
+    CUELET_REQUIRE(!error);
+
+    const auto scanned = cuelet::LibraryScanner{}.scan(root, false);
+    CUELET_REQUIRE(scanned.clips.size() == 1);
+    CUELET_REQUIRE(scanned.clips.front().relativePath == "real.wav");
+
+    std::filesystem::remove_all(root);
+}
+
 void metadataRoundTripPreservesCategoriesAndShortcuts()
 {
     const auto root = std::filesystem::temp_directory_path() / "cuelet-core-metadata-test";
@@ -368,6 +385,7 @@ int main()
 {
     return cuelet_linux::tests::run("cuelet core tests", [] {
         scannerRespectsRecursion();
+        scannerRejectsSymlinkedAudioFiles();
         metadataRoundTripPreservesCategoriesAndShortcuts();
         searchFindsNotesAliasesAndCategories();
         searchRankingCoversEveryMatchClass();

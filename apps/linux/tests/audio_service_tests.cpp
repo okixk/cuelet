@@ -464,6 +464,24 @@ void testCompletionSimultaneousPolicyAndCleanup(const TestDirectory& temporary)
     const auto shortClip = clipFor(shortPath, "short.wav");
     const auto longClip = clipFor(longPath, "long.wav");
 
+    const auto firstPath = temporary.path() / "z-first.wav";
+    const auto secondPath = temporary.path() / "a-second.wav";
+    writeSilentWav(firstPath, 1.0);
+    writeSilentWav(secondPath, 1.0);
+    const auto firstClip = clipFor(firstPath, "z-first.wav");
+    const auto secondClip = clipFor(secondPath, "a-second.wav");
+
+    LinuxAudioService ordered(fakeSinkConfiguration());
+    require(ordered.play(firstClip) && ordered.play(secondClip),
+            "simultaneous playback fixtures must start in sequence");
+    require(ordered.playingPaths() == std::vector<std::string>{
+                "z-first.wav", "a-second.wav"},
+            "playing paths must preserve start order so the last path is current");
+    ordered.stop("a-second.wav");
+    require(ordered.playingPaths() == std::vector<std::string>{"z-first.wav"},
+            "stopping the current sound must retain the earlier sound in order");
+    ordered.stopAll();
+
     LinuxAudioService audio(fakeSinkConfiguration());
     std::vector<std::string> finished;
     audio.setFinishCallback([&](const std::string& path) {

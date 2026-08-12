@@ -48,6 +48,9 @@ bool CueletWindow::enableVirtualMicrophone()
     }
     if (!applyVirtualMicrophoneSettings()) {
         settings_.virtualMicrophoneMode = "speakersOnly";
+        audio_.setRoutingConfiguration({});
+        cuelet_linux::VirtualMicrophoneConfiguration disabled;
+        virtualMicrophoneService_->apply(disabled, monotonicMilliseconds());
         saveSettings();
         return false;
     }
@@ -98,13 +101,6 @@ bool CueletWindow::applyVirtualMicrophoneSettings(bool reportFailure)
     configuration.physicalMicrophoneId = settings_.physicalMicrophoneDevice;
     configuration.soundboardLevel = settings_.virtualMicrophoneLevel;
     configuration.physicalMicrophoneLevel = settings_.physicalMicrophoneLevel;
-    if (!virtualMicrophoneService_->apply(
-            configuration, monotonicMilliseconds())) {
-        if (reportFailure) {
-            showError(virtualMicrophoneStatus());
-        }
-        return false;
-    }
 
     LinuxAudioService::RoutingConfiguration playback;
     playback.mode = playbackMode(mode);
@@ -114,8 +110,13 @@ bool CueletWindow::applyVirtualMicrophoneSettings(bool reportFailure)
             virtualMicrophoneBackend_->virtualSinkNode();
     }
     if (!audio_.setRoutingConfiguration(std::move(playback))) {
-        cuelet_linux::VirtualMicrophoneConfiguration disabled;
-        virtualMicrophoneService_->apply(disabled, monotonicMilliseconds());
+        return false;
+    }
+    if (!virtualMicrophoneService_->apply(
+            configuration, monotonicMilliseconds())) {
+        if (reportFailure) {
+            showError(virtualMicrophoneStatus());
+        }
         return false;
     }
     return true;

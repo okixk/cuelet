@@ -57,6 +57,9 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
     case CliAction::Help:
         standardOutput = cuelet_linux::cliHelpText();
         return 0;
+    case CliAction::Version:
+        standardOutput = cuelet_linux::cliVersionText();
+        return 0;
     case CliAction::ListSounds:
         standardOutput = cuelet_linux::formatSoundList(
             clips_,
@@ -116,12 +119,16 @@ int CueletWindow::executeCliCommand(const cuelet_linux::CliCommand& command,
         return 0;
     }
     case CliAction::Stop: {
-        const auto clip = findById(command.value);
-        const std::string path = clip ? clip->relativePath : command.value;
-        if (!audio_.isPlaying(path)) {
+        const auto candidates = cuelet_linux::cliStopCandidates(
+            command.value, command.workingDirectory, clips_);
+        const auto path = std::find_if(
+            candidates.begin(), candidates.end(), [&](const auto& candidate) {
+                return audio_.isPlaying(candidate);
+            });
+        if (path == candidates.end()) {
             return fail("sound is not playing: " + command.value);
         }
-        stopSound(path);
+        stopSound(*path);
         return 0;
     }
     case CliAction::StopAll:

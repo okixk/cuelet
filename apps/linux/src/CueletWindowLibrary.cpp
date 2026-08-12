@@ -37,6 +37,7 @@ bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
 
     libraryPath_ = folder;
     missingLibraryPath_.clear();
+    demoLibraryActive_ = false;
     clips_ = scan.clips;
     cuelet::MetadataStore metadataStore(cuelet::MetadataStore::metadataPathForLibrary(folder));
     auto metadata = metadataStore.load();
@@ -138,6 +139,7 @@ void CueletWindow::loadDemoLibrary(bool persistChoice)
 
     libraryPath_.clear();
     missingLibraryPath_.clear();
+    demoLibraryActive_ = true;
     categories_ = {
         cuelet::uncategorizedCategory(),
         {"demo-ambience", "Ambience", "#009688", "weather-showers-symbolic", true},

@@ -3,6 +3,7 @@
 #include <adwaita.h>
 #include <gst/gst.h>
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -63,6 +64,7 @@ std::vector<std::string> commandArguments(GApplicationCommandLine* commandLine)
     GVariantDict* options = g_application_command_line_get_options_dict(commandLine);
     appendBooleanOption(options, "json", arguments);
     appendBooleanOption(options, "demo", arguments);
+    appendBooleanOption(options, "version", arguments);
     appendBooleanOption(options, "list-sounds", arguments);
     appendBooleanOption(options, "list-categories", arguments);
     appendBooleanOption(options, "stop-all", arguments);
@@ -96,6 +98,10 @@ int onCommandLine(GApplication* application,
         g_application_command_line_print(commandLine, "%s", cuelet_linux::cliHelpText().c_str());
         return 0;
     }
+    if (parsed.command.action == cuelet_linux::CliAction::Version) {
+        g_application_command_line_print(commandLine, "%s", cuelet_linux::cliVersionText().c_str());
+        return 0;
+    }
 
     const char* workingDirectory = g_application_command_line_get_cwd(commandLine);
     parsed.command.workingDirectory = workingDirectory ? workingDirectory : "";
@@ -112,9 +118,7 @@ int onCommandLine(GApplication* application,
         g_application_command_line_printerr(commandLine, "%s", standardError.c_str());
     }
     if (parsed.command.action == cuelet_linux::CliAction::Exit) {
-        g_object_steal_data(G_OBJECT(application), windowDataKey);
         window->closeForCliExit();
-        delete window;
         g_application_quit(application);
         return status;
     }
@@ -136,6 +140,7 @@ void addCommandLineOptions(GApplication* application)
     const GOptionEntry entries[] = {
         {"json", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Use JSON output for list commands", nullptr},
         {"demo", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Start with the demo library", nullptr},
+        {"version", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Show Cuelet version", nullptr},
         {"list-sounds", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "List sounds", nullptr},
         {"list-categories", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "List categories", nullptr},
         {"play-id", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, nullptr, "Play a sound by ID", "ID"},
@@ -159,6 +164,18 @@ void addCommandLineOptions(GApplication* application)
 
 int main(int argc, char** argv)
 {
+    std::vector<std::string> startupArguments;
+    startupArguments.reserve(argc > 1 ? static_cast<std::size_t>(argc - 1) : 0);
+    for (int index = 1; index < argc; ++index) {
+        startupArguments.emplace_back(argv[index]);
+    }
+    const auto startupCommand = cuelet_linux::parseCliArguments(startupArguments);
+    if (startupCommand.ok()
+        && startupCommand.command.action == cuelet_linux::CliAction::Version) {
+        std::cout << cuelet_linux::cliVersionText();
+        return 0;
+    }
+
     gst_init(&argc, &argv);
     adw_init();
 

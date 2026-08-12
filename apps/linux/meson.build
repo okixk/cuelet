@@ -10,6 +10,13 @@ project(
 
 gnome = import('gnome')
 
+version_configuration = configuration_data()
+version_configuration.set_quoted('CUELET_VERSION', meson.project_version())
+configure_file(
+  output: 'CueletVersion.h',
+  configuration: version_configuration,
+)
+
 gtk_dep = dependency('gtk4', version: '>=4.10')
 adw_dep = dependency('libadwaita-1', version: '>=1.5')
 gio_dep = dependency('gio-2.0')
@@ -80,6 +87,37 @@ executable(
 install_data(
   'data/io.cuelet.Cuelet.desktop',
   install_dir: get_option('datadir') / 'applications',
+)
+
+install_data(
+  'data/io.cuelet.Cuelet.svg',
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+
+install_data(
+  'data/io.cuelet.Cuelet.metainfo.xml',
+  install_dir: get_option('datadir') / 'metainfo',
+)
+
+install_data(
+  'data/INSTALL.md',
+  rename: 'README.md',
+  install_dir: get_option('datadir') / 'doc' / 'cuelet',
+)
+
+install_data(
+  'data/installed-files.txt',
+  install_dir: get_option('datadir') / 'doc' / 'cuelet',
+)
+
+install_data(
+  '../../LICENSE',
+  install_dir: get_option('datadir') / 'licenses' / 'cuelet',
+)
+
+gnome.post_install(
+  gtk_update_icon_cache: true,
+  update_desktop_database: true,
 )
 
 test_core = executable(

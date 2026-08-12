@@ -78,7 +78,8 @@ void scanEntry(const std::filesystem::path& root,
                ScanResult& result)
 {
     std::error_code error;
-    if (!entry.is_regular_file(error)) {
+    const auto status = entry.symlink_status(error);
+    if (error || !std::filesystem::is_regular_file(status)) {
         return;
     }
 

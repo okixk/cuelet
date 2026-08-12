@@ -13,7 +13,8 @@ libadwaita 1.5, and GStreamer 1.20.
 sudo apt install build-essential meson ninja-build pkg-config \
   libgtk-4-dev libadwaita-1-dev \
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  libjson-glib-dev
+  libjson-glib-dev desktop-file-utils appstream libxml2-utils \
+  binutils file dbus-daemon tar gzip
 ```
 
 Optional runtime codec and PipeWire support:
@@ -39,12 +40,19 @@ their corresponding runtime tools/plugins exist.
 ## Build and Run
 
 ```bash
-cd /home/oki/projects/cuelet
+cd /path/to/cuelet
 meson setup apps/linux/build/debug apps/linux --wipe \
   --buildtype=debug -Dwerror=true
 meson compile -C apps/linux/build/debug
 meson test -C apps/linux/build/debug --print-errorlogs
 ./apps/linux/build/debug/cuelet
+```
+
+Release identity can be checked without opening a window:
+
+```bash
+./apps/linux/build/debug/cuelet --version
+# Cuelet 0.1.0
 ```
 
 The portal associates host applications with an installed desktop ID. For
@@ -162,6 +170,38 @@ Run tests:
 ```bash
 meson test -C apps/linux/build/debug --print-errorlogs
 ```
+
+## Release Archive
+
+No distro-specific Linux package is established yet. Create the conservative
+binary archive from a fresh, stripped Meson Release build and its audited
+`DESTDIR` installation tree:
+
+```bash
+./apps/linux/scripts/package-linux-release.sh
+```
+
+The command runs all Linux tests and validators before writing
+`apps/linux/dist/Cuelet-0.1.0-linux-x86_64.tar.gz`. The archive contains only
+the conventional `/usr` runtime tree: `cuelet`, its desktop entry, the scalable
+hicolor icon, AppStream metadata, installation notes, installed-file manifest,
+and license. It does not bundle normal system libraries.
+
+On Ubuntu, the archive validator additionally uses `desktop-file-utils`,
+`appstream`, `libxml2-utils`, `binutils`, `file`, `tar`, and `gzip`.
+
+For byte-for-byte reproduction outside a Git checkout, pass the source commit's
+timestamp explicitly:
+
+```bash
+SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+  ./apps/linux/scripts/package-linux-release.sh /path/to/output
+```
+
+See the archive's `usr/share/doc/cuelet/README.md` for system-wide and
+user-local installation instructions. The installed desktop identity is
+`io.cuelet.Cuelet`, and the icon is installed as
+`share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg`.
 
 Warnings-as-errors Debug and optimized Release builds:
 
