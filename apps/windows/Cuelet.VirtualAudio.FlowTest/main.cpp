@@ -224,7 +224,8 @@ bool isCueletEndpoint(IMMDevice* device)
 ComPtr<IMMDevice> findEndpoint(
     IMMDeviceEnumerator* enumerator,
     EDataFlow flow,
-    const wchar_t* expectedRole)
+    const wchar_t* expectedRole,
+    std::wstring_view exactName = {})
 {
     ComPtr<IMMDeviceCollection> devices;
     check(
@@ -236,7 +237,11 @@ ComPtr<IMMDevice> findEndpoint(
     for (UINT index = 0; index < count; ++index) {
         ComPtr<IMMDevice> candidate;
         check(devices->Item(index, &candidate), "IMMDeviceCollection::Item");
-        if (isCueletEndpoint(candidate.Get())) {
+        const bool matches = exactName.empty()
+            ? isCueletEndpoint(candidate.Get())
+            : lowercase(deviceName(candidate.Get())) ==
+                  lowercase(std::wstring(exactName));
+        if (matches) {
             if (found) {
                 throw std::runtime_error(
                     "More than one active Cuelet endpoint has the expected direction.");
@@ -583,6 +588,8 @@ int wmain(int argc, wchar_t** argv)
         std::wstring_view(argv[1]) == L"--capture-sample") {
         double seconds = 0.0;
         std::filesystem::path outputDirectory;
+        std::wstring endpointName;
+        bool renderLoopback = false;
         try {
             for (int index = 2; index < argc; ++index) {
                 const std::wstring_view argument(argv[index]);
@@ -593,6 +600,15 @@ int wmain(int argc, wchar_t** argv)
                     argument == L"--output-dir" &&
                     index + 1 < argc) {
                     outputDirectory = argv[++index];
+                } else if (
+                    argument == L"--capture-name" &&
+                    index + 1 < argc) {
+                    endpointName = argv[++index];
+                } else if (
+                    argument == L"--render-loopback-name" &&
+                    index + 1 < argc) {
+                    endpointName = argv[++index];
+                    renderLoopback = true;
                 } else {
                     throw std::runtime_error(
                         "Unknown capture-sample argument.");
@@ -606,7 +622,8 @@ int wmain(int argc, wchar_t** argv)
             std::cerr << "--output-dir is required.\n";
             return 64;
         }
-        return RunCueletCaptureSample(seconds, outputDirectory);
+        return RunCueletCaptureSample(
+            seconds, outputDirectory, endpointName, renderLoopback);
     }
     if (argc >= 2 &&
         std::wstring_view(argv[1]) == L"--stress-phase") {
@@ -684,13 +701,36 @@ int wmain(int argc, wchar_t** argv)
         (argc == 2 && std::wstring_view(argv[1]) == L"--quality")) {
         return RunCueletQualitySuite();
     }
-    if (argc != 2 || std::wstring_view(argv[1]) != L"--legacy-tone") {
+    if (argc < 2 || std::wstring_view(argv[1]) != L"--legacy-tone") {
         std::wcerr
             << L"Usage: Cuelet.VirtualAudio.FlowTest.exe "
                L"[--quality|--legacy-tone|--bounded-tone ...|"
                L"--stage-e-fixture ...|--format-matrix ...|"
                L"--capture-sample ...|--stress-phase ...|"
                L"--stage-e-soak ...]\n";
+        return 64;
+    }
+    std::wstring requestedRenderName;
+    std::wstring requestedCaptureName;
+    try {
+        for (int index = 2; index < argc; ++index) {
+            const std::wstring_view argument(argv[index]);
+            if (argument == L"--render-name" && index + 1 < argc) {
+                requestedRenderName = argv[++index];
+            } else if (
+                argument == L"--capture-name" && index + 1 < argc) {
+                requestedCaptureName = argv[++index];
+            } else {
+                throw std::runtime_error(
+                    "Unknown legacy-tone endpoint argument.");
+            }
+        }
+        if (requestedRenderName.empty() != requestedCaptureName.empty()) {
+            throw std::runtime_error(
+                "Both --render-name and --capture-name are required together.");
+        }
+    } catch (std::exception const& error) {
+        std::cerr << error.what() << "\n";
         return 64;
     }
     try {
@@ -703,19 +743,30 @@ int wmain(int argc, wchar_t** argv)
             "CoCreateInstance(MMDeviceEnumerator)");
 
         const auto render =
-            findEndpoint(enumerator.Get(), eRender, renderEndpointName);
+            findEndpoint(
+                enumerator.Get(), eRender, renderEndpointName,
+                requestedRenderName);
         const auto capture =
-            findEndpoint(enumerator.Get(), eCapture, captureEndpointName);
+            findEndpoint(
+                enumerator.Get(), eCapture, captureEndpointName,
+                requestedCaptureName);
         const auto actualRenderName = deviceName(render.Get());
         const auto actualCaptureName = deviceName(capture.Get());
         const auto renderEndpointId = deviceId(render.Get());
         const auto captureEndpointId = deviceId(capture.Get());
-        const auto renderParent = cueletParent(render.Get());
-        const auto captureParent = cueletParent(capture.Get());
+        const bool customEndpoints = !requestedRenderName.empty();
+        const auto renderParent = customEndpoints
+            ? pnpStringProperty(renderEndpointId, DEVPKEY_Device_Parent)
+            : cueletParent(render.Get());
+        const auto captureParent = customEndpoints
+            ? pnpStringProperty(captureEndpointId, DEVPKEY_Device_Parent)
+            : cueletParent(capture.Get());
         if (renderParent.empty() || captureParent.empty() ||
             lowercase(renderParent) != lowercase(captureParent)) {
             throw std::runtime_error(
-                "Cuelet render and capture endpoints do not share one active root parent.");
+                customEndpoints
+                    ? "The requested render and capture endpoints do not share one active root parent."
+                    : "Cuelet render and capture endpoints do not share one active root parent.");
         }
 
         ComPtr<IAudioClient> renderClient;

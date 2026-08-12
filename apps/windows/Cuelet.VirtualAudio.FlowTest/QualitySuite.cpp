@@ -260,6 +260,39 @@ ComPtr<IMMDevice> findCueletEndpoint(
     return found;
 }
 
+ComPtr<IMMDevice> findActiveEndpointByName(
+    IMMDeviceEnumerator* enumerator,
+    EDataFlow flow,
+    std::wstring_view expectedName)
+{
+    ComPtr<IMMDeviceCollection> devices;
+    check(
+        enumerator->EnumAudioEndpoints(
+            flow, DEVICE_STATE_ACTIVE, &devices),
+        "EnumAudioEndpoints(named)");
+    UINT count = 0;
+    check(devices->GetCount(&count), "GetCount(named)");
+    ComPtr<IMMDevice> found;
+    for (UINT index = 0; index < count; ++index) {
+        ComPtr<IMMDevice> candidate;
+        check(devices->Item(index, &candidate), "Item(named)");
+        if (lowercase(endpointName(candidate.Get())) !=
+            lowercase(std::wstring(expectedName))) {
+            continue;
+        }
+        if (found) {
+            throw std::runtime_error(
+                "More than one active endpoint has the requested name.");
+        }
+        found = candidate;
+    }
+    if (!found) {
+        throw std::runtime_error(
+            "The requested active audio endpoint was not found.");
+    }
+    return found;
+}
+
 bool isFloatFormat(WAVEFORMATEX const* format)
 {
     if (format->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) return true;
@@ -2542,7 +2575,9 @@ int RunCueletFormatMatrix(
 
 int RunCueletCaptureSample(
     double durationSeconds,
-    std::filesystem::path const& outputDirectory)
+    std::filesystem::path const& outputDirectory,
+    std::wstring_view endpointName,
+    bool renderLoopback)
 {
     try {
         if (!std::isfinite(durationSeconds) ||
@@ -2558,8 +2593,12 @@ int RunCueletCaptureSample(
                 __uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
                 IID_PPV_ARGS(&enumerator)),
             "CoCreateInstance(MMDeviceEnumerator)");
-        const auto capture =
-            findCueletEndpoint(enumerator.Get(), eCapture);
+        const auto capture = endpointName.empty()
+            ? findCueletEndpoint(enumerator.Get(), eCapture)
+            : findActiveEndpointByName(
+                  enumerator.Get(),
+                  renderLoopback ? eRender : eCapture,
+                  endpointName);
         ComPtr<IAudioClient> client;
         check(
             capture->Activate(
@@ -2575,7 +2614,9 @@ int RunCueletCaptureSample(
             1'000'000; // 100 ms.
         check(
             client->Initialize(
-                AUDCLNT_SHAREMODE_SHARED, 0, bufferDuration, 0,
+                AUDCLNT_SHAREMODE_SHARED,
+                renderLoopback ? AUDCLNT_STREAMFLAGS_LOOPBACK : 0,
+                bufferDuration, 0,
                 format.capture, nullptr),
             "Initialize(capture sample)");
         ComPtr<IAudioCaptureClient> service;
@@ -2627,8 +2668,10 @@ int RunCueletCaptureSample(
             captured.audio, format.capture->nSamplesPerSec);
         const auto diagnostics =
             diagnosticsDirectory(outputDirectory);
-        const auto output =
-            diagnostics / L"real-application-capture.wav";
+        const auto baseName = renderLoopback
+            ? L"real-application-render-loopback"
+            : L"real-application-capture";
+        const auto output = diagnostics / (baseName + std::wstring(L".wav"));
         saveFloatWav(output, captured.audio);
 
         double peak = 0.0;
@@ -2647,7 +2690,7 @@ int RunCueletCaptureSample(
             !captured.audio.samples.empty() &&
             captured.discontinuities <= 1;
         std::ofstream summary(
-            diagnostics / L"real-application-capture.json",
+            diagnostics / (baseName + std::wstring(L".json")),
             std::ios::binary | std::ios::trunc);
         if (!summary) {
             throw std::runtime_error(
@@ -2664,6 +2707,8 @@ int RunCueletCaptureSample(
             << captured.audio.frames() << ",\n"
             << "  \"positionDiscontinuities\": "
             << captured.discontinuities << ",\n"
+            << "  \"renderLoopback\": "
+            << (renderLoopback ? "true" : "false") << ",\n"
             << "  \"peak\": " << peak << ",\n"
             << "  \"rms\": " << rms << "\n"
             << "}\n";

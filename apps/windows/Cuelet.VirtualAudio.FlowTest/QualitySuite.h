@@ -16,7 +16,9 @@ int RunCueletFormatMatrix(
     std::filesystem::path const& outputDirectory);
 int RunCueletCaptureSample(
     double durationSeconds,
-    std::filesystem::path const& outputDirectory);
+    std::filesystem::path const& outputDirectory,
+    std::wstring_view endpointName = {},
+    bool renderLoopback = false);
 int RunCueletStressPhase(
     std::wstring_view phase,
     std::uint32_t iterations,

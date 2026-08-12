@@ -528,11 +528,17 @@ void runTests()
             "physical", L"Microphone Array (AMD Audio Device)", L"{physical}", L"AMD",
             L"HDAUDIO\\FUNC_01", L"AMD", {}, true, true};
         const AudioEndpointDescriptor virtualMic{
-            "virtual", L"CABLE Output (VB-Audio Virtual Cable)", L"{cable}", L"VB-Audio",
-            L"ROOT\\VB-CABLE", L"VB-Audio", {}, true, true};
+            "virtual", L"CABLE Output (VB-Audio Virtual Cable)", L"{cable}",
+            L"VB-Audio Software", L"ROOT\\MEDIA\\0000", L"VB-Audio Software",
+            {}, true, true};
         const AudioEndpointDescriptor virtualRender{
-            "render", L"CABLE Input (VB-Audio Virtual Cable)", L"{cable}", L"VB-Audio",
-            L"ROOT\\VB-CABLE", L"VB-Audio", {}, false, true};
+            "render", L"CABLE Input (VB-Audio Virtual Cable)", L"{cable}",
+            L"VB-Audio Software", L"ROOT\\MEDIA\\0000", L"VB-Audio Software",
+            {}, false, true};
+        const AudioEndpointDescriptor multichannelRender{
+            "render-16", L"CABLE In 16ch (VB-Audio Virtual Cable)", L"{cable}",
+            L"VB-Audio Software", L"ROOT\\MEDIA\\0000", L"VB-Audio Software",
+            {}, false, true};
         require(isPhysicalMicrophone(physicalMic) && !isPhysicalMicrophone(virtualMic),
                 "physical microphone classification must exclude virtual capture endpoints");
         const std::vector<AudioEndpointDescriptor> fakeCaptures{virtualMic, physicalMic};
@@ -544,6 +550,9 @@ void runTests()
                     virtualAudioPairScore(virtualRender, virtualMic) >
                         virtualAudioPairScore(virtualRender, physicalMic),
                 "virtual render/capture pairing must use endpoint identity without conflating a physical mic");
+        require(
+            classifyAudioEndpoint(multichannelRender) == AudioEndpointKind::LocalPlayback,
+            "VB-CABLE auxiliary multichannel endpoints must not replace the standard pair");
         const AudioEndpointDescriptor speakers{
             "speakers", L"Speakers (Realtek Audio)", L"{realtek}", L"Realtek",
             L"HDAUDIO\\FUNC_01", L"Realtek", {}, false, true};

@@ -13,6 +13,8 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <initguid.h>
+#include <devpkey.h>
 #include <fstream>
 #include <limits>
 #include <sstream>
@@ -266,34 +268,24 @@ namespace winrt::Cuelet::WinUI::implementation
                 leftInstance.c_str(), rightInstance.c_str()) == 0;
         }
 
-        std::wstring audioEndpointParent(DeviceInformation const& device)
+        std::wstring pnpStringProperty(
+            std::wstring const& instanceId,
+            DEVPROPKEY const& property)
         {
-            constexpr GUID audioEndpointClass{
-                0xc166523c, 0xfe0c, 0x4a94,
-                {0xa5, 0x86, 0xf1, 0xa8, 0x0c, 0xfb, 0xbf, 0x3e}};
-            constexpr DEVPROPKEY deviceParentKey{
-                {0x4340a6c5, 0x93fa, 0x4706,
-                 {0x97, 0x2c, 0x7b, 0x64, 0x80, 0x08, 0xa5, 0xa7}},
-                8};
-            auto instanceId = audioEndpointInstanceId(devicePropertyText(
-                device, L"System.Devices.DeviceInstanceId"));
-            if (instanceId.empty()) {
-                instanceId = audioEndpointInstanceId(device.Id().c_str());
-            }
             if (instanceId.empty()) return {};
-
             const auto devices = ::SetupDiGetClassDevsW(
-                &audioEndpointClass, nullptr, nullptr, DIGCF_PRESENT);
+                nullptr, nullptr, nullptr,
+                DIGCF_ALLCLASSES | DIGCF_PRESENT);
             if (devices == INVALID_HANDLE_VALUE) return {};
 
-            std::wstring parent;
+            std::wstring value;
             SP_DEVINFO_DATA data{sizeof(data)};
             if (::SetupDiOpenDeviceInfoW(
                     devices, instanceId.c_str(), nullptr, 0, &data)) {
                 DEVPROPTYPE type = 0;
                 DWORD bytes = 0;
                 ::SetupDiGetDevicePropertyW(
-                    devices, &data, &deviceParentKey,
+                    devices, &data, &property,
                     &type, nullptr, 0, &bytes, 0);
                 if (::GetLastError() == ERROR_INSUFFICIENT_BUFFER &&
                     type == DEVPROP_TYPE_STRING &&
@@ -301,20 +293,31 @@ namespace winrt::Cuelet::WinUI::implementation
                     bytes % sizeof(wchar_t) == 0) {
                     std::vector<BYTE> buffer(bytes);
                     if (::SetupDiGetDevicePropertyW(
-                            devices, &data, &deviceParentKey,
+                            devices, &data, &property,
                             &type, buffer.data(), bytes, nullptr, 0) &&
                         type == DEVPROP_TYPE_STRING) {
                         const auto* text =
                             reinterpret_cast<wchar_t const*>(buffer.data());
                         const auto characters = bytes / sizeof(wchar_t);
                         if (text[characters - 1] == L'\0') {
-                            parent.assign(text);
+                            value.assign(text);
                         }
                     }
                 }
             }
             ::SetupDiDestroyDeviceInfoList(devices);
-            return parent;
+            return value;
+        }
+
+        std::wstring audioEndpointParent(DeviceInformation const& device)
+        {
+            auto instanceId = audioEndpointInstanceId(devicePropertyText(
+                device, L"System.Devices.DeviceInstanceId"));
+            if (instanceId.empty()) {
+                instanceId = audioEndpointInstanceId(device.Id().c_str());
+            }
+            return pnpStringProperty(
+                instanceId, DEVPKEY_Device_Parent);
         }
 
         cuelet::windows::AudioEndpointDescriptor describeEndpoint(
@@ -330,6 +333,20 @@ namespace winrt::Cuelet::WinUI::implementation
             descriptor.pairingId = devicePropertyText(
                 device, L"{1a7b44f5-2c93-48f5-a18b-46399d69e13f} 2");
             descriptor.parentInstanceId = audioEndpointParent(device);
+            if (!descriptor.parentInstanceId.empty()) {
+                const auto parentManufacturer = pnpStringProperty(
+                    descriptor.parentInstanceId,
+                    DEVPKEY_Device_Manufacturer);
+                const auto parentProvider = pnpStringProperty(
+                    descriptor.parentInstanceId,
+                    DEVPKEY_Device_DriverProvider);
+                if (!parentManufacturer.empty()) {
+                    descriptor.manufacturer = parentManufacturer;
+                }
+                if (!parentProvider.empty()) {
+                    descriptor.providerName = parentProvider;
+                }
+            }
             descriptor.capture = capture;
             descriptor.enabled = device.IsEnabled();
             return descriptor;
