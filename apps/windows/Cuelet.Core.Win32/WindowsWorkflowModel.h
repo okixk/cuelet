@@ -96,7 +96,6 @@ enum class CliCommand {
     Hide,
     Rescan,
     UseLibrary,
-    Demo,
     Import,
     RevealId,
     CreateLibrary,

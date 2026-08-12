@@ -25,6 +25,8 @@ if (-not (Test-Path -LiteralPath $msbuild)) {
     throw "MSBuild was not found at $msbuild"
 }
 
+& (Join-Path $PSScriptRoot 'generate-windows-icon.ps1')
+
 Write-Host "Restoring Cuelet Windows dependencies..."
 & $msbuild $solution /t:Restore /p:RestorePackagesConfig=true /p:Configuration=$Configuration /p:Platform=x64 /v:minimal
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

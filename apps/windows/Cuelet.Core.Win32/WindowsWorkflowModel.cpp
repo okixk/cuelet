@@ -387,8 +387,6 @@ CliRequest parseCommandLine(const std::vector<std::wstring>& arguments,
             if (!setMainCommand(request, CliCommand::Hide)) break;
         } else if (option == L"--rescan") {
             if (!setMainCommand(request, CliCommand::Rescan)) break;
-        } else if (option == L"--demo") {
-            if (!setMainCommand(request, CliCommand::Demo)) break;
         } else if (option == L"--library" || option == L"--use-library") {
             if (!needsValue(arguments, index, request)) break;
             request.library = absolutePath(arguments[++index], currentDirectory);
@@ -462,8 +460,7 @@ std::wstring cliHelpText()
         L"    --category <name>            Assign imported sounds to a category\n"
         L"  --reveal-id <id>               Reveal a sound in File Explorer\n"
         L"  --create-library <folder>      Create and use a Cuelet library\n"
-        L"  --use-library <folder>         Validate and use an existing library\n"
-        L"  --demo                         Play the first available library sound\n";
+        L"  --use-library <folder>         Validate and use an existing library\n";
 }
 
 bool addHiddenFileAttribute(const std::filesystem::path& path, DWORD* errorCode) noexcept

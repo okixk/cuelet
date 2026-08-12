@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "CueletResources.h"
 #include "WindowsTrayIcon.h"
 
 namespace cuelet::windows {
@@ -29,7 +30,10 @@ bool WindowsTrayIcon::add(bool shortcutsActive, bool showBackgroundHint) noexcep
     data.uID = iconId;
     data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     data.uCallbackMessage = callbackMessage;
-    data.hIcon = ::LoadIconW(nullptr, IDI_APPLICATION);
+    data.hIcon = static_cast<HICON>(::LoadImageW(
+        ::GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_CUELET), IMAGE_ICON,
+        ::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON), LR_SHARED));
+    if (!data.hIcon) data.hIcon = ::LoadIconW(nullptr, IDI_APPLICATION);
     wcscpy_s(data.szTip, L"Cuelet");
     if (showBackgroundHint) {
         data.uFlags |= NIF_INFO;

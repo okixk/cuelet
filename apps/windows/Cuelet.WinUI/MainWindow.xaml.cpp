@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "CueletResources.h"
 #include "MainWindow.xaml.h"
 #include "WindowsText.h"
 #include "WindowsAudioRoutingModel.h"
@@ -377,6 +378,15 @@ namespace winrt::Cuelet::WinUI::implementation
         ExtendsContentIntoTitleBar(true);
         SetTitleBar(AppTitleBar());
         check_hresult(this->try_as<::IWindowNative>()->get_WindowHandle(&m_hwnd));
+        const auto module = ::GetModuleHandleW(nullptr);
+        const auto largeIcon = static_cast<HICON>(::LoadImageW(
+            module, MAKEINTRESOURCEW(IDI_CUELET), IMAGE_ICON,
+            ::GetSystemMetrics(SM_CXICON), ::GetSystemMetrics(SM_CYICON), LR_SHARED));
+        const auto smallIcon = static_cast<HICON>(::LoadImageW(
+            module, MAKEINTRESOURCEW(IDI_CUELET), IMAGE_ICON,
+            ::GetSystemMetrics(SM_CXSMICON), ::GetSystemMetrics(SM_CYSMICON), LR_SHARED));
+        if (largeIcon) ::SendMessageW(m_hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(largeIcon));
+        if (smallIcon) ::SendMessageW(m_hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(smallIcon));
         if (!::SetWindowSubclass(m_hwnd, &MainWindow::windowSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this))) {
             throw_last_error();
         }
@@ -2581,6 +2591,7 @@ namespace winrt::Cuelet::WinUI::implementation
             m_loadingAudioDevices = false;
             refreshMicrophoneAccessState();
             audioRoutingChanged();
+            updateVirtualDriverControls();
             cuelet::windows::logDiagnostic(
                 L"audio_devices.enumeration.complete",
                 L"render=" + std::to_wstring(m_renderDevices.size()) +
@@ -3359,6 +3370,59 @@ namespace winrt::Cuelet::WinUI::implementation
 
     void MainWindow::updateVirtualDriverControls()
     {
+#if !defined(_DEBUG)
+        const bool cableConnected = std::any_of(
+            m_renderDevices.begin(), m_renderDevices.end(),
+            [&](auto const& render) {
+                const auto renderDescriptor = describeEndpoint(render, false);
+                if (cuelet::windows::classifyAudioEndpoint(renderDescriptor) !=
+                    cuelet::windows::AudioEndpointKind::SupportedVirtualRender) {
+                    return false;
+                }
+                return std::any_of(
+                    m_captureDevices.begin(), m_captureDevices.end(),
+                    [&](auto const& capture) {
+                        const auto captureDescriptor =
+                            describeEndpoint(capture, true);
+                        return cuelet::windows::classifyAudioEndpoint(
+                                   captureDescriptor) ==
+                                   cuelet::windows::AudioEndpointKind::
+                                       SupportedVirtualCapture &&
+                               cuelet::windows::isCompatibleVirtualPair(
+                                   renderDescriptor, captureDescriptor);
+                    });
+            });
+        VirtualDriverInfo().Title(
+            cableConnected
+                ? L"VB-CABLE virtual microphone \u00b7 Connected"
+                : L"VB-CABLE virtual microphone \u00b7 Not detected");
+        VirtualDriverInfo().Severity(
+            cableConnected ? InfoBarSeverity::Success
+                           : InfoBarSeverity::Informational);
+        VirtualDriverInfo().Message(
+            cableConnected
+                ? L"Cuelet found a matching CABLE Input/CABLE Output pair. "
+                  L"Choose CABLE Output as the microphone in Discord, games, "
+                  L"or recording apps."
+                : L"Install VB-CABLE from VB-Audio, restart Windows, then "
+                  L"refresh audio devices. Cuelet does not bundle or install "
+                  L"the third-party driver.");
+        VirtualDriverInfo().IsOpen(true);
+        InstallVirtualDriverButton().Content(box_value(L"Get VB-CABLE"));
+        InstallVirtualDriverButton().Visibility(
+            cableConnected ? Visibility::Collapsed : Visibility::Visible);
+        RepairVirtualDriverButton().Visibility(Visibility::Collapsed);
+        UninstallVirtualDriverButton().Visibility(Visibility::Collapsed);
+        RefreshVirtualDriverButton().Content(box_value(L"Refresh audio devices"));
+        RefreshVirtualDriverButton().IsEnabled(true);
+        VirtualDriverProgress().IsActive(false);
+        VirtualDriverProgress().Visibility(Visibility::Collapsed);
+        VirtualDriverDiagnostics().Visibility(Visibility::Collapsed);
+        VirtualDriverTroubleshootingLink().Visibility(Visibility::Collapsed);
+        return;
+#else
+        InstallVirtualDriverButton().Content(box_value(L"Install"));
+        RefreshVirtualDriverButton().Content(box_value(L"Refresh"));
         const auto statusLabel =
             cuelet::windows::driverStatusLabel(m_virtualDriverStatus);
         VirtualDriverInfo().Title(
@@ -3439,6 +3503,7 @@ namespace winrt::Cuelet::WinUI::implementation
         VirtualDriverDiagnosticText().Text(m_virtualDriverDiagnostic);
         VirtualDriverTroubleshootingLink().Visibility(
             failed || repair ? Visibility::Visible : Visibility::Collapsed);
+#endif
     }
 
     void MainWindow::applyVirtualDriverResult(JsonObject const& result)
@@ -3624,7 +3689,12 @@ namespace winrt::Cuelet::WinUI::implementation
     fire_and_forget MainWindow::refreshVirtualDriverStatusAsync()
     {
         auto lifetime = get_strong();
+#if defined(_DEBUG)
         co_await invokeVirtualDriverActionAsync(L"status", false);
+#else
+        updateVirtualDriverControls();
+        co_return;
+#endif
     }
 
     fire_and_forget MainWindow::runVirtualDriverActionAsync(std::wstring operation)
@@ -3719,16 +3789,29 @@ namespace winrt::Cuelet::WinUI::implementation
                     compatiblePairs.empty()) {
                     ContentDialog setupDialog;
                     setupDialog.XamlRoot(RootGrid().XamlRoot());
+#if defined(_DEBUG)
                     setupDialog.Title(box_value(L"Set up Cuelet Virtual Microphone"));
                     setupDialog.PrimaryButtonText(L"Install Virtual Microphone");
+#else
+                    setupDialog.Title(box_value(L"Set up VB-CABLE"));
+                    setupDialog.PrimaryButtonText(L"Open VB-CABLE Website");
+#endif
                     setupDialog.SecondaryButtonText(L"Continue with Local Playback Only");
                     setupDialog.CloseButtonText(L"Cancel");
                     setupDialog.DefaultButton(ContentDialogButton::Primary);
                     StackPanel setupContent;
                     setupContent.Spacing(10);
                     TextBlock setupExplanation;
+#if defined(_DEBUG)
                     setupExplanation.Text(
                         L"Cuelet can install a virtual microphone so Discord, games, and recording apps can receive your microphone mixed with soundboard audio.");
+#else
+                    setupExplanation.Text(
+                        L"Cuelet works with the VB-CABLE virtual audio driver. "
+                        L"Install it separately from VB-Audio, restart Windows, "
+                        L"then run Audio Setup again. Cuelet does not download, "
+                        L"bundle, or install this third-party driver.");
+#endif
                     setupExplanation.TextWrapping(TextWrapping::Wrap);
                     setupContent.Children().Append(setupExplanation);
                     Button advanced;
@@ -3744,6 +3827,7 @@ namespace winrt::Cuelet::WinUI::implementation
                     const auto setupResult = co_await showDialogAsync(setupDialog);
                     if (!acceptsUiWork(generation)) co_return;
                     if (setupResult == ContentDialogResult::Primary) {
+#if defined(_DEBUG)
                         const bool installed = co_await invokeVirtualDriverActionAsync(
                             L"install", true);
                         if (!acceptsUiWork(generation)) co_return;
@@ -3781,6 +3865,10 @@ namespace winrt::Cuelet::WinUI::implementation
                             selectedVirtualCaptureName =
                                 L"Cuelet Virtual Microphone";
                         }
+#else
+                        Launcher::LaunchUriAsync(Uri(L"https://vb-audio.com/Cable/"));
+                        wantsVoice = false;
+#endif
                     } else if (setupResult == ContentDialogResult::Secondary) {
                         wantsVoice = false;
                     } else if (!advancedManualPairing) {
@@ -5227,7 +5315,11 @@ namespace winrt::Cuelet::WinUI::implementation
 
     void MainWindow::InstallVirtualDriver_Click(IInspectable const&, RoutedEventArgs const&)
     {
+#if defined(_DEBUG)
         runVirtualDriverActionAsync(L"install");
+#else
+        Launcher::LaunchUriAsync(Uri(L"https://vb-audio.com/Cable/"));
+#endif
     }
 
     void MainWindow::RepairVirtualDriver_Click(IInspectable const&, RoutedEventArgs const&)
@@ -5242,7 +5334,9 @@ namespace winrt::Cuelet::WinUI::implementation
 
     void MainWindow::RefreshVirtualDriver_Click(IInspectable const&, RoutedEventArgs const&)
     {
+#if defined(_DEBUG)
         refreshVirtualDriverStatusAsync();
+#endif
         initializeAudioRoutingAsync();
     }
     void MainWindow::SortCombo_SelectionChanged(IInspectable const&, SelectionChangedEventArgs const&) { if (!m_loadingSettings) { saveSettings(); refreshSounds(); } }
@@ -5528,20 +5622,6 @@ namespace winrt::Cuelet::WinUI::implementation
             scanLibrary();
             result.standardOutput = std::to_string(m_clips.size()) + " sounds indexed.\n";
             return result;
-        case CliCommand::Demo: {
-            const auto playable = std::find_if(m_clips.begin(), m_clips.end(), [](auto const& clip) {
-                return !clip.missing;
-            });
-            if (playable == m_clips.end()) return fail(3, L"No playable sounds are available for the demo.");
-            const auto id = playable->id;
-            if (!enqueueClipPlayback(id)) {
-                return fail(
-                    5, L"Cuelet could not queue the demo sound.");
-            }
-            result.keepRunning = true;
-            result.standardOutput = "Playing demo sound " + id + "\n";
-            return result;
-        }
         case CliCommand::Import: {
             auto categoryId = std::string{"uncategorized"};
             if (!request.categoryName.empty()) {

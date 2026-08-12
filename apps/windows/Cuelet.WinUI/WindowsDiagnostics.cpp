@@ -6,6 +6,7 @@
 #include <exception>
 #include <filesystem>
 
+#if defined(_DEBUG)
 namespace cuelet::windows {
 namespace {
 
@@ -103,3 +104,20 @@ void installDebugTerminateHandler() noexcept
 }
 
 } // namespace cuelet::windows
+#else
+namespace cuelet::windows {
+
+void logDiagnostic(std::wstring_view, std::wstring_view) noexcept
+{
+}
+
+void setDiagnosticShutdownState(ShutdownState) noexcept
+{
+}
+
+void installDebugTerminateHandler() noexcept
+{
+}
+
+} // namespace cuelet::windows
+#endif

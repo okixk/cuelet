@@ -869,9 +869,12 @@ void runTests()
                 "CLI library paths with spaces must resolve without replacing the primary command");
         require(parseCommandLine({L"--mode", L"copy"}).command == CliCommand::Invalid,
                 "CLI import-only modifiers must fail outside an import command");
+        require(parseCommandLine({L"--demo"}).command == CliCommand::Invalid,
+                "the removed demo mode must not remain available through the CLI");
         require(cliHelpText().find(L"--reveal-id") != std::wstring::npos &&
+                    cliHelpText().find(L"--demo") == std::wstring::npos &&
                     cliHelpText().find(L"local shortcut") == std::wstring::npos,
-                "CLI help must match reveal support and must not advertise local shortcuts");
+                "CLI help must match release functionality and omit removed development options");
 
         const auto hiddenMetadata = root / ".cuelet-metadata.json";
         touch(hiddenMetadata);

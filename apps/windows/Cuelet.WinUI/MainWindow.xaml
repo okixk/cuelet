@@ -161,10 +161,10 @@
                          IsOpen="True"
                          IsClosable="False"
                          Severity="Informational"
-                         Title="Cuelet Virtual Microphone · Not installed"
-                         Message="Install Cuelet's signed driver to use the soundboard and your microphone in Discord, games, and recording apps." />
+                         Title="VB-CABLE virtual microphone · Not detected"
+                         Message="Install VB-CABLE separately, restart Windows, then refresh audio devices. Cuelet does not bundle or install the third-party driver." />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button x:Name="InstallVirtualDriverButton" Click="InstallVirtualDriver_Click" Content="Install" />
+                  <Button x:Name="InstallVirtualDriverButton" Click="InstallVirtualDriver_Click" Content="Get VB-CABLE" />
                   <Button x:Name="RepairVirtualDriverButton" Click="RepairVirtualDriver_Click" Content="Repair" Visibility="Collapsed" />
                   <Button x:Name="UninstallVirtualDriverButton" Click="UninstallVirtualDriver_Click" Content="Uninstall" Visibility="Collapsed" />
                   <Button x:Name="RefreshVirtualDriverButton" Click="RefreshVirtualDriver_Click" Content="Refresh" />

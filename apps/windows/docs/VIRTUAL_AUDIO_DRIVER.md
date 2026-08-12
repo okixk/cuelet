@@ -1,5 +1,9 @@
 # Cuelet Virtual Audio Driver
 
+> Development only: Cuelet 0.1.0 Release builds use a separately installed
+> VB-CABLE device and do not package this driver or its installer helper. This
+> document describes the retained Debug driver-development workflow.
+
 ## Repository state
 
 Before this implementation, the repository was in state **D: no Cuelet driver

@@ -111,7 +111,6 @@ namespace winrt::Cuelet::WinUI::implementation
                 if (cliRequest.command == cuelet::windows::CliCommand::PlayId ||
                     cliRequest.command == cuelet::windows::CliCommand::PlayName ||
                     cliRequest.command == cuelet::windows::CliCommand::PlayFile ||
-                    cliRequest.command == cuelet::windows::CliCommand::Demo ||
                     cliRequest.command == cuelet::windows::CliCommand::Hide) {
                     HWND hwnd{};
                     check_hresult(projected.as<::IWindowNative>()->get_WindowHandle(&hwnd));

@@ -2,9 +2,11 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup><Filter Include="Assets"><UniqueIdentifier>{9DD65626-2F3B-463F-9232-AB15354A4226}</UniqueIdentifier></Filter></ItemGroup>
   <ItemGroup>
-    <Image Include="Assets\LockScreenLogo.scale-200.png"><Filter>Assets</Filter></Image><Image Include="Assets\SplashScreen.scale-200.png"><Filter>Assets</Filter></Image><Image Include="Assets\Square150x150Logo.scale-200.png"><Filter>Assets</Filter></Image><Image Include="Assets\Square44x44Logo.scale-200.png"><Filter>Assets</Filter></Image><Image Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png"><Filter>Assets</Filter></Image><Image Include="Assets\StoreLogo.png"><Filter>Assets</Filter></Image><Image Include="Assets\Wide310x150Logo.scale-200.png"><Filter>Assets</Filter></Image>
+    <Image Include="Assets\*.png"><Filter>Assets</Filter></Image>
   </ItemGroup>
-  <ItemGroup><ClInclude Include="pch.h" /><ClInclude Include="App.xaml.h" /><ClInclude Include="MainWindow.xaml.h" /><ClInclude Include="WindowsMetadataStore.h" /></ItemGroup>
+  <ItemGroup><ClInclude Include="pch.h" /><ClInclude Include="App.xaml.h" /><ClInclude Include="CueletResources.h" /><ClInclude Include="MainWindow.xaml.h" /><ClInclude Include="WindowsMetadataStore.h" /></ItemGroup>
   <ItemGroup><ClCompile Include="pch.cpp" /><ClCompile Include="App.xaml.cpp" /><ClCompile Include="MainWindow.xaml.cpp" /><ClCompile Include="WindowsMetadataStore.cpp" /></ItemGroup>
   <ItemGroup><Page Include="MainWindow.xaml" /><ApplicationDefinition Include="App.xaml" /></ItemGroup>
+  <ItemGroup><ResourceCompile Include="Cuelet.rc" /></ItemGroup>
+  <ItemGroup><None Include="Assets\Cuelet.ico"><Filter>Assets</Filter></None><None Include="Assets\README.md"><Filter>Assets</Filter></None></ItemGroup>
 </Project>
