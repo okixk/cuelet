@@ -1,44 +1,43 @@
 # Cuelet for macOS
 
-This folder contains the native macOS SwiftUI/AppKit frontend for Cuelet. It is intentionally separate from the existing Qt/CMake prototype at the repository root.
+This directory contains the native SwiftUI/AppKit macOS client. It is a Swift Package Manager executable with a script that wraps the release product in a Finder-launchable app bundle; there is currently no Xcode project or workspace in the repository.
 
-## Open in Xcode
+It also contains an independently buildable standard-C Audio Server Driver Plug-in under `Driver/`. The driver is not a SwiftPM target and does not require an Xcode project for the app.
 
-Until the Xcode project is created through Xcode's project editor, open the Swift package directly:
+## Requirements and build model
+
+- Swift tools version: 5.10
+- Release icon toolchain: Xcode 26 or later (for the checked-in Icon Composer asset)
+- Deployment target: macOS 14 or later
+- Native frameworks: SwiftUI, AppKit, AVFoundation, Core Audio, Carbon, and Service Management
+- Current package product: arm64 on an Apple Silicon host (SwiftPM builds the host architecture)
+- App bundle identifier: `ch.oki.cuelet`
+- Local bundle signing: ad-hoc with Hardened Runtime enabled
+- Sandbox: disabled
+- Hardened Runtime: enabled for bundled Release builds
+- Installer package: configured for local structural validation and future Developer ID signing
+- Production signing, notarization, and updater: credentials/pipeline not configured
+
+Open the package in Xcode when an IDE is useful:
 
 ```bash
 open apps/macos/Package.swift
 ```
 
-The intended permanent location for the native project is:
+Do not use an invented Xcode scheme in automation. Add an `xcodebuild` command only after a project or workspace with a checked-in scheme exists.
 
-```text
-apps/macos/Cuelet.xcodeproj
-```
-
-Create that project from Xcode and add the existing `Cuelet/` source tree to the app target. Avoid direct `project.pbxproj` edits while Xcode is open.
-
-## Run from Terminal
-
-For quick UI iteration, run the Swift package executable:
+## Build, test, and run
 
 ```bash
 cd apps/macos
+swift build
+swift test
+swift build -c release
+swift test -c release
 swift run Cuelet
 ```
 
-To force the built-in demo library for development or screenshots:
-
-```bash
-cd apps/macos
-swift run Cuelet -- --demo
-```
-
-This is not a full macOS app bundle. Use it for development only; app identity, restoration, privacy prompts, and some menu/shortcut registration behavior can differ from Finder or Xcode app launches.
-
-## Build a Finder-launchable App
-
-Build a real app wrapper with bundle metadata:
+The SwiftPM executable is useful for development, but app identity, restoration, privacy prompts, and background shortcut behavior should be validated with the real bundle:
 
 ```bash
 cd apps/macos
@@ -46,98 +45,173 @@ cd apps/macos
 open dist/macos/Cuelet.app
 ```
 
-The script creates:
-
-```text
-apps/macos/dist/macos/Cuelet.app
-```
-
-In restricted build environments, override the output directory:
+The script creates `dist/macos/Cuelet.app`, writes the bundle `Info.plist`, compiles `Cuelet/Resources/Cuelet.icon` into the modern `Assets.car` plus a `Cuelet.icns` compatibility resource, builds and embeds the diagnostics-disabled Release HAL, and ad-hoc signs the result with Hardened Runtime when `codesign` is available. The Icon Composer source is not shipped in the app. Scratch and output locations can be isolated:
 
 ```bash
-CUELET_DIST_DIR=/private/tmp/cuelet-dist/macos ./scripts/build-macos.sh
+CUELET_DIST_DIR="$TMPDIR/cuelet-dist/macos" \
+CUELET_SWIFTPM_SCRATCH_PATH="$TMPDIR/cuelet-swift-build" \
+./scripts/build-macos.sh
 ```
 
-The generated app bundle includes:
+Set `CUELET_VIRTUAL_AUDIO_DRIVER_BUNDLE` only when intentionally packaging a separately verified bundle. The app build never installs or activates a driver.
 
-- App name: `Cuelet`
-- Bundle identifier: `ch.oki.cuelet`
-- `NSMicrophoneUsageDescription`
-- SwiftPM resource bundles copied into `Contents/Resources`
-- Ad-hoc code signing when `codesign` is available
+## End-user Installer package
 
-Double-clicking `dist/macos/Cuelet.app` from Finder is the preferred local test path for menu commands, app identity, Settings, and privacy prompts.
-
-## Build from CLI
-
-The current source tree can be validated with SwiftPM:
+Build the standard two-component macOS Installer product locally with:
 
 ```bash
 cd apps/macos
-swift build
+./scripts/build-release-package.sh --local
 ```
 
-In this managed Codex session, SwiftPM needed writable scratch paths:
+This creates `dist/macos/Cuelet-0.1.0-local.pkg`. It installs the application
+at `/Applications/Cuelet.app` and the audio driver at
+`/Library/Audio/Plug-Ins/HAL/CueletVirtualAudio.driver`. The builder consumes
+the normal Release app and production diagnostics-disabled HAL artifacts,
+checks their versions, architecture, signatures, hashes, and contents, then
+expands and tests the result without installing it. Its welcome screen derives
+the Cuelet branding from the same compiled app icon. Local packages are marked
+“LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION.”
+
+The package supports clean install, same-version repair, and upgrades from an
+older Cuelet app or driver. It refuses to replace a foreign bundle at either
+exact destination and refuses to downgrade a newer Cuelet bundle. The
+installation does not change audio defaults or restart Core Audio; Installer
+requires a normal Mac restart at completion.
+
+Public release mode requires externally configured Developer ID Application
+and Developer ID Installer identity names and never falls back to ad-hoc or
+unsigned output:
 
 ```bash
-env CLANG_MODULE_CACHE_PATH=/private/tmp/cuelet-module-cache swift build --disable-sandbox --scratch-path /private/tmp/cuelet-swift-build
+CUELET_DEVELOPER_ID_APPLICATION='Developer ID Application: …' \
+CUELET_DEVELOPER_ID_INSTALLER='Developer ID Installer: …' \
+./scripts/build-release-package.sh --release
 ```
 
-After `Cuelet.xcodeproj` is created through Xcode's project editor, the app target should also build with:
+No credentials are stored in the repository. Notarization and stapling remain
+separate explicit release operations. See [Installer/README.md](Installer/README.md)
+for identifiers, signing order, upgrade policy, and uninstall/repair policy.
+
+Useful local validation commands are:
 
 ```bash
-xcodebuild -project apps/macos/Cuelet.xcodeproj -scheme Cuelet -destination 'platform=macOS' build
+codesign --verify --deep --strict --verbose=2 dist/macos/Cuelet.app
+codesign -d --entitlements :- dist/macos/Cuelet.app
+spctl --assess --type execute --verbose=4 dist/macos/Cuelet.app
 ```
 
-## Keyboard Behavior
+An ad-hoc development bundle can pass structural `codesign` verification while Gatekeeper rejects it because it has no Developer ID signature or notarization ticket. That rejection is expected and is not a distribution pass.
 
-Cuelet uses native SwiftUI commands for menu shortcuts and an AppKit `NSEvent` local monitor for in-window soundboard keys:
+## Isolated development validation
+
+Cuelet Debug builds support two process-environment overrides for tests and local validation. They are compiled out of Release:
+
+```bash
+CUELET_APP_SUPPORT_DIR="$TMPDIR/cuelet-app-support" \
+CUELET_LIBRARY_PATH="$TMPDIR/cuelet-library" \
+dist/macos/Cuelet.app/Contents/MacOS/Cuelet
+```
+
+`CUELET_APP_SUPPORT_DIR` redirects settings and `CUELET_LIBRARY_PATH` selects an isolated library for that process. Use disposable media and directories; do not point destructive validation at a real sound library.
+
+## Library and persistence behavior
+
+Cuelet stores sound metadata in `.cuelet-metadata.json` at the selected library root using schema version 2. Each stored sound has a stable UUID and, where applicable, managed or linked storage, a managed relative path or external reference, a security-scoped bookmark, display/original names, missing state, favorite/category data, notes, aliases, shortcut metadata, cached duration, timestamps, and native filesystem identity.
+
+- **Copy into Cuelet Library** creates a collision-safe file under `Sounds/`, never silently overwrites, and persists metadata before reporting success. A metadata failure rolls the new copy back.
+- **Link External Files** preserves the source and stores a security-scoped bookmark where macOS permits it. Bookmark moves are followed when resolvable; stale or unavailable sources remain visible as missing.
+- **Remove from Library** removes metadata only. For managed files, a tombstone prevents the next scan from silently re-importing the preserved file.
+- **Delete Managed File** is shown only for an existing managed file. Cuelet revalidates containment, symlink/alias status, and recorded filesystem identity, stages the file in the same directory, commits metadata, then removes the staged file. Linked files cannot use this action.
+- **Rename** changes only Cuelet's display name. It does not rename an external linked file.
+- **Locate/Relink** restores a missing managed or linked entry while preserving its UUID and user metadata.
+
+Metadata and settings writes use same-filesystem temporary files, POSIX rename, mode `0600`, and recovery copies. Version-1 metadata is backed up to `.v1.bak` before replacement. An unreadable entry or corrupt document produces a visible failure or recovery message instead of silently resetting the library.
+
+The legacy settings-based favorites, categories, display names, and shortcuts are migrated when a library first adopts schema v2. The migration creates a settings safety copy, generates stable IDs when necessary, and is idempotent.
+
+## Playback and shortcuts
+
+Playback uses an injectable backend with one `AVAudioPlayer` per sound. The native adapter sets `AVAudioPlayer.currentDevice` to a stable Core Audio UID before preparing playback; `nil` means System Output. This preserves play, pause, resume, stop, stop all, simultaneous sounds, rapid replay, progress, end-of-file cleanup, linked-file security-scope lifetime, and termination cleanup without a broad engine rewrite. Missing, damaged, and route-rejected files do not enter playing state.
+
+The global Cuelet volume is applied per player. When sounds overlap, each player receives `globalVolume / activePlayerCount` as conservative static headroom; Cuelet does not change system volume, normalize content, or apply compression. Route changes update active and paused players transactionally and roll back if any player rejects the destination.
+
+Per-sound shortcuts use stable sound UUIDs. Global shortcuts use Carbon `RegisterEventHotKey`, work while Cuelet is in the background without Accessibility permission, restore after restart, and unregister on shutdown. The recorder temporarily suspends active global registrations so it can observe a key already assigned in Cuelet and show the conflict instead of triggering playback. Failed or conflicting assignments do not replace a working registration.
+
+Local keyboard behavior remains separate:
 
 - `Cmd+,` opens Settings.
-- `Cmd+F` or `Ctrl+F` focuses search through app commands.
-- Arrow keys move sound-pad selection when the main library window is key and text input is not focused.
-- Space or Return plays the selected pad when the main library window is key and text input is not focused.
-- Escape clears search, then sound selection, then playback on successive presses.
-- Typing in search remains normal text input and does not trigger soundboard playback.
-- Pressing Return while search is focused plays the selected visible result, or the top ranked visible result when no explicit result is selected.
-- Escape while search is focused clears search first.
+- `Cmd+F` or `Ctrl+F` focuses search.
+- Arrow keys move selection while the main library window is key and text input is not focused.
+- Space or Return plays the selected sound.
+- Escape clears search, then selection, then playback on successive presses.
 
-Per-sound shortcuts use structured key-code/modifier metadata with Local and Global scopes. Global shortcuts use Carbon `RegisterEventHotKey`, remain active while Cuelet runs in the background, and are updated transactionally so failed registrations do not overwrite working assignments.
+## Audio devices and microphone scope
 
-## Library and Demo Behavior
+Settings enumerate alive Core Audio output devices with usable output streams and stable UIDs. Input-only, dead, UID-less, and duplicate entries are excluded. Temporary `AudioDeviceID` values are resolved only for the current session and are never persisted.
 
-`Choose Library...` opens a native folder picker and scans supported audio files from the chosen folder. Supported formats are `mp3`, `wav`, `m4a`, `aiff`, `aif`, and `flac` where macOS playback supports the file. The `Scan subfolders` setting controls recursive folder scanning and triggers a rescan when changed.
+Supported output modes are:
 
-The selected folder path is persisted in Application Support and becomes the active library on the next launch. A real selected library takes priority over demo content. The demo library is optional: use the empty-state `Show Demo Library` button, the Settings toggle, or launch with `--demo` to force demo mode for development/testing.
+- **System Output:** players use a `nil` device UID and follow the current macOS system output.
+- **Explicit Output:** Cuelet resolves the saved UID to the current live device and routes every player to that UID without changing the system default.
+- **Existing Virtual Output:** an installed virtual-transport output is selectable like any other explicit output. Product names are not hard-coded as the capability test.
 
-Library sorting is persisted with the rest of Cuelet's settings. `Latest Added` and `Oldest Added` use each clip's `addedAt` timestamp; for scanned or imported files, Cuelet fills that from the file creation date when available, then the modification date, then deterministic scan/import order as a fallback.
+The default device-loss policy is **Stop and Wait**. It stops affected playback, keeps the exact saved UID visibly unavailable, blocks new playback, and reconnects when that UID returns. **Temporarily Use System Output** is opt-in: it stops playback at the loss edge, leaves the original UID selected, and sends later playback to System Output until the exact device returns. A similarly named device is never substituted. Device-list, default-output, liveness, name, and output-stream changes are observed through Core Audio. Settings distinguishes selected, route-ready, unavailable, fallback, failure, and backend-confirmed active states; an idle selection is not presented as active.
 
-## Runtime Notes
+Cuelet contains its own `Cuelet Virtual Microphone`, implemented as an Audio Server Driver Plug-in. The app distinguishes a bundled driver from a live input/output device by stable UID and never calls a file-only state Ready. A driver bundle changed after the current boot is shown as Restart required even if Core Audio still exposes the previously loaded device.
 
-Running the Swift package executable is useful for UI iteration, but it is not the final app bundle shape. Bundle identity, app intents/shortcuts registration, window restoration, and microphone privacy prompts can emit warnings or behave differently until Cuelet has a signed macOS app target or app bundle with:
+When the device is live, selecting it as Cuelet's explicit output injects soundboard playback into the driver's bounded output-to-input loopback. Receiving applications select `Cuelet Virtual Microphone` as their input. There is no driver IPC, physical-microphone mixing, simultaneous speaker output, system-default change, or in-app privileged helper. Current microphone metering remains local only.
 
-- A stable bundle identifier, currently `ch.oki.cuelet` in `scripts/build-macos.sh`.
-- `NSMicrophoneUsageDescription` in `Info.plist`.
-- The macOS audio input entitlement if sandboxing is enabled in a future Xcode app target.
+## Cuelet Virtual Microphone driver
 
-The Audio & Microphone preferences intentionally avoid prompting for microphone access when the running bundle lacks the required usage description, because macOS can terminate apps that request capture access without the privacy key.
+Build, test, package, and verify without root:
 
-## Current Scope
+```bash
+cd apps/macos
+./scripts/build-virtual-audio-driver.sh Debug
+./scripts/build-virtual-audio-driver.sh Release
+./scripts/test-virtual-audio-driver.sh
+./scripts/package-virtual-audio-driver.sh Release
+./scripts/verify-virtual-audio-driver.sh \
+  Driver/build/Release/CueletVirtualAudio.driver
+```
 
-- Native SwiftUI app entry point and settings scene with the standard macOS Settings menu item and `Cmd+,` shortcut.
-- Native sidebar using `NavigationSplitView`, with Library, Favorites, Recent, category filters, and Overlay Preview.
-- Native toolbar/menu controls.
-- AppKit local keyboard handling for sound grid selection, playback, and stop commands without drawing a grid focus ring.
-- Real folder scanning for common audio files, optional demo library mode, and persisted library/view/category settings.
-- Search scoped to the selected sidebar filter, deterministic result ranking, selected state, recent tracking, and playing state.
-- Stable sound pad grid with category chips, shortcut badges, waveform previews, hover, and Finder-style multi-selection.
-- Finder-like list view with selectable rows and useful sound metadata.
-- Settings view with Library, Playback, Audio & Microphone, Overlay, Appearance, Import Behavior, and Advanced areas.
-- Portable category icon IDs mapped to SF Symbols, persisted colors, and a native category editor.
-- Real shortcut recorder, conflict replacement, Carbon global shortcuts, menu-bar operation, and optional Launch at Login.
-- Engine-derived mini-player progress and Finder reveal for single or multiple sounds.
-- Audio routing foundation for device discovery, microphone permission state, local input metering, system-output playback, and honest virtual-device guidance.
-- Finder-launchable app wrapper script at `scripts/build-macos.sh`.
-- Placeholder overlay preview only.
+The verifier expects a diagnostics-disabled production bundle by default. For
+an intentionally diagnostic development bundle, set
+`CUELET_EXPECT_DRIVER_DIAGNOSTICS=1` for that verification invocation.
 
-Explicit non-default output routing, microphone mixing, virtual-device output, and floating overlay windows remain deferred. Cuelet does not create or install a virtual microphone.
+Debug driver builds include bounded event telemetry and developer inspector tools. Release driver builds disable that telemetry and build only the HAL bundle. To reproduce a validation build explicitly, set `CUELET_DRIVER_DIAGNOSTICS=1`; do not use that variant as the public app payload.
+
+The app compatibility baseline is transport version 0.1.8 build 9. Diagnostics-only HAL identities 0.1.9 build 10, 0.1.10 build 11, and 0.1.11 build 12 are accepted because they preserve that transport contract. This allowlist intentionally keeps transport compatibility separate from diagnostic bundle identity.
+
+The public installation path is the Cuelet Installer package and requires no Terminal, repository checkout, Xcode, or Homebrew. For driver developers only, the explicit manual install and uninstall commands remain available:
+
+```bash
+./scripts/install-virtual-audio-driver.sh \
+  Driver/build/Release/CueletVirtualAudio.driver
+./scripts/uninstall-virtual-audio-driver.sh
+```
+
+Both development scripts require explicit typed confirmation, administrator approval for the exact system path, and a manual restart. Neither changes SIP, kills `coreaudiod`, changes audio defaults, or touches another vendor's bundle. Local artifacts are arm64-only and ad-hoc signed; public distribution still requires appropriate signing, hardened-runtime review, notarization, and stapling.
+
+See `../../docs/cross-platform-catch-up/MACOS_VIRTUAL_AUDIO_DRIVER.md` for the object graph, real-time ring policy, stable identifiers, platform mapping, privacy behavior, and post-reboot validation plan.
+
+## Test commands
+
+Run the normal suite with `swift test`. It covers metadata migration/recovery, import and filesystem safety, managed/linked/missing policies, persistence rollback, playback lifecycle, shortcut identity/conflicts, search, and accessibility/action-policy labels.
+
+Focused routing tests use fake player and Core Audio providers. Live installed-device routing is separate and opt-in; it plays only a short silent fixture, checks UID resolution/current-device confirmation, and verifies that the system default is unchanged:
+
+```bash
+CUELET_RUN_LIVE_AUDIO_TESTS=1 swift test \
+  --filter AudioRoutingLiveIntegrationTests
+```
+
+The generated 250/1,000-file scanner and search benchmark is opt-in:
+
+```bash
+CUELET_RUN_PERFORMANCE_TESTS=1 swift test \
+  --filter LibraryPerformanceTests/testLargeLibraryScanReloadAndSearch
+```
+
+See `../../docs/cross-platform-catch-up/MACOS_VALIDATION.md` for the latest verified hardware, results, screenshot manifest location, and remaining limitations.

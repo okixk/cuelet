@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(/usr/bin/dirname "$0")" && pwd)"
+METADATA_PATH="${SCRIPT_DIR}/package-metadata"
+if [[ ! -f "${METADATA_PATH}" ]]; then
+    echo "Cuelet audio driver verification metadata is missing." >&2
+    exit 1
+fi
+
+# shellcheck source=/dev/null
+. "${METADATA_PATH}"
+
+TARGET_VOLUME="${3:-/}"
+if [[ "${TARGET_VOLUME}" != /* || "${TARGET_VOLUME}" == *".."* ]]; then
+    echo "Cuelet Installer received an invalid target volume." >&2
+    exit 1
+fi
+TARGET_PATH="${TARGET_VOLUME%/}${CUELET_TARGET_RELATIVE_PATH}"
+INFO_PLIST="${TARGET_PATH}/Contents/Info.plist"
+EXECUTABLE_PATH="${TARGET_PATH}/Contents/MacOS/${CUELET_EXPECTED_EXECUTABLE}"
+
+if [[ ! -f "${INFO_PLIST}" || ! -x "${EXECUTABLE_PATH}" ]]; then
+    echo "Cuelet audio driver installation is incomplete." >&2
+    exit 1
+fi
+
+read_plist() {
+    /usr/libexec/PlistBuddy -c "Print :$1" "${INFO_PLIST}" 2>/dev/null || true
+}
+
+if [[ "$(read_plist CFBundleIdentifier)" != "${CUELET_EXPECTED_BUNDLE_ID}" ||
+      "$(read_plist CFBundleShortVersionString)" != "${CUELET_CANDIDATE_VERSION}" ||
+      "$(read_plist CFBundleVersion)" != "${CUELET_CANDIDATE_BUILD}" ||
+      "$(read_plist CFBundleExecutable)" != "${CUELET_EXPECTED_EXECUTABLE}" ]]; then
+    echo "Cuelet audio driver installation verification failed." >&2
+    exit 1
+fi
+
+if ! /usr/bin/file -b "${EXECUTABLE_PATH}" | /usr/bin/grep -q 'arm64'; then
+    echo "The installed Cuelet audio driver has an unsupported architecture." >&2
+    exit 1
+fi
+
+/usr/bin/touch "${INFO_PLIST}"
+/usr/bin/codesign --verify --deep --strict "${TARGET_PATH}"
+
+echo "Cuelet audio driver installed. Restart this Mac to finish installation."
+exit 0

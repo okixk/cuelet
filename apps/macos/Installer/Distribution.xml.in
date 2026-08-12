@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Cuelet</title>
+    <product id="ch.oki.cuelet.installer" version="@PACKAGE_VERSION@"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <allowed-os-versions>
+        <os-version min="14.0"/>
+    </allowed-os-versions>
+
+    <welcome file="Welcome.html"/>
+    <readme file="ReadMe.html"/>
+    <license file="License.txt"/>
+    <conclusion file="Conclusion.html"/>
+
+    <choices-outline>
+        <line choice="cuelet"/>
+    </choices-outline>
+    <choice id="cuelet" title="Cuelet" description="Cuelet and Cuelet Virtual Microphone">
+        <pkg-ref id="ch.oki.cuelet.pkg.application"/>
+        <pkg-ref id="ch.oki.cuelet.pkg.virtual-audio"/>
+    </choice>
+
+    <pkg-ref id="ch.oki.cuelet.pkg.application"
+             version="@PACKAGE_VERSION@"
+             auth="Root">CueletApplication.pkg</pkg-ref>
+    <pkg-ref id="ch.oki.cuelet.pkg.virtual-audio"
+             version="@DRIVER_PACKAGE_VERSION@"
+             auth="Root"
+             onConclusion="RequireRestart">CueletVirtualAudio.pkg</pkg-ref>
+</installer-gui-script>

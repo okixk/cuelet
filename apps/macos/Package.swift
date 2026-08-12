@@ -14,10 +14,7 @@ let package = Package(
             name: "Cuelet",
             path: "Cuelet",
             exclude: [
-                "Resources/IconExportREADME.md"
-            ],
-            resources: [
-                .process("Resources")
+                "Resources"
             ]
         ),
         .testTarget(
