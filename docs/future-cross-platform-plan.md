@@ -1,18 +1,17 @@
-# Future Cross-Platform Plan
+# Cross-Platform Plan
 
-Cuelet is moving away from one fake cross-platform UI. Each desktop platform should get a native frontend that uses the shared backend model where that makes sense.
+Cuelet uses a native frontend on each desktop platform and shares backend
+models only where that preserves native behavior.
 
 ## Native Frontends
 
 - macOS: SwiftUI/AppKit under `apps/macos`.
-- Windows: future native Windows frontend under `apps/windows`.
-- Linux: future native Linux frontend under `apps/linux`.
-
-The existing Qt prototype remains intact as a reference and checkpoint. It should not be deleted unless explicitly requested.
+- Windows: WinUI 3/C++ under `apps/windows`.
+- Linux: GTK4/libadwaita under `apps/linux`.
 
 ## Shared Core Candidates
 
-`core/cuelet-core` can eventually own:
+`core/cuelet-core` owns or can grow to own:
 
 - Library scanning.
 - Supported audio file detection.
@@ -24,4 +23,5 @@ The existing Qt prototype remains intact as a reference and checkpoint. It shoul
 - Settings model.
 - Hotkey definitions.
 
-Do not introduce FFI or a new systems-language backend until the native macOS app has validated the app model.
+Introduce an FFI boundary only when sharing compiled core behavior is worth the
+platform integration and maintenance cost.

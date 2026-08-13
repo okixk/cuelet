@@ -91,6 +91,12 @@ fi
 
 desktop-file-validate \
     "$package_root/usr/share/applications/io.cuelet.Cuelet.desktop"
+grep -Fxq 'Name=Cuelet' \
+    "$package_root/usr/share/applications/io.cuelet.Cuelet.desktop"
+grep -Fxq 'Exec=cuelet' \
+    "$package_root/usr/share/applications/io.cuelet.Cuelet.desktop"
+grep -Fxq 'Icon=io.cuelet.Cuelet' \
+    "$package_root/usr/share/applications/io.cuelet.Cuelet.desktop"
 xmllint --noout \
     "$package_root/usr/share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg" \
     "$package_root/usr/share/metainfo/io.cuelet.Cuelet.metainfo.xml"

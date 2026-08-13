@@ -1,6 +1,6 @@
 # Cuelet for Linux
 
-This is the native Linux frontend for Cuelet. It is GTK4/libadwaita-based and targets Ubuntu/GNOME/Wayland. The older Qt prototype remains at the repository root as a reference, not the final Linux UI.
+This is the native Linux frontend for Cuelet. It is GTK4/libadwaita-based and targets Ubuntu/GNOME/Wayland.
 
 ## Ubuntu Dependencies
 

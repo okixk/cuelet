@@ -9,6 +9,7 @@ project(
 )
 
 gnome = import('gnome')
+bash = find_program('bash')
 
 version_configuration = configuration_data()
 version_configuration.set_quoted('CUELET_VERSION', meson.project_version())
@@ -249,3 +250,8 @@ test('library-import', test_library_import)
 test('pipewire-routing', test_pipewire_routing)
 test('pipewire-routing-service', test_pipewire_routing_service)
 test('virtual-microphone', test_virtual_microphone)
+test(
+  'release-metadata',
+  bash,
+  args: files('tests/release_metadata_tests.sh'),
+)

@@ -1,13 +1,10 @@
 # Architecture
 
-Cuelet now has four tracks:
+Cuelet has three native frontend tracks:
 
-- The existing Qt/CMake prototype at the repository root.
-- The new native macOS SwiftUI frontend under `apps/macos`.
+- The macOS SwiftUI frontend under `apps/macos`.
 - The native Linux GTK/libadwaita frontend under `apps/linux`.
 - The native Windows WinUI 3/C++ frontend under `apps/windows`.
-
-The prototype remains intact. Native platform frontends are the product direction.
 
 ## Layers
 
@@ -28,10 +25,14 @@ The macOS app keeps services in Swift under `apps/macos/Cuelet/Services`:
 
 Linux uses GStreamer and JSON-GLib adapters. Windows uses `MediaPlayer`, Windows pickers, a WinRT JSON metadata adapter, and registry-backed settings. Platform audio and lifecycle services stay native.
 
-### Future Shared Core
+### Shared Core
 
 `core/cuelet-core` owns toolkit-neutral sound/category/shortcut models, scanning, stable IDs, search, filtering, sorting, and the shared metadata contract. Linux consumes it directly; Windows compiles the toolkit-neutral portion as `Cuelet.Core.Win32`.
 
 ## Build Boundaries
 
-The existing Qt prototype continues to use the root `CMakeLists.txt`. Each native frontend is isolated under `apps/<platform>` and has its own build system.
+Each native frontend is isolated under `apps/<platform>` and has its own build
+system. Linux uses Meson, macOS uses Swift Package Manager and Xcode tooling,
+and Windows uses Visual Studio/MSBuild. The shared `core/cuelet-core` sources
+remain toolkit-neutral and are consumed only where the native build explicitly
+includes them.

@@ -11,6 +11,7 @@ Current responsibilities:
 - Search, filtering, and sorting.
 - In-library `.cuelet-metadata.json` load/save through a small API.
 
-The current Meson build lives in `apps/linux` and links these sources directly. The root Qt/CMake prototype and the macOS SwiftUI app are intentionally untouched.
+The Linux Meson build links these sources directly. Windows compiles the
+toolkit-neutral subset into its native core library.
 
 The public API is C++ today. macOS can continue using Swift services until there is a clear reason to add a Swift bridge or another FFI boundary.
