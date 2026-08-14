@@ -59,6 +59,8 @@ APP_INFO="${STAGED_APP}/Contents/Info.plist"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "${APP_INFO}")" == "Cuelet" ]]
 [[ -s "${STAGED_APP}/Contents/Resources/Assets.car" ]]
 [[ -s "${STAGED_APP}/Contents/Resources/Cuelet.icns" ]]
+[[ -s "${STAGED_APP}/Contents/Resources/LICENSE.txt" ]]
+grep -q 'GNU AFFERO GENERAL PUBLIC LICENSE' "${STAGED_APP}/Contents/Resources/LICENSE.txt"
 assetutil --info "${STAGED_APP}/Contents/Resources/Assets.car" \
     >"${VALIDATION_ROOT}/logs/packaged-app-asset-catalog.json"
 grep -q '"Name" : "Cuelet"' "${VALIDATION_ROOT}/logs/packaged-app-asset-catalog.json"
@@ -209,7 +211,7 @@ grep -q 'No unsigned or ad-hoc fallback was used' "${RELEASE_FAILURE_LOG}"
 
 {
     echo "PASS: package identifiers and versions"
-    echo "PASS: native app icon and Installer branding resources"
+    echo "PASS: native app icon, license, and Installer branding resources"
     echo "PASS: exact app and driver destinations"
     echo "PASS: fixed, strict, atomic replacement metadata"
     echo "PASS: payload hygiene"

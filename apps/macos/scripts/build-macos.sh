@@ -30,6 +30,10 @@ mkdir -p "${CLANG_MODULE_CACHE_PATH}" "${SCRATCH_PATH}"
     echo "Cuelet Icon Composer asset is missing: ${ICON_SOURCE}" >&2
     exit 1
 }
+[[ -f "${REPOSITORY_ROOT}/LICENSE" ]] || {
+    echo "Repository license is missing: ${REPOSITORY_ROOT}/LICENSE" >&2
+    exit 1
+}
 ACTOOL="$(xcrun --find actool)"
 
 swift build \
@@ -76,6 +80,12 @@ strip -S "${MACOS_DIR}/${APP_NAME}"
 while IFS= read -r resource_bundle; do
     ditto "${resource_bundle}" "${RESOURCES_DIR}/$(basename "${resource_bundle}")"
 done < <(find "${BUILD_DIR}" -maxdepth 1 -name "*.bundle" -type d ! -name "*Tests*")
+
+install -m 0644 "${REPOSITORY_ROOT}/LICENSE" "${RESOURCES_DIR}/LICENSE.txt"
+cmp -s "${REPOSITORY_ROOT}/LICENSE" "${RESOURCES_DIR}/LICENSE.txt" || {
+    echo "The packaged Cuelet license does not match the repository LICENSE." >&2
+    exit 1
+}
 
 if [[ -n "${CUELET_VIRTUAL_AUDIO_DRIVER_BUNDLE:-}" ]]; then
     DRIVER_SOURCE="${CUELET_VIRTUAL_AUDIO_DRIVER_BUNDLE}"

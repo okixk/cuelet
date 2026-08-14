@@ -17,6 +17,7 @@ struct CueletApp: App {
         }
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
+            CueletAboutCommands()
             ToolbarCommands()
 
             CommandGroup(after: .textEditing) {
@@ -71,6 +72,18 @@ struct CueletApp: App {
                 .environmentObject(appState)
         }
         .keyboardShortcut(",", modifiers: [.command])
+
+        Window("About Cuelet", id: CueletWindowID.about) {
+            CueletAboutView()
+        }
+        .defaultPosition(.center)
+        .windowResizability(.contentSize)
+
+        Window("Cuelet License", id: CueletWindowID.license) {
+            CueletLicenseView()
+        }
+        .defaultPosition(.center)
+        .defaultSize(width: 720, height: 560)
 
         MenuBarExtra(
             "Cuelet",

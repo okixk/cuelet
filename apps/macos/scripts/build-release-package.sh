@@ -143,6 +143,11 @@ fi
     echo "Cuelet app is missing its compiled native icon resources." >&2
     exit 1
 }
+[[ -s "${APP_SOURCE}/Contents/Resources/LICENSE.txt" ]] &&
+    cmp -s "${REPOSITORY_ROOT}/LICENSE" "${APP_SOURCE}/Contents/Resources/LICENSE.txt" || {
+    echo "Cuelet app is missing the exact repository license text." >&2
+    exit 1
+}
 assetutil --info "${APP_SOURCE}/Contents/Resources/Assets.car" \
     >"${VALIDATION_ROOT}/logs/app-asset-catalog.json"
 grep -q '"Name" : "Cuelet"' "${VALIDATION_ROOT}/logs/app-asset-catalog.json" || {
