@@ -32,7 +32,16 @@ It is built from scratch with Qt 6, CMake, C++, Qt Multimedia, and CTest. It is 
 
 ## Screenshots
 
-Screenshots will be added once the first visual pass is captured on each target platform.
+<table>
+  <tr>
+    <th width="68%">macOS — Library</th>
+    <th width="32%">macOS — About Cuelet</th>
+  </tr>
+  <tr>
+    <td><img src="docs/images/cuelet-main-macos.png" alt="Cuelet library on macOS with five healthy sound cards"></td>
+    <td><img src="docs/images/cuelet-about-macos.png" alt="Branded native About Cuelet window on macOS"></td>
+  </tr>
+</table>
 
 ## Dependencies
 
