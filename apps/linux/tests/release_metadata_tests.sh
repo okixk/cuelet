@@ -9,6 +9,11 @@ application_id="io.cuelet.Cuelet"
 desktop_file="$linux_source/data/$application_id.desktop"
 canonical_icon_file="$linux_source/data/$application_id.svg"
 metainfo_file="$linux_source/data/$application_id.metainfo.xml"
+about_source="$linux_source/src/CueletAboutDialog.cpp"
+about_window_source="$linux_source/src/CueletWindowAbout.cpp"
+window_source="$linux_source/src/CueletWindow.cpp"
+main_source="$linux_source/src/main.cpp"
+style_file="$linux_source/resources/style.css"
 
 fail() {
     printf 'release metadata check failed: %s\n' "$1" >&2
@@ -61,6 +66,21 @@ if grep -r -I -E -q \
     "$linux_source/src"; then
     fail "Linux source overrides GTK4 application identity or icon naming"
 fi
+
+grep -Fq 'g_menu_append(appSection, "About Cuelet", "app.about");' \
+    "$window_source" \
+    || fail "primary menu does not expose the app.about action"
+grep -Fq 'g_simple_action_new("about", nullptr);' "$main_source" \
+    || fail "application does not register the about action"
+grep -Fq 'adw_about_dialog_set_version(about, CUELET_VERSION);' "$about_source" \
+    || fail "About dialog version does not use the generated version"
+grep -Fq 'adw_about_dialog_set_license_type(about, GTK_LICENSE_AGPL_3_0_ONLY);' \
+    "$about_source" \
+    || fail "About dialog license does not match AGPL-3.0-only"
+grep -Fq 'if (!aboutDialog_) {' "$about_window_source" \
+    || fail "About dialog presentation is not singleton-scoped"
+grep -Fq 'label.cuelet-about-heading {' "$style_file" \
+    || fail "About heading CSS is not scoped to its dedicated label class"
 
 grep -Fq "<id>$application_id</id>" "$metainfo_file" \
     || fail "AppStream ID does not match the application ID"

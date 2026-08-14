@@ -31,6 +31,22 @@ void onActivate(GtkApplication* app, gpointer)
     ensureWindow(app, false)->present();
 }
 
+void onAbout(GSimpleAction*, GVariant*, gpointer userData)
+{
+    auto* app = GTK_APPLICATION(userData);
+    CueletWindow* window = ensureWindow(app, false);
+    window->present();
+    window->showAbout();
+}
+
+void addApplicationActions(AdwApplication* app)
+{
+    GSimpleAction* about = g_simple_action_new("about", nullptr);
+    g_signal_connect(about, "activate", G_CALLBACK(onAbout), app);
+    g_action_map_add_action(G_ACTION_MAP(app), G_ACTION(about));
+    g_object_unref(about);
+}
+
 void appendBooleanOption(GVariantDict* options,
                          const char* name,
                          std::vector<std::string>& arguments)
@@ -182,6 +198,7 @@ int main(int argc, char** argv)
     g_autoptr(AdwApplication) app = adw_application_new(
         applicationId,
         G_APPLICATION_HANDLES_COMMAND_LINE);
+    addApplicationActions(app);
     addCommandLineOptions(G_APPLICATION(app));
     g_signal_connect(app, "activate", G_CALLBACK(onActivate), nullptr);
     g_signal_connect(app, "command-line", G_CALLBACK(onCommandLine), nullptr);

@@ -72,6 +72,11 @@ CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
 
 CueletWindow::~CueletWindow()
 {
+    if (aboutDialog_) {
+        g_signal_handlers_disconnect_by_data(aboutDialog_, this);
+        adw_dialog_force_close(ADW_DIALOG(aboutDialog_));
+        g_clear_object(&aboutDialog_);
+    }
     if (globalShortcuts_) {
         globalShortcuts_->shutdown();
     }
@@ -217,6 +222,7 @@ void CueletWindow::buildUi()
     g_object_unref(librarySection);
     GMenu* appSection = g_menu_new();
     g_menu_append(appSection, "Preferences", "win.preferences");
+    g_menu_append(appSection, "About Cuelet", "app.about");
     g_menu_append_section(appMenu, nullptr, G_MENU_MODEL(appSection));
     g_object_unref(appSection);
     gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(appMenuButton), G_MENU_MODEL(appMenu));

@@ -26,6 +26,7 @@ public:
     ~CueletWindow();
 
     void present();
+    void showAbout();
     void closeForCliExit();
     bool isClosedForCliExit() const;
     int executeCliCommand(const cuelet_linux::CliCommand& command,
@@ -48,6 +49,7 @@ private:
 
     AdwApplication* application_ = nullptr;
     AdwApplicationWindow* window_ = nullptr;
+    AdwAboutDialog* aboutDialog_ = nullptr;
     AdwDialog* preferencesDialog_ = nullptr;
     AdwNavigationSplitView* splitView_ = nullptr;
     GtkWidget* toastOverlay_ = nullptr;

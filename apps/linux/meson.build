@@ -52,9 +52,11 @@ cuelet_core = static_library(
 
 linux_sources = files(
   'src/main.cpp',
+  'src/CueletAboutDialog.cpp',
   'src/CueletCli.cpp',
   'src/CueletPopoverLifecycle.cpp',
   'src/CueletWindow.cpp',
+  'src/CueletWindowAbout.cpp',
   'src/CueletWindowCli.cpp',
   'src/CueletWindowLibrary.cpp',
   'src/CueletWindowManagement.cpp',
@@ -175,6 +177,17 @@ test_popover_lifecycle = executable(
   dependencies: [gtk_dep],
 )
 
+test_about_dialog = executable(
+  'cuelet-about-dialog-tests',
+  files(
+    'tests/about_dialog_tests.cpp',
+    'src/CueletAboutDialog.cpp',
+  ),
+  resources,
+  include_directories: linux_include,
+  dependencies: [gtk_dep, adw_dep],
+)
+
 test_global_shortcuts = executable(
   'cuelet-global-shortcuts-tests',
   files(
@@ -255,6 +268,7 @@ test('audio-service', test_audio_service)
 test('cli', test_cli)
 test('category-helpers', test_category_helpers)
 test('popover-lifecycle', test_popover_lifecycle)
+test('about-dialog', test_about_dialog)
 test('global-shortcuts', test_global_shortcuts)
 test('settings-store', test_settings_store)
 test('library-import', test_library_import)
