@@ -4,6 +4,13 @@ Cuelet is a native cross-platform desktop soundboard for organizing,
 searching, and playing audio clips during calls, streams, tabletop sessions,
 voice chat, and live cues.
 
+![Cuelet soundboard on Linux](docs/images/cuelet-main-linux.png)
+
+The native Linux frontend uses GTK4/libadwaita and integrates with GStreamer
+and PipeWire for responsive playback and virtual-microphone routing.
+
+![About Cuelet](docs/images/cuelet-about-linux.png)
+
 Each supported platform has a native frontend:
 
 - Linux: GTK4/libadwaita, C++, GStreamer, PipeWire integration, and Meson
