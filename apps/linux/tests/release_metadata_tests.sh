@@ -7,7 +7,7 @@ linux_source="$(cd -- "$script_dir/.." && pwd)"
 source_root="$(cd -- "$linux_source/../.." && pwd)"
 application_id="io.cuelet.Cuelet"
 desktop_file="$linux_source/data/$application_id.desktop"
-icon_file="$linux_source/data/$application_id.svg"
+canonical_icon_file="$linux_source/data/$application_id.svg"
 metainfo_file="$linux_source/data/$application_id.metainfo.xml"
 
 fail() {
@@ -69,13 +69,15 @@ grep -Fq "<launchable type=\"desktop-id\">$application_id.desktop</launchable>" 
     || fail "AppStream launchable does not match the desktop ID"
 
 expected_icon_hash='1f9c8a5ec9acda40808ba79d2fa0b42935c548b99f1ff5917fe9d2ea6ce63909'
-actual_icon_hash="$(sha256sum "$icon_file" | cut -d' ' -f1)"
+actual_icon_hash="$(sha256sum "$canonical_icon_file" | cut -d' ' -f1)"
 [[ "$actual_icon_hash" == "$expected_icon_hash" ]] \
-    || fail "Linux icon differs from the approved release artwork"
+    || fail "canonical icon differs from the approved release artwork"
 
 grep -Fq "'data/$application_id.desktop'" "$linux_source/meson.build" \
     || fail "Meson does not install the canonical desktop file"
 grep -Fq "'data/$application_id.svg'" "$linux_source/meson.build" \
-    || fail "Meson does not install the canonical icon"
+    || fail "Meson does not generate the Linux icon from the canonical source"
+grep -Fq "files('scripts/generate-padded-icon.py')" "$linux_source/meson.build" \
+    || fail "Meson does not use the padded icon generator"
 grep -Fq "'icons' / 'hicolor' / 'scalable' / 'apps'" "$linux_source/meson.build" \
     || fail "Meson icon install directory is not the hicolor apps directory"

@@ -100,6 +100,11 @@ grep -Fxq 'Icon=io.cuelet.Cuelet' \
 xmllint --noout \
     "$package_root/usr/share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg" \
     "$package_root/usr/share/metainfo/io.cuelet.Cuelet.metainfo.xml"
+python3 \
+    "$linux_source/tests/padded_icon_tests.py" \
+    "$linux_source/scripts/generate-padded-icon.py" \
+    "$linux_source/data/io.cuelet.Cuelet.svg" \
+    "$package_root/usr/share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg"
 appstreamcli validate --no-net \
     "$package_root/usr/share/metainfo/io.cuelet.Cuelet.metainfo.xml"
 metainfo_version="$(xmllint --xpath \
@@ -136,6 +141,16 @@ tar --create \
     --directory="$work_dir" \
     "$package_name" \
     | gzip -n -9 > "$temporary_artifact"
+
+archived_icon="$work_dir/archived-io.cuelet.Cuelet.svg"
+tar -xOf "$temporary_artifact" \
+    "$package_name/usr/share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg" \
+    > "$archived_icon"
+python3 \
+    "$linux_source/tests/padded_icon_tests.py" \
+    "$linux_source/scripts/generate-padded-icon.py" \
+    "$linux_source/data/io.cuelet.Cuelet.svg" \
+    "$archived_icon"
 mv -f -- "$temporary_artifact" "$artifact"
 
 sha256sum "$artifact"

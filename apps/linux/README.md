@@ -76,6 +76,11 @@ Optional demo mode:
 ./apps/linux/build/debug/cuelet --demo
 ```
 
+The tracked `data/io.cuelet.Cuelet.svg` remains the canonical artwork. Meson
+generates the installed Linux icon from it by changing only the root SVG
+viewport to add transparent optical padding; all paths, transforms, styles,
+and colors remain byte-for-byte unchanged.
+
 ## Command Line, Portal Shortcuts, and GNOME Fallback
 
 Cuelet forwards commands to the running application instance. Useful commands include:

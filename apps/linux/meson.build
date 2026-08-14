@@ -10,6 +10,7 @@ project(
 
 gnome = import('gnome')
 bash = find_program('bash')
+python = find_program('python3')
 
 version_configuration = configuration_data()
 version_configuration.set_quoted('CUELET_VERSION', meson.project_version())
@@ -90,8 +91,18 @@ install_data(
   install_dir: get_option('datadir') / 'applications',
 )
 
-install_data(
-  'data/io.cuelet.Cuelet.svg',
+padded_application_icon = custom_target(
+  'padded-application-icon',
+  input: 'data/io.cuelet.Cuelet.svg',
+  output: 'io.cuelet.Cuelet.svg',
+  command: [
+    python,
+    files('scripts/generate-padded-icon.py'),
+    '@INPUT@',
+    '@OUTPUT@',
+  ],
+  build_by_default: true,
+  install: true,
   install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
 )
 
@@ -254,4 +265,15 @@ test(
   'release-metadata',
   bash,
   args: files('tests/release_metadata_tests.sh'),
+)
+test(
+  'padded-icon',
+  python,
+  args: [
+    files('tests/padded_icon_tests.py'),
+    files('scripts/generate-padded-icon.py'),
+    files('data/io.cuelet.Cuelet.svg'),
+    padded_application_icon,
+  ],
+  depends: padded_application_icon,
 )
