@@ -463,7 +463,7 @@ final class AppState: ObservableObject {
         loadLibrary(at: URL(fileURLWithPath: expandedPath(settings.libraryPath)))
     }
 
-    func loadLibrary(at folderURL: URL) {
+    func loadLibrary(at folderURL: URL, presentsErrors: Bool = true) {
         do {
             let metadataStore = LibraryMetadataStore(libraryURL: folderURL)
             let loadedClips: [SoundClip]
@@ -523,7 +523,11 @@ final class AppState: ObservableObject {
             selectedClipID = nil
             refreshGlobalShortcutRegistrations()
         } catch {
-            showError(error.localizedDescription)
+            if presentsErrors {
+                showError(error.localizedDescription)
+            } else {
+                persistenceStatusMessage = error.localizedDescription
+            }
         }
     }
 
@@ -1983,7 +1987,10 @@ final class AppState: ObservableObject {
 
     private func loadInitialLibrary() {
         if !settings.libraryPath.isEmpty {
-            loadLibrary(at: URL(fileURLWithPath: expandedPath(settings.libraryPath)))
+            loadLibrary(
+                at: URL(fileURLWithPath: expandedPath(settings.libraryPath)),
+                presentsErrors: false
+            )
         }
     }
 

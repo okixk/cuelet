@@ -149,6 +149,26 @@ final class LibrarySafetyTests: XCTestCase {
     }
 
     @MainActor
+    func testCorruptStartupLibraryReportsStatusWithoutPresentingModal() throws {
+        let root = try makeTemporaryDirectory()
+        let metadataURL = root.appendingPathComponent(LibraryMetadataStore.filename)
+        let corruptMetadata = Data("{not valid json".utf8)
+        try corruptMetadata.write(to: metadataURL)
+
+        var settings = CueletSettings()
+        settings.libraryPath = root.path
+        let store = SettingsStore(url: temporarySettingsURL())
+        XCTAssertTrue(store.save(settings))
+
+        let appState = AppState(settingsStore: store, installKeyboardShortcuts: false)
+
+        XCTAssertTrue(appState.clips.isEmpty)
+        XCTAssertFalse(appState.persistenceStatusMessage.isEmpty)
+        XCTAssertEqual(appState.settings.libraryPath, root.path)
+        XCTAssertEqual(try Data(contentsOf: metadataURL), corruptMetadata)
+    }
+
+    @MainActor
     func testDeleteManagedFileRemovesFileAndEntry() throws {
         let root = try makeTemporaryDirectory()
         let file = root.appendingPathComponent("Delete.wav")
