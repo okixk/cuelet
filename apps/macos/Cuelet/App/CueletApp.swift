@@ -18,6 +18,7 @@ struct CueletApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CueletAboutCommands()
+            CueletHelpCommands()
             ToolbarCommands()
 
             CommandGroup(after: .textEditing) {
@@ -84,6 +85,12 @@ struct CueletApp: App {
         }
         .defaultPosition(.center)
         .defaultSize(width: 720, height: 560)
+
+        Window("Cuelet Help", id: CueletHelpWindowID.help) {
+            CueletHelpView()
+        }
+        .defaultPosition(.center)
+        .defaultSize(width: 720, height: 680)
 
         MenuBarExtra(
             "Cuelet",
