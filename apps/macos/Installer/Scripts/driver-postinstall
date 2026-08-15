@@ -45,5 +45,5 @@ fi
 /usr/bin/touch "${INFO_PLIST}"
 /usr/bin/codesign --verify --deep --strict "${TARGET_PATH}"
 
-echo "Cuelet audio driver installed. Restart this Mac to finish installation."
+echo "Cuelet audio driver installed. Restart your Mac when convenient to activate Cuelet Virtual Microphone."
 exit 0

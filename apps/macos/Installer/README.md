@@ -14,7 +14,9 @@ destination and refuse to downgrade a newer Cuelet bundle. The driver
 post-install check validates its identity, version, architecture, and code
 signature, then updates the `Info.plist` modification time used by Cuelet to
 show a reliable restart-required state. It does not restart Core Audio or
-change audio defaults.
+change audio defaults. The product does not request an Installer restart
+conclusion: installation ends with Close, and the user restarts macOS later at
+a convenient time to activate the driver.
 
 Build a structural local package with no private credentials:
 
@@ -24,13 +26,13 @@ cd apps/macos
 ```
 
 The result is named `Cuelet-<version>-local.pkg` and is explicitly a local test
-artifact, not a public distribution package.
+artifact, not a public distribution package. Its Welcome, Read Me, and Summary
+pages all display `LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION`.
 
-The product archive's welcome screen embeds a 256 px rendition derived from
-the `Cuelet.icns` inside the staged application. This keeps Installer branding
-synchronized with the app icon without checking in another raster export.
-Finder continues to represent the outer `.pkg` with macOS's standard Installer
-package icon; product archives do not provide a supported custom Finder icon.
+The product archive uses polished Cuelet Welcome, Read Me, and Summary copy.
+Finder and the Installer title bar represent the outer `.pkg` with macOS's
+standard Installer package icon. The application payload retains and validates
+the final compiled Cuelet icon; no duplicate Installer-only icon is maintained.
 
 For a future public build, configure identities outside the repository:
 
@@ -43,7 +45,10 @@ export CUELET_DEVELOPER_ID_INSTALLER='Developer ID Installer: ...'
 `CUELET_SIGNING_KEYCHAIN` may name a non-default keychain. Release mode never
 falls back to ad-hoc or unsigned output. It signs the nested driver, signs the
 application, and signs the final product archive. Component packages remain
-unsigned because the signed product archive protects them.
+unsigned because the signed product archive protects them. Its default filename
+is `Cuelet-<version>.pkg`; its rendered Installer pages never contain the local
+test warning. Without both configured identities, release mode exits before
+building any public-looking artifact.
 
 Notarization is intentionally a separate release operation. A future release
 job should submit the signed product archive with `notarytool`, staple the
@@ -55,11 +60,35 @@ Uninstall remains a separate release follow-up: a signed removal package or
 other intentional administrator-approved tool is preferable to adding a
 persistent privileged helper.
 
+## Installation domains and app-only use
+
+The full product enables only the local-system installation domain. Both
+component packages use fixed root-relative destinations, and the HAL driver
+must remain at `/Library/Audio/Plug-Ins/HAL`; it cannot be installed into a
+user home. Consequently Installer correctly offers only “Install for all users
+of this computer,” requires administrator authorization, and leaves “Install
+for me only” disabled.
+
+The Cuelet application itself is self-contained for sound-library management,
+normal playback, and output routing. It can run from a user-owned location such
+as `~/Applications`; without the full Installer, the app reports the bundled
+driver as prepared/not installed and does not claim the virtual microphone is
+ready. For 0.1.0 the existing Release `.app` is the app-only local-test path.
+A future app-only download should use an ordinary drag-and-drop DMG rather than
+a second component package. No app-only public artifact is emitted today.
+
+The two component packages remain one non-customizable product. Exposing the
+driver as an optional Customize choice would still leave the product in the
+system domain and require administrator authorization, so it would not solve
+the per-user case and would add an ambiguous installation path.
+
 Installer owns payload transaction and rollback behavior. Identity/version
 guards run before replacement; a failed guard leaves both destinations
 unchanged. A driver post-install verification failure is returned to Installer
 as a package failure instead of being hidden. Read-only/full volumes and
 authorization failures are handled by Installer, with no custom backup tree or
 partial-copy fallback. If Cuelet is open during an update, the package replaces
-the on-disk app atomically and the required Mac restart ends the old process
-before the new driver is used.
+the on-disk app atomically; the running process remains independent of the
+not-yet-loaded driver and the next normal app launch uses the replaced bundle.
+The Summary states that Cuelet is ready immediately and that a later restart is
+required only to activate Cuelet Virtual Microphone.

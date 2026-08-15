@@ -17,10 +17,14 @@ VALIDATION_ROOT="$8"
 # The ninth argument is reserved for forward-compatible test configuration.
 TEST_CONFIGURATION="$9"
 
-[[ "${TEST_CONFIGURATION}" == "package-v1" ]] || {
-    echo "Unknown package test configuration." >&2
-    exit 2
-}
+case "${TEST_CONFIGURATION}" in
+    package-v2-local) PACKAGE_MODE="local" ;;
+    package-v2-release) PACKAGE_MODE="release" ;;
+    *)
+        echo "Unknown package test configuration." >&2
+        exit 2
+        ;;
+esac
 
 APP_PACKAGE_ID="ch.oki.cuelet.pkg.application"
 DRIVER_PACKAGE_ID="ch.oki.cuelet.pkg.virtual-audio"
@@ -40,15 +44,54 @@ pkgutil --expand "${PACKAGE_PATH}" "${EXPANDED}"
 [[ -f "${EXPANDED}/Distribution" ]] || { echo "Distribution is missing." >&2; exit 1; }
 [[ -e "${EXPANDED}/CueletApplication.pkg" ]] || { echo "App component is missing." >&2; exit 1; }
 [[ -e "${EXPANDED}/CueletVirtualAudio.pkg" ]] || { echo "Driver component is missing." >&2; exit 1; }
-grep -q 'src="data:image/png;base64,' "${EXPANDED}/Resources/Welcome.html" || {
-    echo "Installer branding icon is missing from the welcome screen." >&2
+LOCAL_RESOURCES="${VALIDATION_ROOT}/inventories/installer-resources-local"
+PUBLIC_RESOURCES="${VALIDATION_ROOT}/inventories/installer-resources-release"
+for page in Welcome.html ReadMe.html Conclusion.html; do
+    [[ -s "${LOCAL_RESOURCES}/${page}" && -s "${PUBLIC_RESOURCES}/${page}" ]]
+    grep -q 'LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION' "${LOCAL_RESOURCES}/${page}"
+done
+if grep -Eiq 'LOCAL|TEST PACKAGE|NOT FOR PUBLIC DISTRIBUTION' "${PUBLIC_RESOURCES}"/*.html; then
+    echo "Rendered public Installer resources contain local-test wording." >&2
     exit 1
-}
+fi
+grep -q '<h1>Welcome to Cuelet</h1>' "${PUBLIC_RESOURCES}/Welcome.html"
+grep -q 'This installer adds Cuelet and Cuelet Virtual Microphone to your Mac.' \
+    "${PUBLIC_RESOURCES}/Welcome.html"
+grep -q '<h1>Cuelet is installed</h1>' "${PUBLIC_RESOURCES}/Conclusion.html"
+grep -q 'Cuelet is ready to use.' "${PUBLIC_RESOURCES}/Conclusion.html"
+grep -q 'Restart your Mac when convenient to activate Cuelet Virtual Microphone.' \
+    "${PUBLIC_RESOURCES}/Conclusion.html"
+grep -q 'After restarting, open Cuelet and select Cuelet Virtual Microphone in Cuelet’s audio settings.' \
+    "${PUBLIC_RESOURCES}/Conclusion.html"
+
+if [[ "${PACKAGE_MODE}" == "local" ]]; then
+    SELECTED_RESOURCES="${LOCAL_RESOURCES}"
+else
+    SELECTED_RESOURCES="${PUBLIC_RESOURCES}"
+fi
+for page in Welcome.html ReadMe.html Conclusion.html; do
+    cmp -s "${SELECTED_RESOURCES}/${page}" "${EXPANDED}/Resources/${page}"
+done
+if [[ "${PACKAGE_MODE}" == "release" ]] &&
+   grep -Eiq 'LOCAL|TEST PACKAGE|NOT FOR PUBLIC DISTRIBUTION' \
+       "${EXPANDED}/Resources/Welcome.html" \
+       "${EXPANDED}/Resources/ReadMe.html" \
+       "${EXPANDED}/Resources/Conclusion.html"; then
+    echo "Public Installer pages contain local-test wording." >&2
+    exit 1
+fi
 
 grep -q "product id=\"${PRODUCT_PACKAGE_ID}\"" "${EXPANDED}/Distribution"
 grep -q "pkg-ref id=\"${APP_PACKAGE_ID}\"" "${EXPANDED}/Distribution"
 grep -q "pkg-ref id=\"${DRIVER_PACKAGE_ID}\"" "${EXPANDED}/Distribution"
-grep -q 'onConclusion="RequireRestart"' "${EXPANDED}/Distribution"
+if grep -Eq 'onConclusion(Script)?=|Require(Restart|Logout|Shutdown)' \
+    "${EXPANDED}/Distribution" \
+    "${EXPANDED}/CueletApplication.pkg/PackageInfo" \
+    "${EXPANDED}/CueletVirtualAudio.pkg/PackageInfo"; then
+    echo "The Installer still forces a restart, logout, or shutdown." >&2
+    exit 1
+fi
+grep -q 'customize="never"' "${EXPANDED}/Distribution"
 grep -q 'enable_localSystem="true"' "${EXPANDED}/Distribution"
 grep -q 'enable_currentUserHome="false"' "${EXPANDED}/Distribution"
 
@@ -161,6 +204,10 @@ DRIVER_SAME_ROOT="$(make_case_root driver-same /Library/Audio/Plug-Ins/HAL)"
 ditto "${STAGED_DRIVER}" "${DRIVER_SAME_ROOT}/Library/Audio/Plug-Ins/HAL/CueletVirtualAudio.driver"
 run_preinstall "${DRIVER_SCRIPTS}" "${DRIVER_SAME_ROOT}"
 "${DRIVER_SCRIPTS}/postinstall" ignored / "${DRIVER_SAME_ROOT}"
+if grep -Eiq 'coreaudiod|killall|launchctl|reboot|shutdown' "${DRIVER_SCRIPTS}/postinstall"; then
+    echo "The driver post-install script attempts an unsafe activation or restart." >&2
+    exit 1
+fi
 
 # Older Cuelet driver upgrade.
 DRIVER_OLD_ROOT="$(make_case_root driver-old /Library/Audio/Plug-Ins/HAL)"
@@ -211,7 +258,7 @@ grep -q 'No unsigned or ad-hoc fallback was used' "${RELEASE_FAILURE_LOG}"
 
 {
     echo "PASS: package identifiers and versions"
-    echo "PASS: native app icon, license, and Installer branding resources"
+    echo "PASS: native app icon, license, and Installer resources"
     echo "PASS: exact app and driver destinations"
     echo "PASS: fixed, strict, atomic replacement metadata"
     echo "PASS: payload hygiene"
@@ -223,5 +270,8 @@ grep -q 'No unsigned or ad-hoc fallback was used' "${RELEASE_FAILURE_LOG}"
     echo "PASS: foreign exact-path rejection"
     echo "PASS: unrelated HAL bundle preservation"
     echo "PASS: driver post-install verification harness"
+    echo "PASS: local/public Installer copy remains distinct"
+    echo "PASS: Installer completes without a forced restart"
+    echo "PASS: full package remains a non-customizable system install"
     echo "PASS: release mode has no unsigned fallback"
 } | tee "${VALIDATION_ROOT}/logs/package-tests.txt"

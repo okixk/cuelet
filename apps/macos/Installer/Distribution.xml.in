@@ -26,6 +26,5 @@
              auth="Root">CueletApplication.pkg</pkg-ref>
     <pkg-ref id="ch.oki.cuelet.pkg.virtual-audio"
              version="@DRIVER_PACKAGE_VERSION@"
-             auth="Root"
-             onConclusion="RequireRestart">CueletVirtualAudio.pkg</pkg-ref>
+             auth="Root">CueletVirtualAudio.pkg</pkg-ref>
 </installer-gui-script>

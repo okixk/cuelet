@@ -70,14 +70,29 @@ at `/Applications/Cuelet.app` and the audio driver at
 the normal Release app and production diagnostics-disabled HAL artifacts,
 checks their versions, architecture, signatures, hashes, and contents, then
 expands and tests the result without installing it. Its welcome screen derives
-the Cuelet branding from the same compiled app icon. Local packages are marked
-“LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION.”
+its Cuelet branding from the product name and polished Installer copy, while
+the payload retains the final compiled app icon. Local packages are marked
+“LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION” on the Welcome, Read Me,
+and Summary pages. The separately rendered public pages contain no local-test
+copy.
 
 The package supports clean install, same-version repair, and upgrades from an
 older Cuelet app or driver. It refuses to replace a foreign bundle at either
 exact destination and refuses to downgrade a newer Cuelet bundle. The
 installation does not change audio defaults or restart Core Audio; Installer
-requires a normal Mac restart at completion.
+finishes with the standard Close action. Cuelet is usable immediately, while
+Cuelet Virtual Microphone remains unavailable until the user next restarts the
+Mac. Cuelet reports that state as Restart required rather than Ready.
+
+The full product installs both components system-wide and therefore enables
+only Installer's local-system domain. It requires administrator authorization,
+does not enable “Install for me only,” and does not expose component
+customization. The app itself has no fixed `/Applications` dependency: for
+app-only local use, `Cuelet.app` may instead be copied to `~/Applications` (or
+another user-owned Applications folder). Normal library/playback features work,
+but Cuelet Virtual Microphone is not installed. A separate app-only package is
+not produced for 0.1.0; a drag-and-drop container is cleaner than a second
+Installer receipt when that distribution channel is added.
 
 Public release mode requires externally configured Developer ID Application
 and Developer ID Installer identity names and never falls back to ad-hoc or

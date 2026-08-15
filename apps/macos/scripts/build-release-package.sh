@@ -89,7 +89,7 @@ if [[ "${MODE}" == "release" ]]; then
     fi
 fi
 
-for tool in pkgbuild productbuild pkgutil plutil codesign ditto lipo shasum iconutil assetutil sips base64 tr; do
+for tool in pkgbuild productbuild pkgutil plutil codesign ditto lipo shasum assetutil tr; do
     command -v "${tool}" >/dev/null 2>&1 || {
         echo "Required macOS packaging tool is unavailable: ${tool}" >&2
         exit 1
@@ -329,30 +329,20 @@ pkgbuild \
     --ownership recommended \
     "${PACKAGES_DIR}/CueletVirtualAudio.pkg"
 
-ditto "${INSTALLER_DIR}/Resources" "${PRODUCT_RESOURCES}"
-cp "${REPOSITORY_ROOT}/LICENSE" "${PRODUCT_RESOURCES}/License.txt"
-INSTALLER_ICONSET="${WORK_ROOT}/${APP_NAME}-Installer.iconset"
-iconutil --convert iconset \
-    --output "${INSTALLER_ICONSET}" \
-    "${STAGED_APP}/Contents/Resources/${APP_NAME}.icns"
-INSTALLER_ICON="${INSTALLER_ICONSET}/icon_128x128@2x.png"
-INSTALLER_ICON_WIDTH="$(sips -g pixelWidth "${INSTALLER_ICON}" | awk '/pixelWidth/ { print $2 }')"
-INSTALLER_ICON_HEIGHT="$(sips -g pixelHeight "${INSTALLER_ICON}" | awk '/pixelHeight/ { print $2 }')"
-[[ "${INSTALLER_ICON_WIDTH}" == "256" && "${INSTALLER_ICON_HEIGHT}" == "256" ]] || {
-    echo "The generated Installer icon is not the expected 256x256 pixels." >&2
-    exit 1
-}
-INSTALLER_ICON_DATA="$(base64 <"${INSTALLER_ICON}" | tr -d '\n')"
+LOCAL_RESOURCES="${WORK_ROOT}/resources-local"
+PUBLIC_RESOURCES="${WORK_ROOT}/resources-release"
+"${SCRIPT_DIR}/render-installer-resources.sh" \
+    local "${INSTALLER_DIR}/Resources" "${LOCAL_RESOURCES}"
+"${SCRIPT_DIR}/render-installer-resources.sh" \
+    release "${INSTALLER_DIR}/Resources" "${PUBLIC_RESOURCES}"
+ditto "${LOCAL_RESOURCES}" "${VALIDATION_ROOT}/inventories/installer-resources-local"
+ditto "${PUBLIC_RESOURCES}" "${VALIDATION_ROOT}/inventories/installer-resources-release"
 if [[ "${MODE}" == "local" ]]; then
-    BUILD_NOTICE="LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION"
+    ditto "${LOCAL_RESOURCES}" "${PRODUCT_RESOURCES}"
 else
-    BUILD_NOTICE="Cuelet ${APP_VERSION}"
+    ditto "${PUBLIC_RESOURCES}" "${PRODUCT_RESOURCES}"
 fi
-sed \
-    -e "s|@BUILD_NOTICE@|${BUILD_NOTICE}|g" \
-    -e "s|@INSTALLER_ICON_DATA@|data:image/png;base64,${INSTALLER_ICON_DATA}|g" \
-    "${INSTALLER_DIR}/Resources/Welcome.html" \
-    >"${PRODUCT_RESOURCES}/Welcome.html"
+cp "${REPOSITORY_ROOT}/LICENSE" "${PRODUCT_RESOURCES}/License.txt"
 sed \
     -e "s|@PACKAGE_VERSION@|${PACKAGE_VERSION}|g" \
     -e "s|@DRIVER_PACKAGE_VERSION@|${DRIVER_PACKAGE_VERSION}|g" \
@@ -382,7 +372,7 @@ productbuild "${PRODUCTBUILD_ARGS[@]}" "${OUTPUT_PATH}"
     "${APP_SCRIPTS}" \
     "${DRIVER_SCRIPTS}" \
     "${VALIDATION_ROOT}" \
-    package-v1
+    "package-v2-${MODE}"
 
 PACKAGE_HASH="$(shasum -a 256 "${OUTPUT_PATH}" | awk '{print $1}')"
 PACKAGE_SIZE="$(stat -f '%z' "${OUTPUT_PATH}")"
