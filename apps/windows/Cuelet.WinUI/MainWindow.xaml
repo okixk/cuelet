@@ -36,6 +36,9 @@
       </NavigationView.MenuItems>
       <NavigationView.FooterMenuItems>
         <NavigationViewItem Content="New category…" Tag="new-category"><NavigationViewItem.Icon><SymbolIcon Symbol="Add" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItemSeparator />
+        <NavigationViewItem Content="Cuelet Help" Tag="help" SelectsOnInvoked="False" AutomationProperties.Name="Open Cuelet Help"><NavigationViewItem.Icon><SymbolIcon Symbol="Help" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItem Content="About Cuelet" Tag="about" SelectsOnInvoked="False" AutomationProperties.Name="Open About Cuelet"><NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon></NavigationViewItem>
       </NavigationView.FooterMenuItems>
 
       <Grid x:Name="PageHost">
@@ -243,17 +246,6 @@
                   <Button x:Name="ClearAllShortcutsButton" Content="Clear all shortcuts" />
                 </StackPanel>
                 <TextBlock Text="Enter plays the focused selection or the best search result, Escape clears search then selection, Ctrl+A selects visible sounds, and Ctrl+F focuses search." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-              </StackPanel>
-            </Border>
-            <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
-              <StackPanel Spacing="6">
-                <TextBlock Text="Cuelet for Windows" FontWeight="SemiBold" />
-                <TextBlock Text="Version 0.1.0 · Native WinUI 3 and C++/WinRT" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="A native soundboard for organizing, searching, and playing audio clips quickly." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <HyperlinkButton Content="Cuelet GitHub Repository" NavigateUri="https://github.com/okixk/cuelet" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open https://github.com/okixk/cuelet" AutomationProperties.Name="Open Cuelet GitHub Repository" />
-                <HyperlinkButton Content="GNU Affero General Public License v3.0" NavigateUri="https://github.com/okixk/cuelet/blob/main/LICENSE" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open the Cuelet license" AutomationProperties.Name="Open Cuelet license" />
-                <TextBlock Text="Library metadata uses the portable Cuelet schema version 2." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
               </StackPanel>
             </Border>
           </StackPanel>

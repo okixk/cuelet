@@ -6,6 +6,7 @@
 #include "cuelet/SoundSearch.h"
 #include "WindowsUtf8.h"
 #include "WindowsHotkeyModel.h"
+#include "WindowsInformationModel.h"
 #include "WindowsAudioRoutingModel.h"
 #include "WindowsLifecycleModel.h"
 #include "WindowsVirtualAudioModel.h"
@@ -22,8 +23,10 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <numeric>
 #include <set>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 void runVirtualAudioFifoExtendedTests();
@@ -884,6 +887,39 @@ void runTests()
                     cliHelpText().find(L"--demo") == std::wstring::npos &&
                     cliHelpText().find(L"local shortcut") == std::wstring::npos,
                 "CLI help must match release functionality and omit removed development options");
+
+        const auto about = aboutInformation(L"9.8.7");
+        require(about.applicationName == L"Cuelet" &&
+                    about.contributors == L"Cuelet contributors" &&
+                    about.version == L"9.8.7" &&
+                    about.description ==
+                        L"A cross-platform soundboard and virtual microphone." &&
+                    about.licenseStatement ==
+                        L"Cuelet is free and open-source software licensed under the GNU Affero General Public License version 3 only." &&
+                    about.spdxIdentifier == L"AGPL-3.0-only" &&
+                    about.projectUri == L"https://github.com/okixk/cuelet" &&
+                    about.issueTrackerUri ==
+                        L"https://github.com/okixk/cuelet/issues",
+                "Windows About content must retain the approved identity, license, and support links");
+        const auto help = helpSections();
+        const auto helpText = std::accumulate(
+            help.begin(), help.end(), std::wstring{},
+            [](std::wstring value, HelpSection const& section) {
+                return std::move(value) + L"\n" + section.title + L"\n" +
+                    section.body;
+            });
+        require(help.size() == 5 &&
+                    help[1].linkUri == L"https://vb-audio.com/Cable/" &&
+                    helpText.find(L"CABLE Input (VB-Audio Virtual Cable)") !=
+                        std::wstring::npos &&
+                    helpText.find(L"CABLE Output (VB-Audio Virtual Cable)") !=
+                        std::wstring::npos &&
+                    helpText.find(L"CABLE In 16ch") != std::wstring::npos &&
+                    helpText.find(L"Locate Source File…") != std::wstring::npos &&
+                    helpText.find(L"cuelet --help") != std::wstring::npos,
+                "Windows Help content must cover validated routing, recovery, and CLI behavior");
+        require(applicationVersionFromFile(root / L"missing.exe").empty(),
+                "missing PE version metadata must not fall back to a hardcoded release version");
 
         const auto hiddenMetadata = root / ".cuelet-metadata.json";
         touch(hiddenMetadata);

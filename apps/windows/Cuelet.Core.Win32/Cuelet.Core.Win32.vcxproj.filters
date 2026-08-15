@@ -5,11 +5,13 @@
     <Filter Include="Source Files"><UniqueIdentifier>{5D903813-6632-47E2-8973-8CF8CC227466}</UniqueIdentifier></Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="WindowsInformationModel.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\LibraryScanner.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundSearch.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="..\..\..\core\cuelet-core\include\cuelet\SoundTypes.h"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="WindowsInformationModel.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\..\..\core\cuelet-core\src\LibraryScanner.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\..\..\core\cuelet-core\src\SoundSearch.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="..\..\..\core\cuelet-core\src\SoundTypes.cpp"><Filter>Source Files</Filter></ClCompile>
