@@ -4,24 +4,14 @@
 
 #include <sstream>
 
-void CueletWindow::loadInitialLibrary(bool demoMode)
+void CueletWindow::loadInitialLibrary()
 {
-    if (demoMode) {
-        loadDemoLibrary(false);
-        return;
-    }
-
     if (!settings_.libraryPath.empty()) {
         if (std::filesystem::exists(settings_.libraryPath)) {
             loadLibrary(settings_.libraryPath);
             return;
         }
         missingLibraryPath_ = std::filesystem::u8path(settings_.libraryPath);
-    }
-
-    if (settings_.showsDemoLibrary) {
-        loadDemoLibrary(false);
-        return;
     }
 
     refreshAll();
@@ -37,7 +27,6 @@ bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
 
     libraryPath_ = folder;
     missingLibraryPath_.clear();
-    demoLibraryActive_ = false;
     clips_ = scan.clips;
     cuelet::MetadataStore metadataStore(cuelet::MetadataStore::metadataPathForLibrary(folder));
     auto metadata = metadataStore.load();
@@ -91,7 +80,6 @@ bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
     }
 
     settings_.libraryPath = folder.string();
-    settings_.showsDemoLibrary = false;
     saveSettings();
     if (durationMetadataChanged) {
         saveMetadata();
@@ -106,60 +94,6 @@ bool CueletWindow::loadLibrary(const std::filesystem::path& folder)
             "you import those files explicitly.");
     }
     return true;
-}
-
-void CueletWindow::loadDemoLibrary(bool persistChoice)
-{
-    const auto makeDemoClip = [](const std::string& id,
-                                 const std::string& relativePath,
-                                 const std::string& displayName,
-                                 const std::string& categoryId,
-                                 guint shortcutKey,
-                                 bool favorite,
-                                 double durationSeconds,
-                                 std::time_t addedAt) {
-        cuelet::SoundClip clip;
-        clip.id = id;
-        clip.relativePath = relativePath;
-        clip.filename = relativePath;
-        clip.displayName = displayName;
-        clip.categoryId = categoryId;
-        clip.shortcut = cuelet::Shortcut{
-            shortcutKey,
-            GDK_ALT_MASK,
-            "Alt+" + std::to_string(shortcutKey - GDK_KEY_0),
-        };
-        clip.favorite = favorite;
-        clip.missing = true;
-        clip.durationSeconds = durationSeconds;
-        clip.durationKnown = true;
-        clip.addedAt = addedAt;
-        return clip;
-    };
-
-    libraryPath_.clear();
-    missingLibraryPath_.clear();
-    demoLibraryActive_ = true;
-    categories_ = {
-        cuelet::uncategorizedCategory(),
-        {"demo-ambience", "Ambience", "#009688", "weather-showers-symbolic", true},
-        {"demo-effects", "Effects", "#5856D6", "applications-games-symbolic", true},
-        {"demo-music", "Music", "#AF52DE", "audio-x-generic-symbolic", true},
-        {"demo-alerts", "Alerts", "#D9822B", "preferences-system-notifications-symbolic", true},
-    };
-    clips_ = {
-        makeDemoClip("demo-rain", "rain-window.wav", "Rain on Window", "demo-ambience", GDK_KEY_1, true, 72.0, 1),
-        makeDemoClip("demo-door", "door-knock.wav", "Door Knock", "demo-effects", GDK_KEY_2, false, 3.0, 2),
-        makeDemoClip("demo-tone", "soft-room-tone.flac", "Soft Room Tone", "demo-ambience", GDK_KEY_3, false, 96.0, 3),
-        makeDemoClip("demo-pop", "message-pop.wav", "Message Pop", "demo-alerts", GDK_KEY_4, true, 1.0, 4),
-        makeDemoClip("demo-theme", "tension-bed.m4a", "Tension Bed", "demo-music", GDK_KEY_5, false, 124.0, 5),
-    };
-    if (persistChoice) {
-        settings_.showsDemoLibrary = true;
-        saveSettings();
-    }
-    syncGlobalShortcuts();
-    refreshAll();
 }
 
 bool CueletWindow::rescanLibrary()

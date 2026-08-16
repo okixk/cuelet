@@ -8,7 +8,7 @@
 
 using namespace cuelet_linux;
 
-CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
+CueletWindow::CueletWindow(AdwApplication* application)
     : application_(application)
 {
     categories_ = {cuelet::uncategorizedCategory()};
@@ -67,7 +67,7 @@ CueletWindow::CueletWindow(AdwApplication* application, bool demoMode)
             return G_SOURCE_CONTINUE;
         },
         this);
-    loadInitialLibrary(demoMode);
+    loadInitialLibrary();
 }
 
 CueletWindow::~CueletWindow()
@@ -80,9 +80,11 @@ CueletWindow::~CueletWindow()
     if (globalShortcuts_) {
         globalShortcuts_->shutdown();
     }
+#if defined(CUELET_ENABLE_DEVELOPER_TOOLS)
     if (visualCaptureSourceId_ != 0) {
         g_source_remove(visualCaptureSourceId_);
     }
+#endif
     if (progressTickId_ != 0) {
         g_source_remove(progressTickId_);
     }
@@ -102,7 +104,9 @@ void CueletWindow::present()
         globalShortcutsStarted_ = true;
         globalShortcuts_->start();
     }
+#if defined(CUELET_ENABLE_DEVELOPER_TOOLS)
     scheduleVisualCaptureFromEnvironment();
+#endif
     gtk_window_present(GTK_WINDOW(window_));
 }
 

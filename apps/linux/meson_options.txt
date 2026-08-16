@@ -1,0 +1,6 @@
+option(
+  'developer_tools',
+  type: 'boolean',
+  value: false,
+  description: 'Build developer-only visual capture support',
+)

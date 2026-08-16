@@ -64,7 +64,6 @@ linux_sources = files(
   'src/CueletWindowRouting.cpp',
   'src/CueletWindowShortcuts.cpp',
   'src/CueletWindowState.cpp',
-  'src/CueletWindowVisualCapture.cpp',
   'src/CueletWindowWidgets.cpp',
   'src/services/LinuxAudioService.cpp',
   'src/services/GioGlobalShortcutsPortalAdapter.cpp',
@@ -78,6 +77,12 @@ linux_sources = files(
   'src/services/PipeWireVirtualMicrophoneBackend.cpp',
 )
 
+linux_cpp_args = []
+if get_option('developer_tools')
+  linux_sources += files('src/CueletWindowVisualCapture.cpp')
+  linux_cpp_args += '-DCUELET_ENABLE_DEVELOPER_TOOLS=1'
+endif
+
 executable(
   'cuelet',
   linux_sources,
@@ -85,6 +90,7 @@ executable(
   include_directories: [linux_include, core_include],
   dependencies: [gtk_dep, adw_dep, gio_dep, gst_dep, gst_pbutils_dep, json_glib_dep],
   link_with: cuelet_core,
+  cpp_args: linux_cpp_args,
   install: true,
 )
 

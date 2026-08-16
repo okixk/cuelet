@@ -29,7 +29,6 @@ struct CliCommand {
     std::string value;
     std::string workingDirectory;
     bool json = false;
-    bool demo = false;
 };
 
 struct CliParseResult {

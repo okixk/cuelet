@@ -12,14 +12,14 @@ namespace {
 constexpr const char* applicationId = "io.cuelet.Cuelet";
 constexpr const char* windowDataKey = "cuelet-window";
 
-CueletWindow* ensureWindow(GtkApplication* app, bool demoMode)
+CueletWindow* ensureWindow(GtkApplication* app)
 {
     auto* window = static_cast<CueletWindow*>(g_object_get_data(G_OBJECT(app), windowDataKey));
     if (window && !window->isClosedForCliExit()) {
         return window;
     }
 
-    window = new CueletWindow(ADW_APPLICATION(app), demoMode);
+    window = new CueletWindow(ADW_APPLICATION(app));
     g_object_set_data_full(G_OBJECT(app), windowDataKey, window, [](gpointer data) {
         delete static_cast<CueletWindow*>(data);
     });
@@ -28,13 +28,13 @@ CueletWindow* ensureWindow(GtkApplication* app, bool demoMode)
 
 void onActivate(GtkApplication* app, gpointer)
 {
-    ensureWindow(app, false)->present();
+    ensureWindow(app)->present();
 }
 
 void onAbout(GSimpleAction*, GVariant*, gpointer userData)
 {
     auto* app = GTK_APPLICATION(userData);
-    CueletWindow* window = ensureWindow(app, false);
+    CueletWindow* window = ensureWindow(app);
     window->present();
     window->showAbout();
 }
@@ -79,7 +79,6 @@ std::vector<std::string> commandArguments(GApplicationCommandLine* commandLine)
 
     GVariantDict* options = g_application_command_line_get_options_dict(commandLine);
     appendBooleanOption(options, "json", arguments);
-    appendBooleanOption(options, "demo", arguments);
     appendBooleanOption(options, "version", arguments);
     appendBooleanOption(options, "list-sounds", arguments);
     appendBooleanOption(options, "list-categories", arguments);
@@ -123,7 +122,7 @@ int onCommandLine(GApplication* application,
     parsed.command.workingDirectory = workingDirectory ? workingDirectory : "";
 
     const bool hadWindow = g_object_get_data(G_OBJECT(application), windowDataKey) != nullptr;
-    auto* window = ensureWindow(GTK_APPLICATION(application), parsed.command.demo);
+    auto* window = ensureWindow(GTK_APPLICATION(application));
     std::string standardOutput;
     std::string standardError;
     const int status = window->executeCliCommand(parsed.command, standardOutput, standardError);
@@ -155,7 +154,6 @@ void addCommandLineOptions(GApplication* application)
 {
     const GOptionEntry entries[] = {
         {"json", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Use JSON output for list commands", nullptr},
-        {"demo", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Start with the demo library", nullptr},
         {"version", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "Show Cuelet version", nullptr},
         {"list-sounds", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "List sounds", nullptr},
         {"list-categories", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, nullptr, "List categories", nullptr},

@@ -158,7 +158,6 @@ void checkDefaults(const LinuxSettings& settings)
     CHECK(settings.allowsSimultaneousPlayback);
     CHECK(!settings.showFileExtensions);
     CHECK(settings.scansSubfolders);
-    CHECK(!settings.showsDemoLibrary);
     CHECK(settings.copiesImportedFiles);
     CHECK(settings.appearanceMode == "system");
     CHECK(settings.outputDevice.empty());
@@ -192,7 +191,6 @@ void testCompleteRoundTrip()
     expected.allowsSimultaneousPlayback = false;
     expected.showFileExtensions = true;
     expected.scansSubfolders = false;
-    expected.showsDemoLibrary = true;
     expected.copiesImportedFiles = false;
     expected.appearanceMode = "dark";
     expected.outputDevice = "alsa_output.usb-test";
@@ -221,7 +219,6 @@ void testCompleteRoundTrip()
     CHECK(actual.allowsSimultaneousPlayback == expected.allowsSimultaneousPlayback);
     CHECK(actual.showFileExtensions == expected.showFileExtensions);
     CHECK(actual.scansSubfolders == expected.scansSubfolders);
-    CHECK(actual.showsDemoLibrary == expected.showsDemoLibrary);
     CHECK(actual.copiesImportedFiles == expected.copiesImportedFiles);
     CHECK(actual.appearanceMode == expected.appearanceMode);
     CHECK(actual.outputDevice == expected.outputDevice);
@@ -298,7 +295,6 @@ void testWrongTypesAndUnknownValuesUseFieldDefaults()
             "allowsSimultaneousPlayback": "yes",
             "showFileExtensions": 1,
             "scansSubfolders": [],
-            "showsDemoLibrary": {},
             "copiesImportedFiles": null,
             "appearanceMode": "sepia",
             "outputDevice": false,

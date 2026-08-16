@@ -14,7 +14,6 @@ struct LinuxSettings {
     bool allowsSimultaneousPlayback = true;
     bool showFileExtensions = false;
     bool scansSubfolders = true;
-    bool showsDemoLibrary = false;
     bool copiesImportedFiles = true;
     std::string appearanceMode = "system";
     std::string outputDevice;

@@ -108,11 +108,6 @@ CliParseResult parseCliArguments(const std::vector<std::string>& arguments)
             result.command.json = true;
             continue;
         }
-        if (name == "demo") {
-            result.command.demo = true;
-            continue;
-        }
-
         const auto found = commandSpecs().find(name);
         if (found == commandSpecs().end()) {
             result.error = "Unknown command: " + arguments[index];

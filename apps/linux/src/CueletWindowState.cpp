@@ -113,7 +113,7 @@ void CueletWindow::refreshContent()
     if (clips.empty()) {
         const char* searchText = gtk_editable_get_text(GTK_EDITABLE(searchEntry_));
         const bool hasSearch = searchText && *searchText;
-        const bool hasLibrary = !libraryPath_.empty() || demoLibraryActive_;
+        const bool hasLibrary = !libraryPath_.empty();
 
         gtk_widget_set_visible(emptyChooseButton_, FALSE);
         gtk_widget_set_visible(emptyImportButton_, FALSE);
@@ -242,11 +242,9 @@ void CueletWindow::refreshHeader()
     }
 
     gtk_label_set_text(GTK_LABEL(titleLabel_), title.c_str());
-    std::string subtitle = demoLibraryActive_
-        ? "Demo Library"
-        : (!missingLibraryPath_.empty()
-            ? "Library folder unavailable"
-            : (libraryPath_.empty() ? "No library selected" : libraryPath_.string()));
+    std::string subtitle = !missingLibraryPath_.empty()
+        ? "Library folder unavailable"
+        : (libraryPath_.empty() ? "No library selected" : libraryPath_.string());
     const auto visible = visibleClips();
     const auto missingCount = std::count_if(visible.begin(), visible.end(), [](const auto& clip) {
         return clip.missing;

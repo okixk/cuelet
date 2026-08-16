@@ -52,6 +52,7 @@ void rejectsInvalidCommands()
     CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"play-id"}).ok());
     CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"show", "hide"}).ok());
     CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"play-id", "one", "--json"}).ok());
+    CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"--demo"}).ok());
     CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"unknown"}).ok());
 }
 

@@ -83,13 +83,6 @@ void soundActivationKeysMatchGtkExpectations()
     CUELET_REQUIRE(!cuelet_linux::isSoundActivationKey(GDK_KEY_Escape));
 }
 
-void demoRuntimeStateClearsWhenDemoModeIsDisabled()
-{
-    CUELET_REQUIRE(cuelet_linux::demoLibraryActiveAfterReload(true, false));
-    CUELET_REQUIRE(!cuelet_linux::demoLibraryActiveAfterReload(false, false));
-    CUELET_REQUIRE(!cuelet_linux::demoLibraryActiveAfterReload(false, true));
-}
-
 void repeatedPersistenceErrorsAreCoalesced()
 {
     CUELET_REQUIRE(cuelet_linux::shouldReportPersistenceError(
@@ -145,7 +138,6 @@ int main()
         iconSelectionsCanonicalizeAliases();
         soundMenuPolicyMatchesStorageSafety();
         soundActivationKeysMatchGtkExpectations();
-        demoRuntimeStateClearsWhenDemoModeIsDisabled();
         repeatedPersistenceErrorsAreCoalesced();
         reservedWindowShortcutsCannotBeAssignedToSounds();
         actionRowMarkupEscapesPortalAndCommandText();

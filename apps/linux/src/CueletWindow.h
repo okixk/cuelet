@@ -22,7 +22,7 @@
 
 class CueletWindow {
 public:
-    CueletWindow(AdwApplication* application, bool demoMode);
+    explicit CueletWindow(AdwApplication* application);
     ~CueletWindow();
 
     void present();
@@ -89,7 +89,6 @@ private:
     std::vector<cuelet::Category> categories_;
     std::filesystem::path libraryPath_;
     std::filesystem::path missingLibraryPath_;
-    bool demoLibraryActive_ = false;
     std::string lastSettingsSaveError_;
     SidebarSelection selection_;
     std::set<std::string> selectedPaths_;
@@ -97,18 +96,21 @@ private:
     guint virtualMicrophonePollId_ = 0;
     bool suppressToggleSignals_ = false;
     bool closedForCliExit_ = false;
+#if defined(CUELET_ENABLE_DEVELOPER_TOOLS)
     bool visualCaptureScheduled_ = false;
     guint visualCaptureSourceId_ = 0;
+#endif
     bool globalShortcutsStarted_ = false;
 
     void buildUi();
     void installActions();
     void installCss();
+#if defined(CUELET_ENABLE_DEVELOPER_TOOLS)
     void scheduleVisualCaptureFromEnvironment();
+#endif
     void applyAppearanceMode();
-    void loadInitialLibrary(bool demoMode);
+    void loadInitialLibrary();
     bool loadLibrary(const std::filesystem::path& folder);
-    void loadDemoLibrary(bool persistChoice);
     bool rescanLibrary();
     void chooseLibrary();
     void importSounds();

@@ -751,9 +751,12 @@ void removalExecutionDeletesOnlyRevalidatedManagedFiles()
     writeFile(managedPath, "original identity");
     const auto replacedFilePlan = LinuxLibraryImportService::planRemoval(
         managed, library, LinuxLibraryImportService::RemovalMode::DeleteManagedFile);
+    const auto replacementPath = library / "replacement-identity.wav";
+    writeFile(replacementPath, "different identity");
     require(fs::remove(managedPath, error) && !error,
             "could not replace the planned regular file");
-    writeFile(managedPath, "different identity");
+    fs::rename(replacementPath, managedPath, error);
+    require(!error, "could not move the different file identity into place");
 
     const auto replacedFileResult =
         LinuxLibraryImportService::executeRemoval(replacedFilePlan);

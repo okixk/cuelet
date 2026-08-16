@@ -7,7 +7,6 @@ enum class PreferencesDeferredAction {
     None,
     RefreshContent,
     RescanLibrary,
-    ReloadLibrary,
 };
 
 struct PreferencesCallbackContext;
@@ -119,31 +118,6 @@ void CueletWindow::showPreferences()
     auto* context = new PreferencesCallbackContext{this, G_OBJECT(application_)};
     context->runDeferred = +[](CueletWindow* self, PreferencesDeferredAction action) {
         switch (action) {
-        case PreferencesDeferredAction::ReloadLibrary:
-            if (self->settings_.showsDemoLibrary) {
-                self->loadDemoLibrary(true);
-            } else if (!self->settings_.libraryPath.empty()) {
-                if (!self->loadLibrary(self->settings_.libraryPath)) {
-                    self->demoLibraryActive_ = false;
-                    self->clips_.clear();
-                    self->categories_ = {cuelet::uncategorizedCategory()};
-                    self->selection_ = {};
-                    self->selectedPaths_.clear();
-                    self->syncGlobalShortcuts();
-                    self->refreshAll();
-                }
-            } else {
-                self->clips_.clear();
-                self->categories_ = {cuelet::uncategorizedCategory()};
-                self->demoLibraryActive_ = cuelet_linux::demoLibraryActiveAfterReload(
-                    self->settings_.showsDemoLibrary,
-                    !self->settings_.libraryPath.empty());
-                self->selection_ = {};
-                self->selectedPaths_.clear();
-                self->syncGlobalShortcuts();
-                self->refreshAll();
-            }
-            break;
         case PreferencesDeferredAction::RescanLibrary:
             if (!self->libraryPath_.empty()) {
                 self->rescanLibrary();
@@ -232,25 +206,6 @@ void CueletWindow::showPreferences()
         }
     }), context);
     adw_preferences_group_add(ADW_PREFERENCES_GROUP(libraryGroup), scanRow);
-
-    GtkWidget* demoRow = adw_switch_row_new();
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(demoRow), "Demo Mode");
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(demoRow), "Show sample sounds without selecting a folder.");
-    adw_switch_row_set_active(ADW_SWITCH_ROW(demoRow), settings_.showsDemoLibrary);
-    g_signal_connect(demoRow, "notify::active", G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
-        auto* context = static_cast<PreferencesCallbackContext*>(userData);
-        if (!context || context->closing || !ADW_IS_SWITCH_ROW(object)) {
-            return;
-        }
-        const bool active = adw_switch_row_get_active(ADW_SWITCH_ROW(object));
-        if (context->self->settings_.showsDemoLibrary == active) {
-            return;
-        }
-        context->self->settings_.showsDemoLibrary = active;
-        context->self->saveSettings();
-        context->schedule(PreferencesDeferredAction::ReloadLibrary);
-    }), context);
-    adw_preferences_group_add(ADW_PREFERENCES_GROUP(libraryGroup), demoRow);
 
     GtkWidget* supportedRow = adw_action_row_new();
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(supportedRow), "Supported Formats");

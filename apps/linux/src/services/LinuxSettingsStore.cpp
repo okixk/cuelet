@@ -277,7 +277,6 @@ LinuxSettings normalizedSettings(const LinuxSettings& input)
         input.allowsSimultaneousPlayback,
         input.showFileExtensions,
         input.scansSubfolders,
-        input.showsDemoLibrary,
         input.copiesImportedFiles,
         isAllowedAppearanceMode(input.appearanceMode) ? input.appearanceMode : "system",
         input.outputDevice,
@@ -361,9 +360,6 @@ LinuxSettings LinuxSettingsStore::load() const
     }
     if (const auto value = boolMember(object, "scansSubfolders", invalidValue)) {
         settings.scansSubfolders = *value;
-    }
-    if (const auto value = boolMember(object, "showsDemoLibrary", invalidValue)) {
-        settings.showsDemoLibrary = *value;
     }
     if (const auto value = boolMember(object, "copiesImportedFiles", invalidValue)) {
         settings.copiesImportedFiles = *value;
@@ -452,8 +448,6 @@ bool LinuxSettingsStore::save(const LinuxSettings& settings) const
     json_builder_add_boolean_value(builder, normalized.showFileExtensions);
     json_builder_set_member_name(builder, "scansSubfolders");
     json_builder_add_boolean_value(builder, normalized.scansSubfolders);
-    json_builder_set_member_name(builder, "showsDemoLibrary");
-    json_builder_add_boolean_value(builder, normalized.showsDemoLibrary);
     json_builder_set_member_name(builder, "copiesImportedFiles");
     json_builder_add_boolean_value(builder, normalized.copiesImportedFiles);
     json_builder_set_member_name(builder, "appearanceMode");

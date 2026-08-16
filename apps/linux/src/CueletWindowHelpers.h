@@ -65,13 +65,6 @@ struct SoundMenuPolicy {
     bool canDeleteManagedFile = false;
 };
 
-inline bool demoLibraryActiveAfterReload(
-    bool showsDemoLibrary,
-    bool hasSavedLibrary)
-{
-    return showsDemoLibrary && !hasSavedLibrary;
-}
-
 inline bool shouldReportPersistenceError(
     const std::string& previousError,
     const std::string& currentError)
