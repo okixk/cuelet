@@ -42,6 +42,7 @@ xcuserdata/
 /apps/linux/build.backup.*/
 /apps/macos/.build/
 /apps/macos/dist/macos/*.pkg
+/apps/macos/dist/
 /apps/windows/.vs/
 /apps/windows/AppPackages/
 /apps/windows/packages/
