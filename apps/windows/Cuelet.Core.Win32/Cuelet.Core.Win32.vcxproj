@@ -34,6 +34,7 @@
   <ItemGroup>
     <ClInclude Include="WindowsAudioRoutingModel.h" />
     <ClInclude Include="WindowsHotkeyModel.h" />
+    <ClInclude Include="WindowsInformationModel.h" />
     <ClInclude Include="WindowsLifecycleModel.h" />
     <ClInclude Include="WindowsUtf8.h" />
     <ClInclude Include="WindowsVirtualAudioModel.h" />
@@ -45,6 +46,7 @@
   <ItemGroup>
     <ClCompile Include="WindowsAudioRoutingModel.cpp" />
     <ClCompile Include="WindowsHotkeyModel.cpp" />
+    <ClCompile Include="WindowsInformationModel.cpp" />
     <ClCompile Include="WindowsLifecycleModel.cpp" />
     <ClCompile Include="WindowsUtf8.cpp" />
     <ClCompile Include="WindowsVirtualAudioModel.cpp" />

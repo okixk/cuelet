@@ -13,10 +13,18 @@ and PipeWire for responsive playback and virtual-microphone routing.
 
 Each supported platform has a native frontend:
 
+<<<<<<< HEAD
 - Linux: GTK4/libadwaita, C++, GStreamer, PipeWire integration, and Meson
   under `apps/linux`.
 - macOS: SwiftUI/AppKit under `apps/macos`.
 - Windows: WinUI 3 and C++/WinRT under `apps/windows`.
+=======
+### Windows
+
+| Sound library | About Cuelet |
+| --- | --- |
+| ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
+>>>>>>> origin/feat/linux-parity-catch-up
 
 Toolkit-neutral C++ models, scanning, search, and metadata behavior live under
 `core/cuelet-core`.
@@ -56,6 +64,12 @@ test, virtual-audio driver, and package workflows.
 
 See [apps/windows/README.md](apps/windows/README.md) for the native Windows
 build, test, virtual-audio driver, and package workflows.
+
+### Screenshots
+
+| Sound library | About Cuelet |
+| --- | --- |
+| ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
 
 ## Project Structure
 
