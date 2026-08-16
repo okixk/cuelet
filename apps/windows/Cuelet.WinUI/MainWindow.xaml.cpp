@@ -747,61 +747,6 @@ namespace winrt::Cuelet::WinUI::implementation
         co_await showDialogAsync(dialog);
     }
 
-    fire_and_forget MainWindow::showHelpAsync()
-    {
-        auto lifetime = get_strong();
-        ContentDialog dialog;
-        dialog.XamlRoot(RootGrid().XamlRoot());
-        dialog.Title(box_value(L"Cuelet Help"));
-        dialog.CloseButtonText(L"Close");
-        dialog.DefaultButton(ContentDialogButton::Close);
-        AutomationProperties::SetName(dialog, L"Cuelet Help");
-
-        StackPanel content;
-        content.Spacing(18);
-        content.Width(620);
-        content.MaxWidth(620);
-        for (auto const& section : cuelet::windows::helpSections()) {
-            StackPanel sectionPanel;
-            sectionPanel.Spacing(6);
-            sectionPanel.Children().Append(
-                makeInformationHeading(section.title));
-            sectionPanel.Children().Append(makeInformationBody(section.body));
-            if (!section.linkUri.empty()) {
-                sectionPanel.Children().Append(makeExternalLink(
-                    section.linkLabel, section.linkUri,
-                    L"Open the official VB-CABLE website"));
-            }
-            content.Children().Append(sectionPanel);
-        }
-
-        const auto information = cuelet::windows::aboutInformation({});
-        StackPanel support;
-        support.Spacing(2);
-        support.Children().Append(makeInformationHeading(L"Support & Online"));
-        support.Children().Append(makeExternalLink(
-            L"Project: " + information.projectUri, information.projectUri,
-            L"Open the Cuelet project website"));
-        support.Children().Append(makeExternalLink(
-            L"Report an issue: " + information.issueTrackerUri,
-            information.issueTrackerUri, L"Report a Cuelet issue"));
-        content.Children().Append(support);
-
-        ScrollViewer scroll;
-        scroll.MaxHeight(360);
-        scroll.VerticalScrollMode(ScrollMode::Enabled);
-        scroll.VerticalScrollBarVisibility(ScrollBarVisibility::Auto);
-        scroll.HorizontalScrollMode(ScrollMode::Disabled);
-        scroll.HorizontalScrollBarVisibility(ScrollBarVisibility::Disabled);
-        scroll.Content(content);
-        dialog.Resources().Insert(
-            box_value(L"ContentDialogMinWidth"), box_value(684.0));
-        dialog.Resources().Insert(
-            box_value(L"ContentDialogMaxWidth"), box_value(684.0));
-        dialog.Content(scroll);
-        co_await showDialogAsync(dialog);
-    }
-
     void MainWindow::closeActiveDialog() noexcept
     {
         try {
@@ -5407,10 +5352,6 @@ namespace winrt::Cuelet::WinUI::implementation
         const auto tag = item
             ? unbox_value_or<hstring>(item.Tag(), L"library")
             : hstring(L"library");
-        if (tag == L"help") {
-            showHelpAsync();
-            return;
-        }
         if (tag == L"about") {
             showAboutAsync();
             return;

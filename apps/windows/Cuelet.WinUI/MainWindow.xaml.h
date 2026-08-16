@@ -184,7 +184,6 @@ namespace winrt::Cuelet::WinUI::implementation
             Microsoft::UI::Xaml::Controls::ContentDialogResult>
         showDialogAsync(Microsoft::UI::Xaml::Controls::ContentDialog const& dialog);
         winrt::fire_and_forget showAboutAsync();
-        winrt::fire_and_forget showHelpAsync();
         void closeActiveDialog() noexcept;
 
         cuelet::LibraryScanner m_scanner;

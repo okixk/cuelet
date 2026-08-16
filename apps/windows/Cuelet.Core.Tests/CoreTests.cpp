@@ -23,7 +23,6 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <numeric>
 #include <set>
 #include <stdexcept>
 #include <utility>
@@ -901,23 +900,6 @@ void runTests()
                     about.issueTrackerUri ==
                         L"https://github.com/okixk/cuelet/issues",
                 "Windows About content must retain the approved identity, license, and support links");
-        const auto help = helpSections();
-        const auto helpText = std::accumulate(
-            help.begin(), help.end(), std::wstring{},
-            [](std::wstring value, HelpSection const& section) {
-                return std::move(value) + L"\n" + section.title + L"\n" +
-                    section.body;
-            });
-        require(help.size() == 5 &&
-                    help[1].linkUri == L"https://vb-audio.com/Cable/" &&
-                    helpText.find(L"CABLE Input (VB-Audio Virtual Cable)") !=
-                        std::wstring::npos &&
-                    helpText.find(L"CABLE Output (VB-Audio Virtual Cable)") !=
-                        std::wstring::npos &&
-                    helpText.find(L"CABLE In 16ch") != std::wstring::npos &&
-                    helpText.find(L"Locate Source File…") != std::wstring::npos &&
-                    helpText.find(L"cuelet --help") != std::wstring::npos,
-                "Windows Help content must cover validated routing, recovery, and CLI behavior");
         require(applicationVersionFromFile(root / L"missing.exe").empty(),
                 "missing PE version metadata must not fall back to a hardcoded release version");
 

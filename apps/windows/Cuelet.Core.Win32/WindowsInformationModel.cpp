@@ -27,49 +27,6 @@ AboutInformation aboutInformation(std::wstring version)
     };
 }
 
-std::vector<HelpSection> helpSections()
-{
-    return {
-        {
-            L"Getting Started",
-            L"1. Choose Create a New Library or Use an Existing Library.\n"
-            L"2. Select Import to add supported sound files.\n"
-            L"3. Organize sounds with categories and Favorites.\n"
-            L"4. Select Play or double-click a sound to play it.\n"
-            L"5. Right-click a sound and choose Change Shortcut… when you want a shortcut.",
-        },
-        {
-            L"Virtual Microphone",
-            L"Cuelet uses VB-CABLE for virtual microphone routing. Cuelet does not redistribute or install VB-CABLE automatically. Install it from the official VB-Audio website; administrator permission and a Windows restart may be required.\n\n"
-            L"After installation or restart, reopen Cuelet. It automatically detects the standard CABLE Input (VB-Audio Virtual Cable) and CABLE Output (VB-Audio Virtual Cable) pair. Additional endpoints such as CABLE In 16ch are excluded from the normal pair. In Settings > Audio routing, verify that the virtual microphone reports Connected.",
-            L"Open the official VB-CABLE website",
-            L"https://vb-audio.com/Cable/",
-        },
-        {
-            L"Global Shortcuts",
-            L"Right-click a sound and choose Change Shortcut… to assign a global shortcut. Assigned shortcuts work while Cuelet is running, including while its window is hidden or in the notification area. Cuelet rejects unsafe or Windows-reserved combinations and reports conflicts. Review or clear assignments in Settings > Keyboard.",
-        },
-        {
-            L"Troubleshooting",
-            L"Virtual microphone not connected\n"
-            L"• Confirm that VB-CABLE is installed.\n"
-            L"• Restart Windows if its installer requested it.\n"
-            L"• Restart Cuelet, then check Settings > Audio routing.\n\n"
-            L"Missing sound file\n"
-            L"• For a linked sound, right-click it and choose Locate Source File…\n"
-            L"• For a managed sound, restore the file to the library and select Rescan library.\n\n"
-            L"No sound\n"
-            L"• Check Play through speakers/headphones and the selected device in Settings > Audio routing.\n"
-            L"• Confirm that the sound file is still available.\n"
-            L"• Review the current Cuelet audio settings.",
-        },
-        {
-            L"Command-line Help",
-            L"After a normal Windows installation, open PowerShell or Command Prompt and run cuelet --help to see the supported commands.",
-        },
-    };
-}
-
 std::wstring applicationVersionFromFile(const std::filesystem::path& executable)
 {
     DWORD ignored = 0;
