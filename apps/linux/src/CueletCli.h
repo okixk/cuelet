@@ -10,6 +10,7 @@ namespace cuelet_linux {
 enum class CliAction {
     Show,
     Help,
+    Version,
     ListSounds,
     ListCategories,
     PlayId,
@@ -40,8 +41,13 @@ struct CliParseResult {
 
 CliParseResult parseCliArguments(const std::vector<std::string>& arguments);
 std::string cliHelpText();
+std::string cliVersionText();
 std::string cueletExecutablePath();
 std::string resolveCliPath(const std::string& value, const std::string& workingDirectory);
+std::vector<std::string> cliStopCandidates(
+    const std::string& value,
+    const std::string& workingDirectory,
+    const std::vector<cuelet::SoundClip>& clips = {});
 std::string shortcutCommandForSound(const cuelet::SoundClip& clip,
                                     const std::string& executablePath);
 std::string formatSoundList(const std::vector<cuelet::SoundClip>& clips,

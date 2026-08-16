@@ -1,8 +1,7 @@
 # Shared Backend Plan
 
-Cuelet now has four backend realities:
+Cuelet has three native backend realities:
 
-- The older Qt/C++ prototype at the repository root.
 - The polished macOS SwiftUI app under `apps/macos`.
 - The native Linux GTK/libadwaita app under `apps/linux`.
 - The native Windows WinUI 3/C++/WinRT app under `apps/windows`.
@@ -34,4 +33,3 @@ The immediate shared contract is the metadata schema and behavior, not a forced 
 1. Teach macOS `SettingsStore`/`AppState` to import/export `.cuelet-metadata.json` while preserving existing Application Support settings.
 2. Move category/search/sort behavior in Swift toward the documented core semantics.
 3. Add a deliberate Swift bridge only if sharing compiled C++ becomes worth the build complexity.
-4. Keep Qt prototype backend code as reference until all useful behaviors are either ported to `core/cuelet-core` or intentionally discarded.

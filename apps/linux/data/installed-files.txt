@@ -1,0 +1,7 @@
+/usr/bin/cuelet
+/usr/share/applications/io.cuelet.Cuelet.desktop
+/usr/share/icons/hicolor/scalable/apps/io.cuelet.Cuelet.svg
+/usr/share/metainfo/io.cuelet.Cuelet.metainfo.xml
+/usr/share/doc/cuelet/README.md
+/usr/share/doc/cuelet/installed-files.txt
+/usr/share/licenses/cuelet/LICENSE

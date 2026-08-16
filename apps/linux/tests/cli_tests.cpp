@@ -7,6 +7,10 @@ namespace {
 
 void parsesCommandsAndModifiers()
 {
+    const auto version = cuelet_linux::parseCliArguments({"--version"});
+    CUELET_REQUIRE(version.ok());
+    CUELET_REQUIRE(version.command.action == CliAction::Version);
+
     const auto list = cuelet_linux::parseCliArguments({"list-sounds", "--json"});
     CUELET_REQUIRE(list.ok());
     CUELET_REQUIRE(list.command.action == CliAction::ListSounds);
@@ -36,6 +40,13 @@ void parsesCommandsAndModifiers()
     CUELET_REQUIRE(defaultCommand.command.action == CliAction::Show);
 }
 
+void reportsReleaseVersion()
+{
+    CUELET_REQUIRE(cuelet_linux::cliVersionText() == "Cuelet 0.1.0\n");
+    CUELET_REQUIRE(cuelet_linux::cliHelpText().find(
+        "--version                 Show Cuelet version") != std::string::npos);
+}
+
 void rejectsInvalidCommands()
 {
     CUELET_REQUIRE(!cuelet_linux::parseCliArguments({"play-id"}).ok());
@@ -50,6 +61,30 @@ void resolvesForwardedPathsAgainstCallingDirectory()
         == "/home/user/sounds/hit.wav");
     CUELET_REQUIRE(cuelet_linux::resolveCliPath("/srv/sounds/hit.wav", "/home/user")
         == "/srv/sounds/hit.wav");
+
+    const auto relativeStop = cuelet_linux::cliStopCandidates(
+        "sounds/hit.wav", "/home/user");
+    CUELET_REQUIRE(relativeStop.size() == 2);
+    CUELET_REQUIRE(relativeStop[0] == "sounds/hit.wav");
+    CUELET_REQUIRE(relativeStop[1] == "/home/user/sounds/hit.wav");
+
+    const auto absoluteStop = cuelet_linux::cliStopCandidates(
+        "/srv/sounds/hit.wav", "/home/user");
+    CUELET_REQUIRE(absoluteStop.size() == 1);
+    CUELET_REQUIRE(absoluteStop.front() == "/srv/sounds/hit.wav");
+
+    cuelet::SoundClip libraryClip;
+    libraryClip.id = "stable-hit";
+    libraryClip.relativePath = "sounds/hit.wav";
+    libraryClip.absolutePath = "/srv/library/sounds/hit.wav";
+    libraryClip.filename = "hit.wav";
+    for (const std::string request : {
+             "stable-hit", "sounds/hit.wav", "/srv/library/sounds/hit.wav", "hit.wav"}) {
+        const auto libraryStop = cuelet_linux::cliStopCandidates(
+            request, "/home/user", {libraryClip});
+        CUELET_REQUIRE(!libraryStop.empty());
+        CUELET_REQUIRE(libraryStop.front() == "sounds/hit.wav");
+    }
 }
 
 void formatsTextAndJsonSafely()
@@ -104,6 +139,7 @@ int main()
 {
     return cuelet_linux::tests::run("cuelet CLI tests", [] {
         parsesCommandsAndModifiers();
+        reportsReleaseVersion();
         rejectsInvalidCommands();
         resolvesForwardedPathsAgainstCallingDirectory();
         formatsTextAndJsonSafely();

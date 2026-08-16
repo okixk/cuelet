@@ -22,6 +22,7 @@ bool shortcutIdentityEqual(
     }
     for (std::size_t index = 0; index < left.size(); ++index) {
         if (left[index].portalId != right[index].portalId
+            || left[index].description != right[index].description
             || left[index].preferredTrigger != right[index].preferredTrigger) {
             return false;
         }

@@ -401,9 +401,10 @@ bool LinuxVirtualMicrophoneService::virtualSourceIsVisible(
 
 void LinuxVirtualMicrophoneService::stopGraph()
 {
-    if (backend_.physicalMixRunning()) {
-        backend_.stopPhysicalMix();
-    }
+    // The backend owns the exact subprocess handle even after a helper has
+    // exited. Always ask it to reap that handle before a future generation
+    // attempts to start a replacement.
+    backend_.stopPhysicalMix();
     activePhysicalMicrophoneId_.clear();
     if (backend_.bridgeRunning()) {
         backend_.stopBridge();

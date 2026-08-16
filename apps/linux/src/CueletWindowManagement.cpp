@@ -751,7 +751,7 @@ void CueletWindow::recordShortcut(const std::string& relativePath)
             return GDK_EVENT_STOP;
         }
         const auto modifiers = shortcutModifierMask(state);
-        data->shortcut.keyval = keyval;
+        data->shortcut.keyval = gdk_keyval_to_lower(keyval);
         data->shortcut.modifiers = static_cast<unsigned int>(modifiers);
         data->shortcut.label = shortcutLabel(keyval, modifiers);
         gtk_label_set_text(GTK_LABEL(data->label), data->shortcut.label.c_str());
@@ -765,10 +765,19 @@ void CueletWindow::recordShortcut(const std::string& relativePath)
         const bool requestGlobal = g_strcmp0(response, "global") == 0;
         const bool useLocally = g_strcmp0(response, "local") == 0;
         if ((requestGlobal || useLocally) && !data->shortcut.empty()) {
+            if (isReservedCueletShortcut(
+                    data->shortcut.keyval,
+                    static_cast<GdkModifierType>(data->shortcut.modifiers))) {
+                data->self->showError(
+                    "That shortcut is reserved for Cuelet window controls.");
+                delete data;
+                return;
+            }
             for (const auto& clip : data->self->clips_) {
                 if (clip.relativePath != data->relativePath
                     && clip.shortcut
-                    && clip.shortcut->sameCombination(data->shortcut)) {
+                    && sameShortcutCombinationNormalized(
+                        *clip.shortcut, data->shortcut)) {
                     data->self->showError("That shortcut is already assigned to " + clip.searchableName() + ".");
                     delete data;
                     return;

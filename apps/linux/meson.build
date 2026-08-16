@@ -9,6 +9,15 @@ project(
 )
 
 gnome = import('gnome')
+bash = find_program('bash')
+python = find_program('python3')
+
+version_configuration = configuration_data()
+version_configuration.set_quoted('CUELET_VERSION', meson.project_version())
+configure_file(
+  output: 'CueletVersion.h',
+  configuration: version_configuration,
+)
 
 gtk_dep = dependency('gtk4', version: '>=4.10')
 adw_dep = dependency('libadwaita-1', version: '>=1.5')
@@ -43,9 +52,11 @@ cuelet_core = static_library(
 
 linux_sources = files(
   'src/main.cpp',
+  'src/CueletAboutDialog.cpp',
   'src/CueletCli.cpp',
   'src/CueletPopoverLifecycle.cpp',
   'src/CueletWindow.cpp',
+  'src/CueletWindowAbout.cpp',
   'src/CueletWindowCli.cpp',
   'src/CueletWindowLibrary.cpp',
   'src/CueletWindowManagement.cpp',
@@ -80,6 +91,47 @@ executable(
 install_data(
   'data/io.cuelet.Cuelet.desktop',
   install_dir: get_option('datadir') / 'applications',
+)
+
+padded_application_icon = custom_target(
+  'padded-application-icon',
+  input: 'data/io.cuelet.Cuelet.svg',
+  output: 'io.cuelet.Cuelet.svg',
+  command: [
+    python,
+    files('scripts/generate-padded-icon.py'),
+    '@INPUT@',
+    '@OUTPUT@',
+  ],
+  build_by_default: true,
+  install: true,
+  install_dir: get_option('datadir') / 'icons' / 'hicolor' / 'scalable' / 'apps',
+)
+
+install_data(
+  'data/io.cuelet.Cuelet.metainfo.xml',
+  install_dir: get_option('datadir') / 'metainfo',
+)
+
+install_data(
+  'data/INSTALL.md',
+  rename: 'README.md',
+  install_dir: get_option('datadir') / 'doc' / 'cuelet',
+)
+
+install_data(
+  'data/installed-files.txt',
+  install_dir: get_option('datadir') / 'doc' / 'cuelet',
+)
+
+install_data(
+  '../../LICENSE',
+  install_dir: get_option('datadir') / 'licenses' / 'cuelet',
+)
+
+gnome.post_install(
+  gtk_update_icon_cache: true,
+  update_desktop_database: true,
 )
 
 test_core = executable(
@@ -123,6 +175,17 @@ test_popover_lifecycle = executable(
   ),
   include_directories: [linux_include, core_include],
   dependencies: [gtk_dep],
+)
+
+test_about_dialog = executable(
+  'cuelet-about-dialog-tests',
+  files(
+    'tests/about_dialog_tests.cpp',
+    'src/CueletAboutDialog.cpp',
+  ),
+  resources,
+  include_directories: linux_include,
+  dependencies: [gtk_dep, adw_dep],
 )
 
 test_global_shortcuts = executable(
@@ -205,9 +268,26 @@ test('audio-service', test_audio_service)
 test('cli', test_cli)
 test('category-helpers', test_category_helpers)
 test('popover-lifecycle', test_popover_lifecycle)
+test('about-dialog', test_about_dialog)
 test('global-shortcuts', test_global_shortcuts)
 test('settings-store', test_settings_store)
 test('library-import', test_library_import)
 test('pipewire-routing', test_pipewire_routing)
 test('pipewire-routing-service', test_pipewire_routing_service)
 test('virtual-microphone', test_virtual_microphone)
+test(
+  'release-metadata',
+  bash,
+  args: files('tests/release_metadata_tests.sh'),
+)
+test(
+  'padded-icon',
+  python,
+  args: [
+    files('tests/padded_icon_tests.py'),
+    files('scripts/generate-padded-icon.py'),
+    files('data/io.cuelet.Cuelet.svg'),
+    padded_application_icon,
+  ],
+  depends: padded_application_icon,
+)

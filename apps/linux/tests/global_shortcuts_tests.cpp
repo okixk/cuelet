@@ -356,6 +356,26 @@ void recreationDebouncesChangesAndRejectsStaleCallbacks()
     CUELET_REQUIRE(activations == std::vector<std::string>{"two"});
 }
 
+void descriptionChangesReplaceThePortalSession()
+{
+    auto portal = std::make_shared<FakePortal>();
+    std::vector<std::string> activations;
+    auto controller = controllerFor(portal, activations);
+    controller->setDesiredShortcuts({spec("one", "CTRL+ALT+1", "Play Old Name")});
+    controller->start();
+    portal->detect(true, 1);
+    portal->create(success(), "/session/old-description");
+    portal->list(success());
+    portal->bind(success(), {{"sound.one", "Play Old Name", "Ctrl+Alt+1"}});
+
+    controller->setDesiredShortcuts({
+        spec("one", "CTRL+ALT+1", "Play Renamed Sound")});
+    controller->flushReconfigurationForTesting();
+    CUELET_REQUIRE(portal->closedSessions ==
+        std::vector<std::string>{"/session/old-description"});
+    CUELET_REQUIRE(portal->createCalls == 2);
+}
+
 void replacedSessionIgnoresOutstandingCreation()
 {
     auto portal = std::make_shared<FakePortal>();
@@ -466,6 +486,7 @@ int main()
         activationMapsByStableIdAndSuppressesHeldDuplicates();
         deletedAndRenamedSoundsRemainSafe();
         recreationDebouncesChangesAndRejectsStaleCallbacks();
+        descriptionChangesReplaceThePortalSession();
         replacedSessionIgnoresOutstandingCreation();
         closedSessionRejectsFurtherActivation();
         configurationCompletionAfterShutdownIsIgnored();

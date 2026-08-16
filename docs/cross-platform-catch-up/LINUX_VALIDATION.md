@@ -1,5 +1,9 @@
 # Linux validation record
 
+> Historical note: references below to the former root Qt/CMake prototype
+> describe the repository as it existed during the July 2026 validation. That
+> prototype was removed before the Linux 0.1.0 final audit.
+
 This record covers the native GTK4/libadwaita catch-up on
 `feat/linux-parity-catch-up`. Validation used only generated audio fixtures
 and isolated XDG settings.

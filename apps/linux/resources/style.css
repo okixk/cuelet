@@ -2,6 +2,10 @@
   background: @window_bg_color;
 }
 
+label.cuelet-about-heading {
+  color: #6a00ff;
+}
+
 .cuelet-sidebar-list {
   padding: 6px;
   background: transparent;

@@ -65,6 +65,20 @@ struct SoundMenuPolicy {
     bool canDeleteManagedFile = false;
 };
 
+inline bool demoLibraryActiveAfterReload(
+    bool showsDemoLibrary,
+    bool hasSavedLibrary)
+{
+    return showsDemoLibrary && !hasSavedLibrary;
+}
+
+inline bool shouldReportPersistenceError(
+    const std::string& previousError,
+    const std::string& currentError)
+{
+    return !currentError.empty() && currentError != previousError;
+}
+
 inline SoundMenuPolicy soundMenuPolicy(const cuelet::SoundClip* clip)
 {
     if (!clip) {
@@ -256,6 +270,28 @@ inline bool isSoundActivationKey(guint keyval)
     return keyval == GDK_KEY_Return
         || keyval == GDK_KEY_KP_Enter
         || keyval == GDK_KEY_space;
+}
+
+inline bool isReservedCueletShortcut(guint keyval, unsigned int state)
+{
+    const auto modifiers = shortcutModifierMask(
+        static_cast<GdkModifierType>(state));
+    const auto lowerKey = gdk_keyval_to_lower(keyval);
+    return (modifiers == GDK_CONTROL_MASK
+            && (lowerKey == GDK_KEY_f || lowerKey == GDK_KEY_a))
+        || (modifiers == 0
+            && (keyval == GDK_KEY_Escape
+                || keyval == GDK_KEY_Menu
+                || isSoundActivationKey(keyval)))
+        || (modifiers == GDK_SHIFT_MASK && keyval == GDK_KEY_F10);
+}
+
+inline bool sameShortcutCombinationNormalized(
+    const cuelet::Shortcut& left,
+    const cuelet::Shortcut& right)
+{
+    return gdk_keyval_to_lower(left.keyval) == gdk_keyval_to_lower(right.keyval)
+        && left.modifiers == right.modifiers;
 }
 
 inline GtkWidget* iconButton(const char* iconName, const char* tooltip)

@@ -49,6 +49,7 @@ public:
     bool startPhysicalSucceeds = true;
     bool bridgeRunningValue = false;
     bool physicalRunningValue = false;
+    bool physicalHandleRetained = false;
     int startBridgeCalls = 0;
     int stopBridgeCalls = 0;
     int startPhysicalCalls = 0;
@@ -106,11 +107,15 @@ public:
         std::uint64_t generation) override
     {
         ++startPhysicalCalls;
+        if (physicalHandleRetained) {
+            return false;
+        }
         selectedPhysicalNode = sourceNode;
         physicalTarget = sinkNode;
         physicalLevel = level;
         physicalGeneration = generation;
         physicalRunningValue = startPhysicalSucceeds;
+        physicalHandleRetained = startPhysicalSucceeds;
         return startPhysicalSucceeds;
     }
 
@@ -124,6 +129,7 @@ public:
     {
         ++stopPhysicalCalls;
         physicalRunningValue = false;
+        physicalHandleRetained = false;
         selectedPhysicalNode.clear();
     }
 
@@ -161,6 +167,12 @@ void makeVirtualSourceVisible(FakeBackend& backend)
 
 void initialStateIsDisabledAndSideEffectFree()
 {
+    require(std::string(virtualMicrophoneSinkNodeName()) ==
+                "cuelet.soundboard-input"
+                && std::string(virtualMicrophoneSourceNodeName()) ==
+                    "cuelet.virtual-microphone",
+            "stable endpoint names must be available before graph creation");
+
     FakeBackend backend;
     LinuxVirtualMicrophoneService service(backend, "test-session", 1000);
 
@@ -274,6 +286,36 @@ void creationFailureAndStartupTimeoutFailClosed()
             "a timed-out partial graph must be cleaned up");
 }
 
+void failedRequestRecoversUnlessExplicitlyDisabled()
+{
+    FakeBackend recoveringBackend;
+    makeVirtualSourceVisible(recoveringBackend);
+    recoveringBackend.capabilitiesValue.pipeWireSessionReachable = false;
+    LinuxVirtualMicrophoneService recovering(recoveringBackend, "recovering", 1000);
+    require(!recovering.apply(virtualOnly(), 0),
+            "an unavailable PipeWire session must reject initial activation");
+    recoveringBackend.capabilitiesValue.pipeWireSessionReachable = true;
+    recovering.poll(1);
+    require(recoveringBackend.startBridgeCalls == 1
+                && recovering.status().state == VirtualMicrophoneState::Ready,
+            "a still-requested persisted route must recover when PipeWire returns");
+
+    FakeBackend rolledBackBackend;
+    makeVirtualSourceVisible(rolledBackBackend);
+    rolledBackBackend.capabilitiesValue.pipeWireSessionReachable = false;
+    LinuxVirtualMicrophoneService rolledBack(rolledBackBackend, "rolled-back", 1000);
+    require(!rolledBack.apply(virtualOnly(), 0),
+            "the user-requested activation failure must be observable");
+    VirtualMicrophoneConfiguration speakersOnly;
+    require(rolledBack.apply(speakersOnly, 1),
+            "the UI must be able to roll a failed request back to off");
+    rolledBackBackend.capabilitiesValue.pipeWireSessionReachable = true;
+    rolledBack.poll(2);
+    require(rolledBackBackend.startBridgeCalls == 0
+                && rolledBack.status().state == VirtualMicrophoneState::Off,
+            "a rolled-back request must stay off after capability recovery");
+}
+
 void modeTransitionsAndCleanupAreScoped()
 {
     FakeBackend backend;
@@ -376,6 +418,32 @@ void missingPhysicalSourceDegradesAndReconnectsExactly()
             "recovery must not silently substitute another microphone");
 }
 
+void disableReapsAnExitedPhysicalHelperBeforeReenable()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "dead-physical-helper", 1000);
+
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+    require(service.apply(configuration, 0), "the initial physical mix must start");
+    require(backend.physicalHandleRetained,
+            "the backend must retain its exact helper handle while active");
+
+    backend.physicalRunningValue = false;
+    VirtualMicrophoneConfiguration speakersOnly;
+    require(service.apply(speakersOnly, 1), "disabling must remain safe after helper exit");
+    require(!backend.physicalHandleRetained,
+            "disabling must reap an exited helper handle");
+
+    require(service.apply(configuration, 2),
+            "physical mixing must restart without restarting Cuelet");
+    require(service.status().state == VirtualMicrophoneState::Ready,
+            "re-enabled physical mixing must become ready");
+}
+
 void pipeWireDisconnectReconnectAndStaleEventsAreSafe()
 {
     FakeBackend backend;
@@ -423,9 +491,11 @@ int main()
         physicalLoopbackArgumentsAreScopedAndShellFree();
         successfulCreationAndIdempotentApply();
         creationFailureAndStartupTimeoutFailClosed();
+        failedRequestRecoversUnlessExplicitlyDisabled();
         modeTransitionsAndCleanupAreScoped();
         physicalMixUsesOnlyTheSelectedStableSource();
         missingPhysicalSourceDegradesAndReconnectsExactly();
+        disableReapsAnExitedPhysicalHelperBeforeReenable();
         pipeWireDisconnectReconnectAndStaleEventsAreSafe();
     } catch (const std::exception& error) {
         std::cerr << "cuelet virtual microphone tests failed: " << error.what() << '\n';

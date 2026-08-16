@@ -26,6 +26,7 @@ public:
     ~CueletWindow();
 
     void present();
+    void showAbout();
     void closeForCliExit();
     bool isClosedForCliExit() const;
     int executeCliCommand(const cuelet_linux::CliCommand& command,
@@ -48,6 +49,7 @@ private:
 
     AdwApplication* application_ = nullptr;
     AdwApplicationWindow* window_ = nullptr;
+    AdwAboutDialog* aboutDialog_ = nullptr;
     AdwDialog* preferencesDialog_ = nullptr;
     AdwNavigationSplitView* splitView_ = nullptr;
     GtkWidget* toastOverlay_ = nullptr;
@@ -87,6 +89,8 @@ private:
     std::vector<cuelet::Category> categories_;
     std::filesystem::path libraryPath_;
     std::filesystem::path missingLibraryPath_;
+    bool demoLibraryActive_ = false;
+    std::string lastSettingsSaveError_;
     SidebarSelection selection_;
     std::set<std::string> selectedPaths_;
     guint progressTickId_ = 0;
@@ -123,7 +127,7 @@ private:
     std::string focusedSoundPath() const;
     bool presentSelectedSoundMenu();
     bool handleEscape();
-    void saveSettings();
+    bool saveSettings();
     void saveMetadata();
     void syncGlobalShortcuts();
     void handleGlobalShortcutActivation(const std::string& soundId);

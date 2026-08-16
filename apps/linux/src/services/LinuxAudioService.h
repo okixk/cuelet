@@ -140,6 +140,7 @@ private:
     void reportError(const std::string& message);
 
     std::map<std::string, Player> players_;
+    std::vector<std::string> playbackOrder_;
     Configuration configuration_;
     OutputSelection outputSelection_;
     RoutingConfiguration routingConfiguration_;

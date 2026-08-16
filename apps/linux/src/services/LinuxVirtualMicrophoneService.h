@@ -7,6 +7,16 @@
 
 namespace cuelet_linux {
 
+inline constexpr const char* virtualMicrophoneSinkNodeName() noexcept
+{
+    return "cuelet.soundboard-input";
+}
+
+inline constexpr const char* virtualMicrophoneSourceNodeName() noexcept
+{
+    return "cuelet.virtual-microphone";
+}
+
 struct PipeWireNodeInfo {
     std::uint32_t numericId = 0;
     std::string stableName;

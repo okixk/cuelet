@@ -83,6 +83,51 @@ void soundActivationKeysMatchGtkExpectations()
     CUELET_REQUIRE(!cuelet_linux::isSoundActivationKey(GDK_KEY_Escape));
 }
 
+void demoRuntimeStateClearsWhenDemoModeIsDisabled()
+{
+    CUELET_REQUIRE(cuelet_linux::demoLibraryActiveAfterReload(true, false));
+    CUELET_REQUIRE(!cuelet_linux::demoLibraryActiveAfterReload(false, false));
+    CUELET_REQUIRE(!cuelet_linux::demoLibraryActiveAfterReload(false, true));
+}
+
+void repeatedPersistenceErrorsAreCoalesced()
+{
+    CUELET_REQUIRE(cuelet_linux::shouldReportPersistenceError(
+        "", "Settings directory is read-only."));
+    CUELET_REQUIRE(!cuelet_linux::shouldReportPersistenceError(
+        "Settings directory is read-only.", "Settings directory is read-only."));
+    CUELET_REQUIRE(cuelet_linux::shouldReportPersistenceError(
+        "Settings directory is read-only.", "Disk is full."));
+}
+
+void reservedWindowShortcutsCannotBeAssignedToSounds()
+{
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(
+        GDK_KEY_f, GDK_CONTROL_MASK));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(
+        GDK_KEY_A, GDK_CONTROL_MASK));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(GDK_KEY_Escape, 0));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(GDK_KEY_Menu, 0));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(
+        GDK_KEY_F10, GDK_SHIFT_MASK));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(GDK_KEY_Return, 0));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(GDK_KEY_KP_Enter, 0));
+    CUELET_REQUIRE(cuelet_linux::isReservedCueletShortcut(GDK_KEY_space, 0));
+    CUELET_REQUIRE(!cuelet_linux::isReservedCueletShortcut(
+        GDK_KEY_f, GDK_CONTROL_MASK | GDK_SHIFT_MASK));
+    CUELET_REQUIRE(!cuelet_linux::isReservedCueletShortcut(
+        GDK_KEY_9, GDK_CONTROL_MASK | GDK_ALT_MASK));
+
+    cuelet::Shortcut legacyUppercase;
+    legacyUppercase.keyval = GDK_KEY_A;
+    legacyUppercase.modifiers = GDK_SHIFT_MASK;
+    cuelet::Shortcut normalizedLowercase;
+    normalizedLowercase.keyval = GDK_KEY_a;
+    normalizedLowercase.modifiers = GDK_SHIFT_MASK;
+    CUELET_REQUIRE(cuelet_linux::sameShortcutCombinationNormalized(
+        legacyUppercase, normalizedLowercase));
+}
+
 void actionRowMarkupEscapesPortalAndCommandText()
 {
     CUELET_REQUIRE(
@@ -100,6 +145,9 @@ int main()
         iconSelectionsCanonicalizeAliases();
         soundMenuPolicyMatchesStorageSafety();
         soundActivationKeysMatchGtkExpectations();
+        demoRuntimeStateClearsWhenDemoModeIsDisabled();
+        repeatedPersistenceErrorsAreCoalesced();
+        reservedWindowShortcutsCannotBeAssignedToSounds();
         actionRowMarkupEscapesPortalAndCommandText();
     });
 }

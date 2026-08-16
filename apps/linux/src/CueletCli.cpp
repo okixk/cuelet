@@ -1,4 +1,5 @@
 #include "CueletCli.h"
+#include "CueletVersion.h"
 
 #include <algorithm>
 #include <iomanip>
@@ -19,6 +20,7 @@ const std::unordered_map<std::string, CommandSpec>& commandSpecs()
 {
     static const std::unordered_map<std::string, CommandSpec> specs = {
         {"help", {CliAction::Help, false}},
+        {"version", {CliAction::Version, false}},
         {"list-sounds", {CliAction::ListSounds, false}},
         {"list-categories", {CliAction::ListCategories, false}},
         {"play-id", {CliAction::PlayId, true}},
@@ -151,6 +153,7 @@ std::string cliHelpText()
         "\n"
         "Commands:\n"
         "  --help                    Show this help\n"
+        "  --version                 Show Cuelet version\n"
         "  --list-sounds [--json]    List sounds\n"
         "  --list-categories [--json] List categories\n"
         "  --play-id ID              Play a sound by stable ID\n"
@@ -167,6 +170,11 @@ std::string cliHelpText()
         "Subcommand forms such as 'cuelet play-id ID' are also accepted.\n";
 }
 
+std::string cliVersionText()
+{
+    return std::string("Cuelet ") + CUELET_VERSION + '\n';
+}
+
 std::string cueletExecutablePath()
 {
     std::error_code error;
@@ -181,6 +189,32 @@ std::string resolveCliPath(const std::string& value, const std::string& workingD
         return path.lexically_normal().string();
     }
     return (std::filesystem::path(workingDirectory) / path).lexically_normal().string();
+}
+
+std::vector<std::string> cliStopCandidates(
+    const std::string& value,
+    const std::string& workingDirectory,
+    const std::vector<cuelet::SoundClip>& clips)
+{
+    std::vector<std::string> candidates;
+    const auto libraryClip = std::find_if(
+        clips.begin(), clips.end(), [&](const auto& clip) {
+            return clip.id == value
+                || clip.relativePath == value
+                || clip.absolutePath == value
+                || clip.filename == value;
+        });
+    if (libraryClip != clips.end()) {
+        candidates.push_back(libraryClip->relativePath);
+    }
+    if (std::find(candidates.begin(), candidates.end(), value) == candidates.end()) {
+        candidates.push_back(value);
+    }
+    const auto resolved = resolveCliPath(value, workingDirectory);
+    if (std::find(candidates.begin(), candidates.end(), resolved) == candidates.end()) {
+        candidates.push_back(resolved);
+    }
+    return candidates;
 }
 
 std::string shortcutCommandForSound(const cuelet::SoundClip& clip,

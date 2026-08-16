@@ -113,7 +113,7 @@ void CueletWindow::refreshContent()
     if (clips.empty()) {
         const char* searchText = gtk_editable_get_text(GTK_EDITABLE(searchEntry_));
         const bool hasSearch = searchText && *searchText;
-        const bool hasLibrary = !libraryPath_.empty() || settings_.showsDemoLibrary;
+        const bool hasLibrary = !libraryPath_.empty() || demoLibraryActive_;
 
         gtk_widget_set_visible(emptyChooseButton_, FALSE);
         gtk_widget_set_visible(emptyImportButton_, FALSE);
@@ -242,7 +242,7 @@ void CueletWindow::refreshHeader()
     }
 
     gtk_label_set_text(GTK_LABEL(titleLabel_), title.c_str());
-    std::string subtitle = settings_.showsDemoLibrary
+    std::string subtitle = demoLibraryActive_
         ? "Demo Library"
         : (!missingLibraryPath_.empty()
             ? "Library folder unavailable"
@@ -509,9 +509,21 @@ bool CueletWindow::handleEscape()
     return false;
 }
 
-void CueletWindow::saveSettings()
+bool CueletWindow::saveSettings()
 {
-    settingsStore_.save(settings_);
+    if (settingsStore_.save(settings_)) {
+        lastSettingsSaveError_.clear();
+        return true;
+    }
+    const std::string error = settingsStore_.lastError().empty()
+        ? "Cuelet settings could not be saved."
+        : settingsStore_.lastError();
+    if (cuelet_linux::shouldReportPersistenceError(
+            lastSettingsSaveError_, error)) {
+        lastSettingsSaveError_ = error;
+        showError(error);
+    }
+    return false;
 }
 
 void CueletWindow::saveMetadata()
@@ -684,7 +696,7 @@ bool CueletWindow::handleLocalShortcut(guint keyval, GdkModifierType state)
     const auto shortcutModifiers = static_cast<unsigned int>(modifiers);
     for (const auto& clip : clips_) {
         if (clip.shortcut
-            && clip.shortcut->keyval == keyval
+            && gdk_keyval_to_lower(clip.shortcut->keyval) == lowerKey
             && clip.shortcut->modifiers == shortcutModifiers
             && cuelet_linux::shouldHandleShortcutLocally(
                 *clip.shortcut,

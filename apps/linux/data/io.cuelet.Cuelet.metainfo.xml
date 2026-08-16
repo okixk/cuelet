@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.cuelet.Cuelet</id>
+  <name>Cuelet</name>
+  <summary>Play and organize soundboard audio</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-only</project_license>
+  <developer id="io.cuelet">
+    <name>Cuelet contributors</name>
+  </developer>
+  <description>
+    <p>
+      Cuelet is a native soundboard for organizing, finding, and playing audio
+      clips during calls, streams, tabletop sessions, voice chat, and live cues.
+    </p>
+    <p>
+      The Linux app supports GStreamer playback, XDG desktop portal shortcuts,
+      and an optional temporary PipeWire virtual microphone.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.cuelet.Cuelet.desktop</launchable>
+  <url type="homepage">https://github.com/okixk/cuelet</url>
+  <url type="bugtracker">https://github.com/okixk/cuelet/issues</url>
+  <provides>
+    <binary>cuelet</binary>
+  </provides>
+  <releases>
+    <release version="0.1.0" date="2026-08-12" />
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>

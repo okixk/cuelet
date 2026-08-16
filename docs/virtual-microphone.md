@@ -1,8 +1,8 @@
 # Virtual Microphone Notes
 
 Cuelet's native Linux client can expose an app-managed PipeWire virtual
-microphone. The legacy root Qt client and the other native clients do not gain
-that behavior from the Linux implementation.
+microphone. The other native clients do not gain that behavior from the Linux
+implementation.
 
 Virtual microphone behavior remains platform-specific. Linux creates only
 temporary user-session nodes while Cuelet is running; it does not install a
