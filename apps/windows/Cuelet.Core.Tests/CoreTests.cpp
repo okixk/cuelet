@@ -6,6 +6,7 @@
 #include "cuelet/SoundSearch.h"
 #include "WindowsUtf8.h"
 #include "WindowsHotkeyModel.h"
+#include "WindowsInformationModel.h"
 #include "WindowsAudioRoutingModel.h"
 #include "WindowsLifecycleModel.h"
 #include "WindowsVirtualAudioModel.h"
@@ -24,6 +25,7 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 void runVirtualAudioFifoExtendedTests();
@@ -884,6 +886,22 @@ void runTests()
                     cliHelpText().find(L"--demo") == std::wstring::npos &&
                     cliHelpText().find(L"local shortcut") == std::wstring::npos,
                 "CLI help must match release functionality and omit removed development options");
+
+        const auto about = aboutInformation(L"9.8.7");
+        require(about.applicationName == L"Cuelet" &&
+                    about.contributors == L"Cuelet contributors" &&
+                    about.version == L"9.8.7" &&
+                    about.description ==
+                        L"A cross-platform soundboard and virtual microphone." &&
+                    about.licenseStatement ==
+                        L"Cuelet is free and open-source software licensed under the GNU Affero General Public License version 3 only." &&
+                    about.spdxIdentifier == L"AGPL-3.0-only" &&
+                    about.projectUri == L"https://github.com/okixk/cuelet" &&
+                    about.issueTrackerUri ==
+                        L"https://github.com/okixk/cuelet/issues",
+                "Windows About content must retain the approved identity, license, and support links");
+        require(applicationVersionFromFile(root / L"missing.exe").empty(),
+                "missing PE version metadata must not fall back to a hardcoded release version");
 
         const auto hiddenMetadata = root / ".cuelet-metadata.json";
         touch(hiddenMetadata);

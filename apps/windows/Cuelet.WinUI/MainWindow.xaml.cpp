@@ -4,6 +4,7 @@
 #include "WindowsText.h"
 #include "WindowsAudioRoutingModel.h"
 #include "WindowsDiagnostics.h"
+#include "WindowsInformationModel.h"
 #include "VirtualAudioInstallerClient.h"
 #if __has_include("MainWindow.g.cpp")
 #include "MainWindow.g.cpp"
@@ -39,6 +40,7 @@ using namespace Microsoft::UI::Xaml::Controls;
 using namespace Microsoft::UI::Xaml::Controls::Primitives;
 using namespace Microsoft::UI::Xaml::Input;
 using namespace Microsoft::UI::Xaml::Media;
+using namespace Microsoft::UI::Xaml::Media::Imaging;
 using namespace Microsoft::UI::Xaml::Shapes;
 using namespace Microsoft::UI::Xaml::Automation;
 
@@ -171,11 +173,46 @@ namespace winrt::Cuelet::WinUI::implementation
 
         void setFixedDialogWidth(ContentDialog const& dialog, StackPanel const& content, double dialogWidth, double contentWidth)
         {
-            dialog.MinWidth(dialogWidth);
-            dialog.MaxWidth(dialogWidth);
-            dialog.HorizontalAlignment(HorizontalAlignment::Center);
+            dialog.Resources().Insert(
+                box_value(L"ContentDialogMinWidth"), box_value(dialogWidth));
+            dialog.Resources().Insert(
+                box_value(L"ContentDialogMaxWidth"), box_value(dialogWidth));
             content.Width(contentWidth);
             content.MaxWidth(contentWidth);
+        }
+
+        TextBlock makeInformationHeading(std::wstring const& text)
+        {
+            TextBlock heading;
+            heading.Text(text);
+            heading.FontWeight(Windows::UI::Text::FontWeights::SemiBold());
+            heading.FontSize(16);
+            heading.TextWrapping(TextWrapping::Wrap);
+            return heading;
+        }
+
+        TextBlock makeInformationBody(std::wstring const& text)
+        {
+            TextBlock body;
+            body.Text(text);
+            body.TextWrapping(TextWrapping::Wrap);
+            body.IsTextSelectionEnabled(true);
+            return body;
+        }
+
+        HyperlinkButton makeExternalLink(
+            std::wstring const& label,
+            std::wstring const& uri,
+            std::wstring const& accessibleName)
+        {
+            HyperlinkButton link;
+            link.Content(box_value(label));
+            link.NavigateUri(Uri(uri));
+            link.Padding(ThicknessHelper::FromUniformLength(0));
+            link.HorizontalAlignment(HorizontalAlignment::Left);
+            ToolTipService::SetToolTip(link, box_value(L"Open " + uri));
+            AutomationProperties::SetName(link, accessibleName);
+            return link;
         }
 
         bool eventOriginatesInInteractiveControl(IInspectable const& source, DependencyObject const& boundary)
@@ -595,6 +632,11 @@ namespace winrt::Cuelet::WinUI::implementation
         if (!acceptsUiWork(generation)) {
             co_return ContentDialogResult::None;
         }
+        if (m_activeDialog && m_activeDialog != dialog) {
+            m_activeDialog.Focus(FocusState::Programmatic);
+            co_return ContentDialogResult::None;
+        }
+        dialog.RequestedTheme(RootGrid().ActualTheme());
         m_activeDialog = dialog;
         try {
             const auto result = co_await dialog.ShowAsync();
@@ -610,6 +652,99 @@ namespace winrt::Cuelet::WinUI::implementation
             }
             throw;
         }
+    }
+
+    fire_and_forget MainWindow::showAboutAsync()
+    {
+        auto lifetime = get_strong();
+        const auto information = cuelet::windows::aboutInformation(
+            cuelet::windows::applicationVersionFromCurrentModule());
+
+        ContentDialog dialog;
+        dialog.XamlRoot(RootGrid().XamlRoot());
+        dialog.Title(box_value(L"About Cuelet"));
+        dialog.CloseButtonText(L"Close");
+        dialog.DefaultButton(ContentDialogButton::Close);
+        AutomationProperties::SetName(dialog, L"About Cuelet");
+
+        StackPanel content;
+        content.Spacing(12);
+        setFixedDialogWidth(dialog, content, 570, 506);
+
+        Grid identity;
+        identity.ColumnSpacing(18);
+        identity.ColumnDefinitions().Append(ColumnDefinition());
+        identity.ColumnDefinitions().Append(ColumnDefinition());
+        identity.ColumnDefinitions().GetAt(0).Width(
+            GridLengthHelper::FromPixels(76));
+        identity.ColumnDefinitions().GetAt(1).Width(
+            GridLengthHelper::FromValueAndType(1, GridUnitType::Star));
+
+        Image icon;
+        icon.Width(72);
+        icon.Height(72);
+        icon.Stretch(Stretch::Uniform);
+        icon.VerticalAlignment(VerticalAlignment::Center);
+        icon.Source(BitmapImage(Uri(
+            L"ms-appx:///Assets/Square44x44Logo.targetsize-256.png")));
+        AutomationProperties::SetName(icon, L"Cuelet application icon");
+        identity.Children().Append(icon);
+
+        StackPanel identityText;
+        identityText.Spacing(3);
+        identityText.VerticalAlignment(VerticalAlignment::Center);
+        TextBlock applicationName;
+        applicationName.Text(information.applicationName);
+        applicationName.FontSize(30);
+        applicationName.FontWeight(
+            Windows::UI::Text::FontWeights::SemiBold());
+        applicationName.Foreground(SolidColorBrush(
+            Windows::UI::ColorHelper::FromArgb(255, 0x6a, 0x00, 0xff)));
+        AutomationProperties::SetName(applicationName, L"Cuelet");
+        identityText.Children().Append(applicationName);
+        identityText.Children().Append(
+            makeInformationBody(information.contributors));
+        identityText.Children().Append(
+            makeInformationBody(L"Version " + information.version));
+        Grid::SetColumn(identityText, 1);
+        identity.Children().Append(identityText);
+        content.Children().Append(identity);
+
+        content.Children().Append(makeInformationBody(information.description));
+        content.Children().Append(makeInformationBody(
+            information.licenseStatement));
+
+        Grid links;
+        links.ColumnSpacing(12);
+        links.RowSpacing(2);
+        links.ColumnDefinitions().Append(ColumnDefinition());
+        links.ColumnDefinitions().Append(ColumnDefinition());
+        links.ColumnDefinitions().GetAt(0).Width(
+            GridLengthHelper::FromPixels(92));
+        links.ColumnDefinitions().GetAt(1).Width(
+            GridLengthHelper::FromValueAndType(1, GridUnitType::Star));
+        links.RowDefinitions().Append(RowDefinition());
+        links.RowDefinitions().Append(RowDefinition());
+        auto projectLabel = makeInformationHeading(L"Project");
+        links.Children().Append(projectLabel);
+        auto projectLink = makeExternalLink(
+            information.projectUri, information.projectUri,
+            L"Open the Cuelet project website");
+        Grid::SetColumn(projectLink, 1);
+        links.Children().Append(projectLink);
+        auto issuesLabel = makeInformationHeading(L"Issue tracker");
+        Grid::SetRow(issuesLabel, 1);
+        links.Children().Append(issuesLabel);
+        auto issuesLink = makeExternalLink(
+            information.issueTrackerUri, information.issueTrackerUri,
+            L"Open the Cuelet issue tracker");
+        Grid::SetColumn(issuesLink, 1);
+        Grid::SetRow(issuesLink, 1);
+        links.Children().Append(issuesLink);
+        content.Children().Append(links);
+
+        dialog.Content(content);
+        co_await showDialogAsync(dialog);
     }
 
     void MainWindow::closeActiveDialog() noexcept
@@ -5213,6 +5348,14 @@ namespace winrt::Cuelet::WinUI::implementation
             refreshShortcutSettings();
             return;
         }
+        const auto item = args.InvokedItemContainer().try_as<NavigationViewItem>();
+        const auto tag = item
+            ? unbox_value_or<hstring>(item.Tag(), L"library")
+            : hstring(L"library");
+        if (tag == L"about") {
+            showAboutAsync();
+            return;
+        }
         if (cuelet::windows::libraryStartupState(m_libraryFolder) !=
             cuelet::windows::LibraryStartupState::Ready) {
             showLibraryStartupState();
@@ -5221,9 +5364,7 @@ namespace winrt::Cuelet::WinUI::implementation
         LibraryPage().Visibility(Visibility::Visible);
         OnboardingPage().Visibility(Visibility::Collapsed);
         SettingsPage().Visibility(Visibility::Collapsed);
-        const auto item = args.InvokedItemContainer().try_as<NavigationViewItem>();
         if (!item) return;
-        const auto tag = unbox_value_or<hstring>(item.Tag(), L"library");
         if (tag == L"new-category") { createCategoryAsync(); return; }
         auto setPageTitle = [&](hstring const& title) {
             PageTitle().Text(title);

@@ -10,7 +10,7 @@
 
     <Grid x:Name="AppTitleBar" Grid.Row="0" Padding="16,0" Background="Transparent">
       <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <FontIcon Glyph="&#xE8D6;" FontSize="16" />
+        <Image Source="ms-appx:///Assets/Square44x44Logo.targetsize-256.png" Width="18" Height="18" Stretch="Uniform" AutomationProperties.Name="Cuelet application logo" />
         <TextBlock Text="Cuelet" Style="{StaticResource CaptionTextBlockStyle}" />
       </StackPanel>
     </Grid>
@@ -36,12 +36,14 @@
       </NavigationView.MenuItems>
       <NavigationView.FooterMenuItems>
         <NavigationViewItem Content="New category…" Tag="new-category"><NavigationViewItem.Icon><SymbolIcon Symbol="Add" /></NavigationViewItem.Icon></NavigationViewItem>
+        <NavigationViewItemSeparator />
+        <NavigationViewItem Content="About Cuelet" Tag="about" SelectsOnInvoked="False" AutomationProperties.Name="Open About Cuelet"><NavigationViewItem.Icon><FontIcon Glyph="&#xE946;" /></NavigationViewItem.Icon></NavigationViewItem>
       </NavigationView.FooterMenuItems>
 
       <Grid x:Name="PageHost">
         <Grid x:Name="OnboardingPage" Visibility="Collapsed" Padding="40">
           <StackPanel MaxWidth="620" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
-            <FontIcon Glyph="&#xE8D6;" FontSize="48" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+            <Image Source="ms-appx:///Assets/Square44x44Logo.targetsize-256.png" Width="56" Height="56" Stretch="Uniform" AutomationProperties.Name="Cuelet application logo" />
             <TextBlock x:Name="OnboardingTitle" Text="Welcome to Cuelet" Style="{StaticResource TitleTextBlockStyle}" HorizontalAlignment="Center" />
             <TextBlock x:Name="OnboardingDescription" Text="Create a sound library or use an existing folder to get started." TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
             <TextBlock x:Name="MissingLibraryPathText" Visibility="Collapsed" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
@@ -243,17 +245,6 @@
                   <Button x:Name="ClearAllShortcutsButton" Content="Clear all shortcuts" />
                 </StackPanel>
                 <TextBlock Text="Enter plays the focused selection or the best search result, Escape clears search then selection, Ctrl+A selects visible sounds, and Ctrl+F focuses search." Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
-              </StackPanel>
-            </Border>
-            <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
-            <Border Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
-              <StackPanel Spacing="6">
-                <TextBlock Text="Cuelet for Windows" FontWeight="SemiBold" />
-                <TextBlock Text="Version 0.1.0 · Native WinUI 3 and C++/WinRT" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <TextBlock Text="A native soundboard for organizing, searching, and playing audio clips quickly." TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                <HyperlinkButton Content="Cuelet GitHub Repository" NavigateUri="https://github.com/okixk/cuelet" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open https://github.com/okixk/cuelet" AutomationProperties.Name="Open Cuelet GitHub Repository" />
-                <HyperlinkButton Content="GNU Affero General Public License v3.0" NavigateUri="https://github.com/okixk/cuelet/blob/main/LICENSE" Padding="0" HorizontalAlignment="Left" ToolTipService.ToolTip="Open the Cuelet license" AutomationProperties.Name="Open Cuelet license" />
-                <TextBlock Text="Library metadata uses the portable Cuelet schema version 2." Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
               </StackPanel>
             </Border>
           </StackPanel>

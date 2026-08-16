@@ -43,6 +43,12 @@ It is built from scratch with Qt 6, CMake, C++, Qt Multimedia, and CTest. It is 
   </tr>
 </table>
 
+### Windows
+
+| Sound library | About Cuelet |
+| --- | --- |
+| ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
+
 ## Dependencies
 
 - CMake 3.21 or newer
