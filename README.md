@@ -32,7 +32,11 @@ It is built from scratch with Qt 6, CMake, C++, Qt Multimedia, and CTest. It is 
 
 ## Screenshots
 
-Screenshots will be added once the first visual pass is captured on each target platform.
+### Windows
+
+| Sound library | About Cuelet |
+| --- | --- |
+| ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
 
 ## Dependencies
 
