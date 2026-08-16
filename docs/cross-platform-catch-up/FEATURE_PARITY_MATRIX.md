@@ -1,27 +1,82 @@
-# Feature parity matrix
+# Cuelet feature parity matrix
 
-Statuses combine source inspection with the validation recorded in this
-folder. `Needs verification` means the implementation exists or may exist but
-still needs a running-platform check.
+This matrix is a validation classification, not a claim that all platforms
+were run in the same session. Results come from the platform validation records
+in this directory and the current native implementations. Historical runtime
+evidence is not presented as a new run on another host.
 
-| Area | Feature | Windows | macOS | Linux | Priority | Screenshot | Notes |
-|---|---|---|---|---|---|---|---|
-| library | scan/import supported audio | Complete | Partial | Complete | P0 | [Windows](screenshots/library-populated.png), [Linux](linux-screenshots/library-populated.png) | Linux supports recursive scan plus copy/link file, folder, and drop import; symlinks are rejected |
-| library | grid/list, scopes, sorting | Complete | Partial | Complete | P0 | [Windows](screenshots/all-categories-view.png), [Linux](linux-screenshots/category.png) | Linux grid/list, scopes, sorting, missing and empty states ran on Wayland |
-| metadata | schema-v2 title/category/favorite/notes/aliases | Complete | Partial | Complete | P0 | [Linux populated](linux-screenshots/library-populated.png) | Linux adds linked-source and duration-fingerprint persistence with tolerant atomic I/O |
-| categories | create/edit/colors/icons/delete | Complete | Partial | Complete | P0 | [Windows](screenshots/category-editor.png), [Linux](linux-screenshots/category-editor.png) | GTK uses native dialogs and a stable Linux icon mapping |
-| search | ranked search and Enter-to-play | Complete | Partial | Complete | P0 | [Linux results](linux-screenshots/search-results.png), [Linux no results](linux-screenshots/search-no-results.png) | Search, aliases/notes/categories, focus, Enter, and Escape are implemented |
-| playback | local play/pause/stop/overlap/volume/progress | Complete | Partial | Complete | P0 | [Windows](screenshots/library-playing-sound.png), [Linux](linux-screenshots/playback.png) | Linux uses GStreamer with explicit state and cleanup |
-| mini-player | now-playing progress controls | Complete | Complete | Complete | P1 | [Windows](screenshots/mini-player-playing.png), [Linux](linux-screenshots/playback.png) | Linux mini-player includes progress, pause/resume, stop, volume and Stop All |
-| shortcuts | per-sound capture/conflicts/global registration | Complete | Partial | Partial | P1 | [Windows](screenshots/shortcut-capture.png) | Linux local capture/conflicts are complete; GNOME custom-command integration replaces unsafe Wayland grabs |
-| drag and drop | import and file drag-out | Complete | Partial | Partial | P1 | None | Linux native drag-in is complete; file drag-out remains missing |
-| lifecycle | tray/background/single instance | Complete | Different by design | Partial | P1 | None | Linux forwards show/hide/play/stop/exit and notifies hidden playback; stock-GNOME tray is not promised |
-| settings | persistence and defaults | Complete | Partial | Complete | P0 | [Windows](screenshots/settings-audio-routing.png), [Linux](linux-screenshots/settings.png) | Linux validates XDG JSON values, writes private settings atomically, and persists library/view/playback/import/output/link-approval settings |
-| routing | physical input/output and local monitor | Complete | Partial | Partial | P1 | [Linux audio](linux-screenshots/audio-routing.png) | Linux can target PipeWire/PulseAudio output; input enumeration, mic mix and virtual-route local monitor remain |
-| virtual microphone | paired render/capture endpoint | Complete | Missing | Partial | P2 | [Windows](screenshots/settings-virtual-microphone-connected.png), [Linux](linux-screenshots/audio-routing.png) | Linux creates temporary user-session PipeWire sink/source nodes; no kernel driver or receiving-app claim |
-| diagnostics | endpoint classification and health | Complete | Missing | Partial | P2 | [Linux routing](linux-screenshots/audio-routing.png) | Linux reports tool/session/process state and scoped cleanup; full endpoint enumeration/classification remains |
-| onboarding | create/use/missing library | Complete | Partial | Complete | P0 | [Linux empty](linux-screenshots/empty-state.png) | Native empty, missing-folder, no-results, and populated states were exercised |
-| CLI | list/play/import/show/hide commands | Complete | Needs verification | Partial | P1 | None | Linux lists/searchable metadata and forwards library/play/stop/show/hide/rescan/exit; CLI import is absent |
-| accessibility | automation names/native controls | Partial | Partial | Partial | P1 | [Linux collapsed](linux-screenshots/collapsed.png) | Linux cards/rows expose labels, descriptions and selected state; a formal AT-SPI audit remains |
-| error handling | invalid paths, missing files, import/dialog errors | Complete | Partial | Complete | P0 | [Linux missing](linux-screenshots/library-populated.png) | Focused tests cover malformed metadata/settings, missing media, collisions, traversal, symlink rejection, unapproved links, and lifecycle failure |
-| packaging | Debug, packaged Release, installer | Partial | Partial | Partial | P2 | None | Windows has project/scripts; signing/deployment remain operational work |
+Evidence labels:
+
+- **Runtime** — exercised on the named platform with a real application or
+  endpoint;
+- **Automated** — covered by the platform's tests or verifier;
+- **Source** — implementation inspected but not runtime-proven here;
+- **Docs** — behavior stated by documentation only;
+- **Partial** — some behavior works but a required part is absent or not
+  verified;
+- **Missing** — no implementation/evidence found; and
+- **N/T** — not testable from this host.
+
+| Area | Capability | macOS | Linux | Windows | User-facing parity / note |
+|---|---|---|---|---|---|
+| Library/data | Managed import | Runtime + Automated | Runtime + Automated | Runtime + Automated | Copy mode creates Cuelet-owned media on all three. |
+| Library/data | Linked import | Runtime + Automated | Runtime + Automated | Runtime + Automated | External source preservation is explicit. |
+| Library/data | Durable metadata | Runtime + Automated | Runtime + Automated | Runtime + Automated | Schema and adapter details differ; stable IDs are intended to persist. |
+| Library/data | Stable sound IDs | Automated + Runtime | Runtime + Automated | Runtime + Automated | Rename does not change shortcut/metadata identity. |
+| Library/data | Missing-file preservation | Runtime + Automated | Runtime + Automated | Runtime + Automated | Missing entries remain visible and recoverable. |
+| Library/data | Relink | Runtime + Automated | Runtime + Automated | Source + Docs | Windows source has relink flows; final Windows runtime evidence is not in this Mac session. |
+| Library/data | Favorites/categories/notes/aliases | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native UI and persistence are platform-specific. |
+| Library/data | Remove from library | Runtime + Automated | Runtime + Automated | Runtime + Automated | Metadata-only removal preserves audio. |
+| Library/data | Delete managed file | Runtime + Automated | Runtime + Automated | Source + Automated | Requires separate destructive confirmation and safety revalidation. |
+| Library/data | Linked-file preservation | Runtime + Automated | Runtime + Automated | Source + Automated | Linked sources are not deleted by library removal. |
+| Library/data | Duplicate handling | Runtime + Automated | Runtime + Automated | Runtime + Automated | Duplicate identity/collision handling is covered. |
+| Library/data | Symlink/platform safety | Automated | Runtime + Automated | Automated | The safety primitive is platform-specific. |
+| Library/data | Atomic persistence/migration/backup | Runtime + Automated | Runtime + Automated | Runtime + Automated | Private settings/storage formats differ. |
+| Playback | Play/pause/resume/stop | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS final GUI card click was not reliable under accessibility automation; service/live tests pass. |
+| Playback | Stop All | Runtime + Automated | Runtime + Automated | Runtime + Automated | All three expose explicit stop-all behavior. |
+| Playback | Multiple simultaneous sounds | Runtime + Automated | Runtime + Automated | Runtime + Automated | Headroom/mixing implementation differs. |
+| Playback | Progress/duration/mini-player | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native controls differ. |
+| Playback | Global volume | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS overlap uses conservative per-player headroom. |
+| Playback | Explicit output selection | Runtime + Automated | Runtime + Automated | Runtime + Automated | Stable UID/device identifiers differ. |
+| Playback | Device-loss behavior | Automated + Source | Runtime + Automated | Runtime + Automated | macOS injectable loss/reconnect; Linux/Windows have runtime records. |
+| Playback | Speaker-only route | Runtime + Automated | Runtime + Automated | Runtime + Automated | Default/physical destination remains available. |
+| Playback | Virtual-only route | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS uses its HAL transport, Linux uses an app-owned PipeWire route, and the Windows Release app uses a separately installed VB-CABLE pair. |
+| Playback | Speaker-plus-virtual route | Missing | Runtime + Automated | Runtime + Automated | macOS intentionally supports one destination at a time. |
+| Playback | Physical-microphone mixing | Missing | Runtime + Automated | Runtime + Automated | Legitimate platform gap; macOS driver never opens a physical mic. |
+| Shortcuts | Local shortcuts | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native keyboard APIs differ. |
+| Shortcuts | Global shortcuts | Runtime + Automated | Runtime + Automated | Runtime + Automated | Linux uses the portal/session model; macOS Carbon; Windows global registration. |
+| Shortcuts | Stable identity across rename | Runtime + Automated | Runtime + Automated | Runtime + Automated | UUID-based behavior is aligned. |
+| Shortcuts | Conflict handling | Runtime + Automated | Runtime + Automated | Runtime + Automated | Conflict UI wording is platform-native. |
+| Shortcuts | Restore after restart | Runtime + Automated | Runtime + Automated | Runtime + Automated | Linux portal tokens/session behavior is distinct. |
+| Shortcuts | Deleted-sound behavior | Automated | Runtime + Automated | Automated | Old IDs become inert rather than targeting another sound. |
+| Virtual audio | Virtual microphone availability | Installed/runtime | Runtime | Runtime | Evidence is platform-specific: Cuelet HAL device, app-owned PipeWire graph, or separately installed VB-CABLE endpoints. |
+| Virtual audio | Installation requirement | Runtime + Docs | Runtime + Docs | Runtime + Docs | macOS uses an administrator-installed Cuelet package plus restart; Linux uses transient user-session helpers; Windows Release relies on VB-CABLE's vendor install and restart. |
+| Virtual audio | Root/admin requirement | Runtime + Docs | Runtime + Docs | Runtime + Docs | No privilege escalation in Linux runtime path. |
+| Virtual audio | Restart requirement | Runtime | N/A for transient nodes | Runtime | macOS/Windows driver lifecycle differs from Linux app-owned nodes. |
+| Virtual audio | Input/output pairing | Runtime + Automated | Runtime + Automated | Runtime + Automated | All expose paired injection/capture concepts. |
+| Virtual audio | Multi-client capture | Runtime + Automated | Runtime + Automated | Runtime + Automated | The implementations use platform-native client and endpoint models. |
+| Virtual audio | Physical-mic mixing | Missing | Runtime + Automated | Runtime + Automated | Not equivalent today. |
+| Virtual audio | Speaker monitoring | Missing | Runtime + Automated | Runtime + Automated | macOS route is one destination. |
+| Virtual audio | Runtime cleanup | Runtime + Docs | Runtime + Automated | Runtime + Automated | macOS HAL and Windows VB-CABLE endpoints persist after app exit; Linux nodes/helpers disappear. |
+| Virtual audio | Production signing | Missing | N/A | Missing | macOS app/driver and Windows MSIX still need production identities and signing; Linux has no kernel driver to sign. |
+| Virtual audio | Sandboxed distribution | Docs only | Docs | Docs | No production Store/App Store/notarized package claim. |
+| UI | Grid/list/navigation | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native implementations differ. |
+| UI | Context menus | Runtime + Automated | Runtime + Automated | Runtime + Automated | Wording and native menu surfaces differ. |
+| UI | Missing-file UI | Runtime + Automated | Runtime + Automated | Runtime + Automated | Preserve visibility and recovery actions. |
+| UI | Import-mode selection | Runtime + Automated | Runtime + Automated | Runtime + Automated | Copy/link semantics are documented. |
+| UI | Mini-player/routing settings | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS driver status is now live-verified. |
+| UI | Driver status/diagnostics | Runtime + Automated | Runtime + Automated | Runtime + Automated | Status models are platform-specific and should remain so. |
+| UI | Accessibility | Partial | Partial | Partial | Important labels exist; complete AT/VoiceOver/Narrator audits remain open. |
+| Packaging | Debug/Release build | Runtime + Automated | Runtime + Automated | Runtime + Automated | Packaging toolchains differ. |
+| Packaging | Local release artifact | Automated | Automated | Automated | macOS has a local Installer package, Linux a validated tar archive, and Windows an unsigned local MSIX; none is a signed public release. |
+
+## Highest-value gaps
+
+1. macOS physical-microphone mixing and simultaneous speaker-plus-virtual
+   routing are intentionally absent.
+2. Windows and macOS production signing/distribution are not complete.
+3. Broader receiving-application and sleep/wake compatibility evidence is
+   incomplete on macOS.
+4. Linux receiving-application coverage beyond `pw-record` remains limited.
+5. Accessibility audits are partial on every platform even though important
+   controls have labels and native semantics.

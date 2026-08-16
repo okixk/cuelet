@@ -1,12 +1,38 @@
 # Linux validation record
 
-> Historical note: references below to the former root Qt/CMake prototype
-> describe the repository as it existed during the July 2026 validation. That
-> prototype was removed before the Linux 0.1.0 final audit.
-
 This record covers the native GTK4/libadwaita catch-up on
 `feat/linux-parity-catch-up`. Validation used only generated audio fixtures
 and isolated XDG settings.
+
+## 2026-08-16 v0.1.0 release audit
+
+A fresh ARM64 Ubuntu 26.04 container on an Apple Silicon macOS host built the
+native application with Meson 1.10.1, Ninja 1.13.2, GCC 15.2.0, GTK 4.22.4,
+libadwaita 1.9.1, GStreamer 1.28.2, and JSON-GLib 1.10.8. The optimized Release
+configuration used `-Dwerror=true` and kept the new `developer_tools` option at
+its default `false` value.
+
+A separate out-of-tree Debug compile with `-Ddeveloper_tools=true` and
+`-Dwerror=true` also succeeded, confirming that the opt-in documentation
+screenshot path remains buildable without including it in Release.
+
+All 15 registered Meson tests passed in the clean Release build. A focused
+rerun also passed the About-dialog, release-metadata, PipeWire routing,
+PipeWire routing-service, and virtual-microphone tests. The release-hygiene
+check passed without allowing the removed demo-library marker.
+
+The release script then performed its own fresh Release build and 15-test run,
+staged the conventional `/usr` install tree, stripped the executable, and
+successfully ran its desktop-file, AppStream (pedantic), XML, icon, version,
+installed-file, dynamic-dependency, source-path, and archive-content checks.
+It produced `Cuelet-0.1.0-linux-aarch64.tar.gz` in the isolated container output
+directory; that generated archive was not copied into the repository. The
+archive hash is intentionally not recorded here because the reproducible
+timestamp follows the source commit, including this validation record.
+
+This container run validates build, tests, and packaging. It does not claim a
+new live GNOME Wayland or PipeWire receiving-application session; the dated
+runtime records below remain the evidence for those integrations.
 
 ## 2026-07-31 Cuelet Virtual Microphone validation
 
@@ -61,8 +87,9 @@ selector, so it could not safely select Cuelet without changing the desktop
 default. No default was changed. Discord, OBS, Firefox capture, games, KDE,
 Flatpak, and Snap were not tested and are not claimed.
 
-After the final lifecycle and UI fixes, clean warnings-as-errors Debug and
-Release builds completed and all 12 registered Meson tests passed in both.
+After the final lifecycle and UI fixes at that checkpoint, clean
+warnings-as-errors Debug and Release builds completed and all 12 registered
+Meson tests passed in both.
 The same 12 tests passed under combined ASan/UBSan with leak detection disabled
 for GLib/GStreamer process-global allocations and fatal sanitizer errors
 enabled. `git diff --check` passed. A final post-build AT-SPI check observed the
@@ -126,7 +153,7 @@ x86_64, GNOME 50.1, and Wayland. System installation of the five missing
 development packages reached an authentication prompt and was cancelled; no
 system package state changed. The exact apt-resolved development package set
 was instead downloaded and extracted under `/tmp/cuelet-sdk-ubuntu2604`, then
-used through `PKG_CONFIG_PATH`. Qt was not installed or used.
+used through `PKG_CONFIG_PATH`.
 
 Strict Debug and optimized Release builds completed with warnings treated as
 errors. All nine Meson tests passed in Debug, Release, and combined ASan/UBSan
@@ -160,7 +187,7 @@ responsiveness remains a confirmed follow-up.
 
 | Item | Observed value |
 |---|---|
-| Repository | `/home/oki/projects/cuelet` |
+| Repository | `<repository-root>` |
 | Base commit | `5f7fb0ef76f16689bd5cdde324c063c559526a28` |
 | CPU | `x86_64` |
 | OS | Ubuntu 26.04 LTS |
@@ -168,7 +195,7 @@ responsiveness remains a confirmed follow-up.
 | GTK / libadwaita | 4.22.4 / 1.9.1 |
 | PipeWire / WirePlumber | 1.6.2 / 0.5.13 |
 | GStreamer / JSON-GLib | 1.28.2 / 1.10.8 |
-| CMake / Meson / Ninja | 4.2.3 / 1.10.1 / 1.13.2 |
+| Meson / Ninja | 1.10.1 / 1.13.2 |
 | Compiler | GCC/G++ 15.2.0 |
 
 The development headers were absent from the system package database. A
@@ -220,12 +247,6 @@ ASan/UBSan builds:
 scoped shared-core and Linux service/helper logic. GTK rendering and
 desktop-session callbacks were validated at runtime rather than counted in
 that scoped percentage.
-
-The older root Qt/CMake reference also built in clean Debug and Release
-directories and passed all six CTest tests in each configuration. Warnings
-were enabled. A stricter `-Werror` probe exposed three pre-existing warnings
-in the unrelated Qt prototype (`LegacySettingsImporter.cpp` and
-`MainWindow.cpp`); those files were not changed by the Linux catch-up.
 
 ## Wayland application validation
 

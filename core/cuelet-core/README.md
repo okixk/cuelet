@@ -12,6 +12,8 @@ Current responsibilities:
 - In-library `.cuelet-metadata.json` load/save through a small API.
 
 The Linux Meson build links these sources directly. Windows compiles the
-toolkit-neutral subset into its native core library.
+toolkit-neutral subset into its native core library. macOS currently implements
+the corresponding models and services in native Swift rather than linking this
+C++ library.
 
 The public API is C++ today. macOS can continue using Swift services until there is a clear reason to add a Swift bridge or another FFI boundary.

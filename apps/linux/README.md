@@ -70,12 +70,6 @@ The installed `io.cuelet.Cuelet.desktop` file is required for host-app portal
 registration. A direct build-tree launch remains suitable for local-only
 development after that desktop entry has been installed.
 
-Optional demo mode:
-
-```bash
-./apps/linux/build/debug/cuelet --demo
-```
-
 The tracked `data/io.cuelet.Cuelet.svg` remains the canonical artwork. Meson
 generates the installed Linux icon from it by changing only the root SVG
 viewport to add transparent optical padding; all paths, transforms, styles,
@@ -187,8 +181,9 @@ binary archive from a fresh, stripped Meson Release build and its audited
 ```
 
 The command runs all Linux tests and validators before writing
-`apps/linux/dist/Cuelet-0.1.0-linux-x86_64.tar.gz`. The archive contains only
-the conventional `/usr` runtime tree: `cuelet`, its desktop entry, the scalable
+`apps/linux/dist/Cuelet-0.1.0-linux-<architecture>.tar.gz`, where the
+architecture is reported by `uname -m`. The archive contains only the
+conventional `/usr` runtime tree: `cuelet`, its desktop entry, the scalable
 hicolor icon, AppStream metadata, installation notes, installed-file manifest,
 and license. It does not bundle normal system libraries.
 
@@ -212,7 +207,7 @@ Warnings-as-errors Debug and optimized Release builds:
 
 ```bash
 meson setup apps/linux/build/debug apps/linux --wipe \
-  --buildtype=debug -Dwerror=true
+  --buildtype=debug -Dwerror=true -Ddeveloper_tools=true
 meson compile -C apps/linux/build/debug
 meson test -C apps/linux/build/debug --print-errorlogs
 
@@ -228,6 +223,10 @@ ASAN_OPTIONS=detect_leaks=0:halt_on_error=1 \
 UBSAN_OPTIONS=halt_on_error=1 \
 meson test -C apps/linux/build/sanitize --print-errorlogs
 ```
+
+`developer_tools` is disabled by default and should remain off for Release
+builds. Enabling it compiles the environment-driven visual-capture support used
+to update approved documentation screenshots.
 
 ## Implemented
 

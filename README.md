@@ -1,17 +1,10 @@
 # Cuelet
 
-Cuelet is a native cross-platform desktop soundboard for organizing,
-searching, and playing audio clips during calls, streams, tabletop sessions,
-voice chat, and live cues.
+Cuelet is a native desktop soundboard for organizing, finding, and playing audio clips during calls, streams, tabletop sessions, voice chat, and live cues. Each supported platform has a native interface and integrates with its own audio stack.
 
-![Cuelet soundboard on Linux](docs/images/cuelet-main-linux.png)
+## Screenshots
 
-The native Linux frontend uses GTK4/libadwaita and integrates with GStreamer
-and PipeWire for responsive playback and virtual-microphone routing.
-
-![About Cuelet](docs/images/cuelet-about-linux.png)
-
-Each supported platform has a native frontend:
+### macOS
 
 <table>
   <tr>
@@ -24,10 +17,11 @@ Each supported platform has a native frontend:
   </tr>
 </table>
 
-- Linux: GTK4/libadwaita, C++, GStreamer, PipeWire integration, and Meson
-  under `apps/linux`.
-- macOS: SwiftUI/AppKit under `apps/macos`.
-- Windows: WinUI 3 and C++/WinRT under `apps/windows`.
+### Linux
+
+| Sound library | About Cuelet |
+| --- | --- |
+| ![Cuelet sound library on Linux](docs/images/cuelet-main-linux.png) | ![About Cuelet on Linux](docs/images/cuelet-about-linux.png) |
 
 ### Windows
 
@@ -35,76 +29,99 @@ Each supported platform has a native frontend:
 | --- | --- |
 | ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
 
-Toolkit-neutral C++ models, scanning, search, and metadata behavior live under
-`core/cuelet-core`.
+## Features
 
-## Linux
+- Folder-based sound libraries with safe copy and link imports.
+- Search, favorites, recent sounds, categories, notes, aliases, and grid/list views.
+- Multiple simultaneous sounds, pause/resume, Stop All, volume control, and output selection.
+- Per-sound local and global shortcuts.
+- Portable `.cuelet-metadata.json` library metadata with conservative migration and recovery.
+- Native virtual-microphone routing on macOS, Windows, and Linux, subject to the platform notes below.
+- No system-default audio-device changes.
 
-The production Linux frontend targets Ubuntu/GNOME/Wayland. Install its build
-dependencies on Ubuntu:
+## Platform status
+
+Cuelet 0.1.0 is pre-1.0 software. The root [`VERSION`](VERSION) file is the
+authoritative application release version; platform manifests are checked
+against it. The native applications are implemented and covered by platform
+tests, but public distribution still requires the platform-specific signing or
+publication work described below.
+
+| Platform | Native UI | Minimum / validated environment | Virtual microphone |
+| --- | --- | --- | --- |
+| macOS | SwiftUI/AppKit | macOS 14+, Apple Silicon build | Installer package includes the HAL driver; Developer ID signing/notarization still required |
+| Linux | GTK4/libadwaita | GTK 4.10+, libadwaita 1.5+, GStreamer 1.20+ | App-owned PipeWire route; requires `pw-loopback` and PipeWire GStreamer support |
+| Windows | WinUI 3 / C++/WinRT | Windows 10 1809+; Windows 11 recommended | Release uses a separately installed VB-CABLE pair; Cuelet's own driver remains development-only |
+
+## Build
+
+### macOS
+
+Requirements: Xcode command-line tools and Swift 5.10 or newer.
 
 ```bash
-sudo apt install build-essential meson ninja-build pkg-config \
-  libgtk-4-dev libadwaita-1-dev \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  libjson-glib-dev
+cd apps/macos
+swift build
+swift test
+./scripts/build-macos.sh
+./scripts/build-release-package.sh --local
+open dist/macos/Cuelet.app
 ```
 
-Build and test:
+The local app bundle and bundled HAL are ad-hoc signed for verification only. The local Installer package exercises the real application and system-driver destinations but is not distributable. Building never installs the package or driver. See [apps/macos/README.md](apps/macos/README.md) for package modes, signing hooks, and driver compatibility details.
+
+### Linux
+
+Install a C++ compiler, Meson, Ninja, GTK4, libadwaita, GStreamer, and JSON-GLib development packages, then run:
 
 ```bash
-meson setup apps/linux/build/debug apps/linux \
-  --buildtype=debug -Dwerror=true
-meson compile -C apps/linux/build/debug
-meson test -C apps/linux/build/debug --print-errorlogs
-./apps/linux/build/debug/cuelet
+meson setup apps/linux/build/release apps/linux --buildtype=release -Dwerror=true
+meson compile -C apps/linux/build/release
+meson test -C apps/linux/build/release --print-errorlogs
 ```
 
-See [apps/linux/README.md](apps/linux/README.md) for runtime codecs, PipeWire
-virtual-microphone behavior, GNOME/Wayland shortcuts, installation, and the
-reproducible `0.1.0` release archive workflow.
+See [apps/linux/README.md](apps/linux/README.md) for distribution packages, optional PipeWire dependencies, and user-local installation.
 
-## macOS
+### Windows
 
-See [apps/macos/README.md](apps/macos/README.md) for the native macOS build,
-test, virtual-audio driver, and package workflows.
+Requirements: Visual Studio with MSVC x64, Windows App SDK dependencies, and a supported Windows SDK.
 
-## Windows
+```powershell
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\build-windows.ps1 -Configuration Release
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\test-windows.ps1 -Configuration Release
+```
 
-See [apps/windows/README.md](apps/windows/README.md) for the native Windows
-build, test, virtual-audio driver, and package workflows.
+Ordinary Release builds exclude the development/test-signed virtual-audio package. See [apps/windows/README.md](apps/windows/README.md) for MSIX packaging and the current driver-signing boundary.
 
-### Screenshots
-
-| Sound library | About Cuelet |
-| --- | --- |
-| ![Cuelet sound library on Windows](docs/images/cuelet-main-windows.png) | ![About Cuelet on Windows](docs/images/cuelet-about-windows.png) |
-
-## Project Structure
+## Repository layout
 
 ```text
-apps/
-  linux/
-  macos/
-  windows/
-core/
-  cuelet-core/
-docs/
-VERSION
-LICENSE
+apps/macos/                 Native macOS app and HAL driver
+apps/linux/                 Native Linux app
+apps/windows/               Native Windows app and driver development tree
+core/cuelet-core/           Shared C++ library and metadata model
+docs/                       Architecture, schema, and developer validation records
+scripts/                    Shared release-validation tooling
 ```
 
-See [docs/architecture.md](docs/architecture.md) for module and build
-boundaries.
+## Current limitations
 
-## Shared Data
+- Public macOS binaries require Developer ID signing, hardened-runtime review, notarization, and stapling. The Installer-package structure is implemented.
+- The Windows app requires a real publisher identity and signed MSIX. The Release route relies on separately installed VB-CABLE; Cuelet's development driver remains excluded until it has Microsoft-compatible production signing.
+- Linux virtual-microphone behavior depends on the host PipeWire/session environment and available GStreamer plugins.
+- Cuelet does not currently apply loudness normalization, compression, limiting, acoustic echo cancellation, or clip editing.
+- Current macOS builds are arm64-only. Cross-architecture artifacts have not been prepared.
 
-Library metadata is stored in `.cuelet-metadata.json` inside the selected
-library so it survives rescans and can move with the audio folder. See
-[docs/metadata-schema.md](docs/metadata-schema.md) for the shared schema and
-legacy-data migration behavior.
+## Documentation
 
-Application settings and audio routing remain platform-specific. Linux stores
-settings atomically in the XDG configuration directory and provides temporary
-PipeWire virtual-microphone routing without changing the desktop default
-source.
+- [macOS build and architecture](apps/macos/README.md)
+- [Linux build and runtime integration](apps/linux/README.md)
+- [Windows build and packaging](apps/windows/README.md)
+- [Portable metadata schema](docs/metadata-schema.md)
+- [Architecture](docs/architecture.md)
+
+Detailed validation records remain in `docs/cross-platform-catch-up/` for developers; they are not required for normal use.
+
+## License
+
+Cuelet is licensed under the [GNU Affero General Public License v3.0 only](LICENSE).
