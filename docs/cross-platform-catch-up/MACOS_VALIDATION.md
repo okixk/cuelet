@@ -12,7 +12,7 @@ tracked by this record.
 
 | Item | Validated value |
 |---|---|
-| Git commit | `8131c5ed12c841eade2ffbcb0fc2b68c7788314f` |
+| Git commit | `3084912f994a1d457c67d38d6184933f72ea8160` |
 | Git branch | `feat/linux-parity-catch-up` |
 | Source state before build | clean; local HEAD equaled `github/feat/linux-parity-catch-up` |
 | macOS | 26.6.2, build 25G83 |

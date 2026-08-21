@@ -108,7 +108,7 @@ loaded module. Stage B is blocked.
 - Repository HEAD at task start:
   `abf3e888f8e0d60f06dbad91ad33d79f5da48602`, branch `main`.
 - Task-start backup:
-  `C:\Users\oki\projects\cuelet-task-backups\20260719-002054`.
+  `$VALIDATION_ROOT\cuelet-task-backups\20260719-002054`.
 - The backup contains all 57 Git-reported files, Git status, unstaged and
   staged diffs, diff statistics, HEAD/branch metadata, crash diagnostics, and
   the driver overlay. Its 115 copied files total 9,160,912 bytes; hash
@@ -123,7 +123,7 @@ loaded module. Stage B is blocked.
 
 Evidence root:
 
-`C:\Users\oki\projects\cuelet-crash-diagnostics\20260718-211513-driver-20.37.42.726`
+`$VALIDATION_ROOT\cuelet-crash-diagnostics\20260718-211513-driver-20.37.42.726`
 
 | Artifact | SHA-256 |
 |---|---|
@@ -142,7 +142,7 @@ with private symbols and lines. The crashing PDB identifier is
 The PDB referenced 98 source files. All 98 embedded source checksums matched
 the preserved generated tree. A PDB-verified supplemental snapshot is at:
 
-`C:\Users\oki\projects\cuelet-driver-analysis\20260719-003000\crashing-source-snapshot`
+`$VALIDATION_ROOT\cuelet-driver-analysis\20260719-003000\crashing-source-snapshot`
 
 The source is based on Microsoft SysVAD commit
 `2ee527bfeb0aeb6be11f0a8b6dce4011b358ce89`.
@@ -152,7 +152,7 @@ The source is based on Microsoft SysVAD commit
 The required WinDbg commands were run against only the preserved small dump,
 Microsoft symbols, and exact local PDB. Logs and command files are under:
 
-`C:\Users\oki\projects\cuelet-driver-analysis\20260719-003000`
+`$VALIDATION_ROOT\cuelet-driver-analysis\20260719-003000`
 
 The dump is a mini kernel/triage dump containing registers and a kernel stack.
 It reports:
@@ -224,11 +224,11 @@ conflated with this `0x1E` dump or with the later filesystem-related incident.
 
 Working source:
 
-`C:\Users\oki\projects\cuelet-backups\20260718-201822-before-audio-fidelity-investigation`
+`$VALIDATION_ROOT\cuelet-backups\20260718-201822-before-audio-fidelity-investigation`
 
 Crashing source:
 
-`C:\Users\oki\projects\cuelet-backups\20260718-211513-before-kernel-crash-analysis`
+`$VALIDATION_ROOT\cuelet-backups\20260718-211513-before-kernel-crash-analysis`
 
 Only the bridge CPP and prepare script changed. The bridge header, render and
 capture integration, adapter, allocation model, and ownership model were
@@ -408,7 +408,7 @@ built and passed without loading the driver.
 
 Candidate directory:
 
-`C:\Users\oki\projects\cuelet\apps\windows\x64\Debug\DriverPackage-20.40.0.719-Candidate`
+`$REPO\apps\windows\x64\Debug\DriverPackage-20.40.0.719-Candidate`
 
 | Candidate artifact | SHA-256 |
 |---|---|

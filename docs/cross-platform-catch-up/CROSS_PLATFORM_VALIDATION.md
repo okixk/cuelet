@@ -25,8 +25,8 @@ internal audio graphs. User-facing capability and the limits of each supported
 
 | Platform | Candidate evidence | Functional result | Distribution boundary |
 |---|---|---|---|
-| macOS | Cuelet 0.1.0 build 1 and driver 0.1.11 build 12 at Git `8131c5ed12c841eade2ffbcb0fc2b68c7788314f` | Exact installed post-restart driver hash, deterministic transport, real Cuelet-to-virtual-input routing, and normal System Output playback passed | Developer ID signing, notarization, stapling, and public Gatekeeper validation remain |
-| Linux | Native GTK4/libadwaita Release build, 15 registered release tests, validated archive, and retained GNOME/Wayland/PipeWire runtime evidence | App-owned virtual source, Cuelet injection, optional physical-source mix, combined physical-output/virtual mode, shortcuts, and cleanup passed within the recorded scope | Broader packaging/publication and receiving-client coverage remain |
+| macOS | Cuelet 0.1.0 build 1 and driver 0.1.11 build 12 at Git `3084912f994a1d457c67d38d6184933f72ea8160` | Exact diagnostic/live candidate loaded after normal restart; 48 kHz stereo Float32 transport, 432,000/432,000 active frames, zero drops/holes/phase discontinuities, real Cuelet playback, and normal System Output playback passed | Developer ID signing, notarization, stapling, and public Gatekeeper validation remain; physical-microphone mixing and simultaneous local monitoring are not claimed |
+| Linux | Native Ubuntu 26.04 GNOME/Wayland x86_64 Release build at Git `3084912f994a1d457c67d38d6184933f72ea8160`; 15/15 tests twice; reproducible archive | App-owned virtual source, Cuelet injection, optional physical-source mix, combined physical-output/virtual mode, shortcuts, and cleanup passed within the recorded scope | Broader distro packaging/publication and receiving-client coverage remain |
 | Windows | Cuelet 0.1.0.0 x64 rebuilt at Git `c466c01d48e1d04f37e34db338ee9ea3ee8dbf7f` with real installed VB-CABLE endpoints | Independent pair flow, real Cuelet capture, repeated play/stop, local monitoring, cleanup, and relaunch passed within the recorded scope | Production publisher/signing and WACK on that exact signed package remain |
 
 Linux and Windows values above are transcribed from their platform records;
@@ -38,14 +38,16 @@ identity and measurements.
 
 ## Exact macOS closure
 
-The earlier macOS functional blocker was an evidence-identity mismatch: an
-installed driver had the expected 0.1.11/12 version but not the executable hash
-pinned by the committed diagnostic workflow. The current cycle closed that
-blocker without restarting `coreaudiod` or changing system defaults.
+The macOS cycle established the production and diagnostic/live driver hashes
+as two intentional build variants. The packaged production driver omits
+diagnostic telemetry; the separately loaded validation candidate includes it.
+They therefore differ by design, while the exact diagnostic candidate was
+loaded and validated after a normal restart without restarting `coreaudiod` or
+changing system defaults.
 
 | Item | Exact result |
 |---|---|
-| Validated Git commit | `8131c5ed12c841eade2ffbcb0fc2b68c7788314f` |
+| Validated Git commit | `3084912f994a1d457c67d38d6184933f72ea8160` |
 | Host | macOS 26.6.2 build 25G83, arm64 |
 | Deployment target | macOS 14.0 |
 | Cuelet | 0.1.0 build 1 |
@@ -54,7 +56,7 @@ blocker without restarting `coreaudiod` or changing system defaults.
 | Exact diagnostic/live driver SHA-256 | `9cad2be160bc79de737b71aa4cd8a0e94b8ac241193322a3d7c4a5dcd2a839c8` |
 | Installed exact-live hash after restart | `9cad2be160bc79de737b71aa4cd8a0e94b8ac241193322a3d7c4a5dcd2a839c8` |
 | Endpoint | `ch.oki.cuelet.virtual-microphone`, 48 kHz, stereo Float32 |
-| Deterministic workflow | PASS; 672,256 captured frames over 14.005333 s; zero receiver block/event drops; zero active holes or phase discontinuities |
+| Deterministic workflow | PASS; 432,000 / 432,000 active payload frames; zero receiver block/event drops, active holes, zero runs, or phase discontinuities |
 | Real Cuelet path | 480,256 captured frames over 10.005333 s; 350,047 nonzero; zero receiver drops or active holes |
 
 The production and diagnostic hashes intentionally differ because bounded
@@ -96,7 +98,7 @@ virtual-only workflow.
 | macOS driver | 1,252,215 core, 15,678 diagnostic contract, 4,360 production contract, 50 replay, and 1,396 telemetry assertions; three analyzer tests |
 | macOS robustness | 100,000-iteration stress, ASan/UBSan, standalone UBSan, TSan, and three Clang analyzer translation units passed |
 | macOS local package | App/driver identity, payload, upgrade/downgrade guards, icon, license, developer-path scan, and release hygiene passed; local-only warning present; unsigned public-looking output refused |
-| Linux release | Fresh ARM64 Release build and all 15 registered Meson tests passed; archive content, metadata, dependency, icon, license, and path checks passed |
+| Linux release | Fresh x86_64 Release build twice; 15/15 tests each; archive content, metadata, dependency, icon, license, path, and AppStream-pedantic checks passed; archives were byte-identical |
 | Windows release | x64 Rebuild, aggregate core suite, metadata/icon check, and actual unsigned MSIX content audit passed |
 
 ## Release conclusion

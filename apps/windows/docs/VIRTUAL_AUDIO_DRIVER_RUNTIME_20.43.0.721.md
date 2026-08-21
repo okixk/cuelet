@@ -206,7 +206,7 @@ and Windows recorded no candidate Code Integrity failure.
 The rollback command was printed and recorded before installation:
 
 ```powershell
-& "C:\Users\oki\projects\cuelet\apps\windows\x64\Debug\Cuelet.VirtualAudio.Installer.exe" uninstall
+& "$REPO\apps\windows\x64\Debug\Cuelet.VirtualAudio.Installer.exe" uninstall
 ```
 
 ## Stage B

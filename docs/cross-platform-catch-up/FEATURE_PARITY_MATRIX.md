@@ -15,7 +15,7 @@ Evidence labels:
 - **Partial** — some behavior works but a required part is absent or not
   verified;
 - **Missing** — no implementation/evidence found; and
-- **N/T** — not testable from this host.
+- **N/T** — not testable from this host or not retested in the named final cycle.
 
 | Area | Capability | macOS | Linux | Windows | User-facing parity / note |
 |---|---|---|---|---|---|
@@ -42,7 +42,7 @@ Evidence labels:
 | Playback | Speaker-only route | Runtime + Automated | Runtime + Automated | Runtime + Automated | Default/physical destination remains available. |
 | Playback | Virtual-only route | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS uses its HAL transport, Linux uses an app-owned PipeWire route, and the Windows Release app uses a separately installed VB-CABLE pair. |
 | Playback | Speaker-plus-virtual route | Missing | Runtime + Automated | Runtime + Automated | macOS intentionally supports one destination at a time. |
-| Playback | Physical-microphone mixing | Missing | Runtime + Automated | Runtime + Automated | Legitimate platform gap; macOS driver never opens a physical mic. |
+| Playback | Physical-microphone mixing | Unsupported for 0.1.0 | Runtime + Automated | Implemented; not retested in final cycle because Windows microphone access was disabled | macOS does not claim this capability; Linux live evidence covers the selected-source path. |
 | Shortcuts | Local shortcuts | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native keyboard APIs differ. |
 | Shortcuts | Global shortcuts | Runtime + Automated | Runtime + Automated | Runtime + Automated | Linux uses the portal/session model; macOS Carbon; Windows global registration. |
 | Shortcuts | Stable identity across rename | Runtime + Automated | Runtime + Automated | Runtime + Automated | UUID-based behavior is aligned. |
@@ -55,8 +55,8 @@ Evidence labels:
 | Virtual audio | Restart requirement | Runtime | N/A for transient nodes | Runtime | macOS/Windows driver lifecycle differs from Linux app-owned nodes. |
 | Virtual audio | Input/output pairing | Runtime + Automated | Runtime + Automated | Runtime + Automated | All expose paired injection/capture concepts. |
 | Virtual audio | Multi-client capture | Runtime + Automated | Runtime + Automated | Runtime + Automated | The implementations use platform-native client and endpoint models. |
-| Virtual audio | Physical-mic mixing | Missing | Runtime + Automated | Runtime + Automated | Not equivalent today. |
-| Virtual audio | Speaker monitoring | Missing | Runtime + Automated | Runtime + Automated | macOS route is one destination. |
+| Virtual audio | Physical-mic mixing | Unsupported | Runtime + Automated | Implemented; not retested in final cycle | Windows latest-cycle microphone access was disabled; VB-CABLE is separately installed and not redistributed. |
+| Virtual audio | Speaker monitoring | Unsupported / not claimed | Runtime + Automated | Runtime + Automated | macOS does not claim simultaneous local monitoring. |
 | Virtual audio | Runtime cleanup | Runtime + Docs | Runtime + Automated | Runtime + Automated | macOS HAL and Windows VB-CABLE endpoints persist after app exit; Linux nodes/helpers disappear. |
 | Virtual audio | Production signing | Missing | N/A | Missing | macOS app/driver and Windows MSIX still need production identities and signing; Linux has no kernel driver to sign. |
 | Virtual audio | Sandboxed distribution | Docs only | Docs | Docs | No production Store/App Store/notarized package claim. |
@@ -68,7 +68,7 @@ Evidence labels:
 | UI | Driver status/diagnostics | Runtime + Automated | Runtime + Automated | Runtime + Automated | Status models are platform-specific and should remain so. |
 | UI | Accessibility | Partial | Partial | Partial | Important labels exist; complete AT/VoiceOver/Narrator audits remain open. |
 | Packaging | Debug/Release build | Runtime + Automated | Runtime + Automated | Runtime + Automated | Packaging toolchains differ. |
-| Packaging | Local release artifact | Automated | Automated | Automated | macOS has a local Installer package, Linux a validated tar archive, and Windows an unsigned local MSIX; none is a signed public release. |
+| Packaging | Local release artifact | Automated; unsigned publication package | Automated; reproducible x86_64 tar archive | Automated; unsigned local MSIX | macOS and Windows publication remains blocked by production signing; Linux has no driver-signing requirement. |
 
 ## Highest-value gaps
 
