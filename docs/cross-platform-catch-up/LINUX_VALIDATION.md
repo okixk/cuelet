@@ -1,8 +1,8 @@
 # Linux validation record
 
 This is the authoritative Linux 0.1.0 release record. It supersedes the
-earlier ARM64/container result and records validation from the exact current
-HEAD on native Ubuntu/GNOME/Wayland x86_64. Generated builds, archives,
+earlier ARM64/container result and records validation of the exact package
+inputs on native Ubuntu/GNOME/Wayland x86_64. Generated builds, archives,
 recordings, logs, and temporary directories were not retained in the
 repository.
 
@@ -10,9 +10,11 @@ repository.
 
 | Item | Observed value |
 |---|---|
-| Git HEAD | `0bd0c535ce68c520ae40e415437c78f13a1423d0` |
+| Audited GitHub base | `9d552362885d71f982787a8d4b1f0c0351c7f9d5` |
+| Validated package-input commit | `d4e9fadbde86f6cd100f810a49deadb765bfdcab` |
 | Branch | `feat/linux-parity-catch-up` |
-| Working tree before validation | clean; local HEAD equaled `github/feat/linux-parity-catch-up` |
+| Working tree before correction | clean; local HEAD equaled `github/feat/linux-parity-catch-up` |
+| Derived `SOURCE_DATE_EPOCH` | `1787332242` |
 | Distribution | Ubuntu 26.04 LTS |
 | Kernel | Linux 7.0.0-30-generic x86_64 |
 | Architecture | `x86_64` |
@@ -30,13 +32,16 @@ The host is the primary supported validation scope: Ubuntu 26.04 LTS,
 GNOME, Wayland, and x86_64. No claim is made for other distributions, KDE,
 Flatpak, Snap, or receiving applications beyond the clients named below.
 
-## 2026-08-21 exact-HEAD Release validation
+## 2026-08-21 stable-input Release validation
 
 The committed `apps/linux/scripts/package-linux-release.sh` pipeline was run
 twice from clean temporary build/staging directories with
-`SOURCE_DATE_EPOCH` set to the exact HEAD commit timestamp. Each run performed
-an optimized Meson Release build with `-Dwerror=true`, `-Dstrip=true`, and the
-supported Ninja workflow.
+`SOURCE_DATE_EPOCH` unset. The script derived epoch `1787332242`, the newest
+Git commit timestamp across the tracked inputs that can affect the installed
+Linux payload or deterministic archive construction. Unpackaged documentation
+and tests do not influence that default. Each run performed an optimized Meson
+Release build with `-Dwerror=true`, `-Dstrip=true`, and the supported Ninja
+workflow.
 
 Both runs passed:
 
@@ -65,9 +70,16 @@ The Linux source has no Qt dependency or legacy root CMake build path.
 | Item | Result |
 |---|---|
 | Filename | `Cuelet-0.1.0-linux-x86_64.tar.gz` |
-| Size | 568,215 bytes |
-| SHA-256 | `1215a965b4ae50a22f48afb2fbc1bc3cd3a1011c1f0034ac70cd0c940eb8e73e` |
+| Size | 568,212 bytes |
+| SHA-256 | `fd7ae472486c395cbd65eb2fb88c6e29c10574f73164912f193e7ee6cd364471` |
 | Reproducibility | Two equivalent clean builds were byte-identical |
+
+A separate disposable clone then received a later documentation-only commit
+outside the Linux package-input set. With `SOURCE_DATE_EPOCH` still unset, the
+resolver retained epoch `1787332242`; a third complete package build produced
+the same 568,212-byte archive byte-for-byte. The disposable commit, clone,
+build, and archive were removed after comparison and never entered the release
+branch.
 
 The inspected archive contained the `cuelet` executable, desktop file, padded
 scalable SVG icon, AppStream metadata, packaging README and installed-file

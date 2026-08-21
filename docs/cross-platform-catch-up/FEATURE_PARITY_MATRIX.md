@@ -68,7 +68,7 @@ Evidence labels:
 | UI | Driver status/diagnostics | Runtime + Automated | Runtime + Automated | Runtime + Automated | Status models are platform-specific and should remain so. |
 | UI | Accessibility | Partial | Partial | Partial | Important labels exist; complete AT/VoiceOver/Narrator audits remain open. |
 | Packaging | Debug/Release build | Runtime + Automated | Runtime + Automated | Runtime + Automated | Packaging toolchains differ. |
-| Packaging | Local release artifact | Automated; unsigned publication package | Automated; reproducible x86_64 tar archive | Automated; unsigned local MSIX | macOS and Windows publication remains blocked by production signing; Linux has no driver-signing requirement. |
+| Packaging | Local release artifact | Automated; unsigned local-only test package | Automated; reproducible x86_64 tar archive | Automated; unsigned local MSIX | macOS and Windows publication remains blocked by production signing; Linux has no driver-signing requirement. |
 
 ## Highest-value gaps
 
