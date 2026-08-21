@@ -195,8 +195,9 @@ the newest commit timestamp across the tracked inputs that can affect the
 installed Linux payload or deterministic archive construction: the version and
 license, Linux Meson/source/resource/installed-data inputs, the package and icon
 scripts, and the compiled shared core. Unpackaged documentation and tests are
-intentionally excluded, so an unrelated documentation-only commit does not
-change otherwise identical archive bytes.
+intentionally excluded, as is the developer-tools-only visual-capture source,
+so changes outside the Release payload do not change otherwise identical
+archive bytes.
 
 An explicit `SOURCE_DATE_EPOCH` always takes precedence. Use it when reproducing
 an established artifact or when building outside a Git checkout:

@@ -33,6 +33,7 @@ release_input_paths=(
     apps/linux/data
     apps/linux/resources
     apps/linux/src
+    ':(exclude)apps/linux/src/CueletWindowVisualCapture.cpp'
     apps/linux/scripts/generate-padded-icon.py
     apps/linux/scripts/package-linux-release.sh
     apps/linux/scripts/resolve-linux-release-epoch.sh

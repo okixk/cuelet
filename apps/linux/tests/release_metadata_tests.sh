@@ -15,6 +15,7 @@ window_source="$linux_source/src/CueletWindow.cpp"
 main_source="$linux_source/src/main.cpp"
 style_file="$linux_source/resources/style.css"
 epoch_policy="$linux_source/scripts/resolve-linux-release-epoch.sh"
+package_script="$linux_source/scripts/package-linux-release.sh"
 
 fail() {
     printf 'release metadata check failed: %s\n' "$1" >&2
@@ -105,6 +106,9 @@ grep -Fq "'icons' / 'hicolor' / 'scalable' / 'apps'" "$linux_source/meson.build"
 
 [[ -x "$epoch_policy" ]] \
     || fail "Linux release epoch resolver is missing or not executable"
+grep -Fq '"$script_dir/resolve-linux-release-epoch.sh" "$source_root"' \
+    "$package_script" \
+    || fail "Linux package script does not use the stable release epoch resolver"
 
 epoch_test_root="$(mktemp -d -t cuelet-release-epoch-test.XXXXXX)"
 cleanup_epoch_test() {
@@ -135,6 +139,8 @@ printf 'fixture\n' >"$epoch_test_repo/apps/linux/data/INSTALL.md"
 printf 'fixture\n' >"$epoch_test_repo/apps/linux/resources/style.css"
 printf 'fixture\n' >"$epoch_test_repo/apps/linux/scripts/generate-padded-icon.py"
 printf 'fixture\n' >"$epoch_test_repo/apps/linux/src/main.cpp"
+printf 'developer-only fixture\n' \
+    >"$epoch_test_repo/apps/linux/src/CueletWindowVisualCapture.cpp"
 printf 'fixture\n' >"$epoch_test_repo/core/cuelet-core/include/fixture.h"
 printf 'fixture\n' >"$epoch_test_repo/core/cuelet-core/src/fixture.cpp"
 printf 'stable payload\n' >"$epoch_test_repo/payload/value.txt"
@@ -191,6 +197,21 @@ unrelated_epoch="$(resolve_default_epoch)"
 write_fixture_archive "$unrelated_epoch" "$epoch_test_root/after.tar.gz"
 cmp -s "$epoch_test_root/before.tar.gz" "$epoch_test_root/after.tar.gz" \
     || fail "equivalent package inputs did not produce identical fixture archives"
+
+printf 'changed developer-only visual capture\n' \
+    >"$epoch_test_repo/apps/linux/src/CueletWindowVisualCapture.cpp"
+git -C "$epoch_test_repo" add \
+    apps/linux/src/CueletWindowVisualCapture.cpp
+GIT_AUTHOR_DATE='@1700002000 +0000' \
+GIT_COMMITTER_DATE='@1700002000 +0000' \
+    git -C "$epoch_test_repo" \
+        -c user.name='Cuelet Tests' \
+        -c user.email='tests@invalid.example' \
+        commit -q -m 'test: change unpackaged developer visual capture'
+
+developer_only_epoch="$(resolve_default_epoch)"
+[[ "$developer_only_epoch" == "$initial_epoch" ]] \
+    || fail "unpackaged developer-only source changed the default release epoch"
 
 printf 'changed installed documentation\n' \
     >"$epoch_test_repo/apps/linux/data/INSTALL.md"
