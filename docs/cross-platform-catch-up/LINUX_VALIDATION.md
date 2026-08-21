@@ -10,7 +10,7 @@ repository.
 
 | Item | Observed value |
 |---|---|
-| Git HEAD | `3084912f994a1d457c67d38d6184933f72ea8160` |
+| Git HEAD | `0bd0c535ce68c520ae40e415437c78f13a1423d0` |
 | Branch | `feat/linux-parity-catch-up` |
 | Working tree before validation | clean; local HEAD equaled `github/feat/linux-parity-catch-up` |
 | Distribution | Ubuntu 26.04 LTS |
@@ -65,8 +65,8 @@ The Linux source has no Qt dependency or legacy root CMake build path.
 | Item | Result |
 |---|---|
 | Filename | `Cuelet-0.1.0-linux-x86_64.tar.gz` |
-| Size | 568,214 bytes |
-| SHA-256 | `7a80b53a93631b2ce87b126f5daf176904b7fc98ee738726a0482acccd43524d` |
+| Size | 568,215 bytes |
+| SHA-256 | `1215a965b4ae50a22f48afb2fbc1bc3cd3a1011c1f0034ac70cd0c940eb8e73e` |
 | Reproducibility | Two equivalent clean builds were byte-identical |
 
 The inspected archive contained the `cuelet` executable, desktop file, padded
