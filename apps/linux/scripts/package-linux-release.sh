@@ -34,18 +34,9 @@ build_dir="$work_dir/build"
 package_root="$work_dir/$package_name"
 mkdir -p -- "$package_root"
 
-if [[ -z "${SOURCE_DATE_EPOCH:-}" ]]; then
-    if git -C "$source_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        SOURCE_DATE_EPOCH="$(git -C "$source_root" show -s --format=%ct HEAD)"
-    else
-        echo "SOURCE_DATE_EPOCH is required outside a Git checkout." >&2
-        exit 1
-    fi
-fi
-if [[ ! "$SOURCE_DATE_EPOCH" =~ ^[0-9]+$ ]]; then
-    echo "SOURCE_DATE_EPOCH must be a non-negative integer." >&2
-    exit 1
-fi
+SOURCE_DATE_EPOCH="$(
+    "$script_dir/resolve-linux-release-epoch.sh" "$source_root"
+)"
 export SOURCE_DATE_EPOCH
 
 meson setup "$build_dir" "$linux_source" \

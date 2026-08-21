@@ -190,11 +190,19 @@ and license. It does not bundle normal system libraries.
 On Ubuntu, the archive validator additionally uses `desktop-file-utils`,
 `appstream`, `libxml2-utils`, `binutils`, `file`, `tar`, and `gzip`.
 
-For byte-for-byte reproduction outside a Git checkout, pass the source commit's
-timestamp explicitly:
+When `SOURCE_DATE_EPOCH` is unset in a Git checkout, the packaging script uses
+the newest commit timestamp across the tracked inputs that can affect the
+installed Linux payload or deterministic archive construction: the version and
+license, Linux Meson/source/resource/installed-data inputs, the package and icon
+scripts, and the compiled shared core. Unpackaged documentation and tests are
+intentionally excluded, so an unrelated documentation-only commit does not
+change otherwise identical archive bytes.
+
+An explicit `SOURCE_DATE_EPOCH` always takes precedence. Use it when reproducing
+an established artifact or when building outside a Git checkout:
 
 ```bash
-SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+SOURCE_DATE_EPOCH="${RECORDED_RELEASE_EPOCH:?set the recorded release epoch}" \
   ./apps/linux/scripts/package-linux-release.sh /path/to/output
 ```
 
