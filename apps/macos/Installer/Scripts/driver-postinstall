@@ -43,7 +43,12 @@ if ! /usr/bin/file -b "${EXECUTABLE_PATH}" | /usr/bin/grep -q 'arm64'; then
 fi
 
 /usr/bin/touch "${INFO_PLIST}"
-/usr/bin/codesign --verify --deep --strict "${TARGET_PATH}"
+
+if [[ "${CUELET_ALLOW_UNSIGNED:-0}" == "1" ]]; then
+    echo "Cuelet audio driver is intentionally unsigned for this beta package."
+else
+    /usr/bin/codesign --verify --deep --strict "${TARGET_PATH}"
+fi
 
 echo "Cuelet audio driver installed. Restart your Mac when convenient to activate Cuelet Virtual Microphone."
 exit 0

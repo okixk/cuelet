@@ -20,7 +20,7 @@ DRIVER_BUILD_SOURCE="${MACOS_DIR}/Driver/build/Release/${DRIVER_BUNDLE_NAME}"
 
 usage() {
     cat <<'USAGE'
-Usage: build-release-package.sh (--local | --release) [options]
+Usage: build-release-package.sh (--local | --beta-unsigned | --release) [options]
 
 Options:
   --skip-build       Package the existing verified Release artifacts.
@@ -28,7 +28,8 @@ Options:
   --validation-root PATH
                      Store package inspection evidence under PATH.
 
-Local mode creates an unsigned structural test package. Release mode requires
+Local mode creates an unsigned structural test package. Beta mode creates the
+intentional public unsigned beta package. Release mode requires
 CUELET_DEVELOPER_ID_APPLICATION and CUELET_DEVELOPER_ID_INSTALLER and never
 falls back to ad-hoc or unsigned signing.
 USAGE
@@ -41,7 +42,7 @@ VALIDATION_ROOT="${CUELET_INSTALLER_VALIDATION_ROOT:-}"
 
 while (($# > 0)); do
     case "$1" in
-        --local|--release)
+        --local|--beta-unsigned|--release)
             if [[ -n "${MODE}" ]]; then
                 echo "Choose exactly one packaging mode." >&2
                 exit 2
@@ -96,6 +97,12 @@ for tool in pkgbuild productbuild pkgutil plutil codesign ditto lipo shasum asse
     }
 done
 
+APPLE_SAMPLE_LICENSE_SOURCE="${MACOS_DIR}/Driver/APPLE_SAMPLE_LICENSE.txt"
+[[ -s "${APPLE_SAMPLE_LICENSE_SOURCE}" ]] || {
+    echo "Apple sample license is missing: ${APPLE_SAMPLE_LICENSE_SOURCE}" >&2
+    exit 1
+}
+
 if [[ -z "${VALIDATION_ROOT}" ]]; then
     VALIDATION_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cuelet-installer-evidence.XXXXXX")"
 fi
@@ -148,6 +155,11 @@ fi
     echo "Cuelet app is missing the exact repository license text." >&2
     exit 1
 }
+[[ -s "${APP_SOURCE}/Contents/Resources/APPLE_SAMPLE_LICENSE.txt" ]] &&
+    cmp -s "${APPLE_SAMPLE_LICENSE_SOURCE}" "${APP_SOURCE}/Contents/Resources/APPLE_SAMPLE_LICENSE.txt" || {
+    echo "Cuelet app is missing the exact tracked Apple sample notice." >&2
+    exit 1
+}
 assetutil --info "${APP_SOURCE}/Contents/Resources/Assets.car" \
     >"${VALIDATION_ROOT}/logs/app-asset-catalog.json"
 grep -q '"Name" : "Cuelet"' "${VALIDATION_ROOT}/logs/app-asset-catalog.json" || {
@@ -167,6 +179,11 @@ fi
 EMBEDDED_DRIVER="${APP_SOURCE}/Contents/Resources/Driver/${DRIVER_BUNDLE_NAME}"
 [[ -d "${EMBEDDED_DRIVER}" ]] || {
     echo "Release app does not contain the production driver." >&2
+    exit 1
+}
+[[ -s "${EMBEDDED_DRIVER}/Contents/Resources/APPLE_SAMPLE_LICENSE.txt" ]] &&
+    cmp -s "${APPLE_SAMPLE_LICENSE_SOURCE}" "${EMBEDDED_DRIVER}/Contents/Resources/APPLE_SAMPLE_LICENSE.txt" || {
+    echo "The embedded driver is missing the exact tracked Apple sample notice." >&2
     exit 1
 }
 EMBEDDED_DRIVER_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "${EMBEDDED_DRIVER}/Contents/Info.plist")"
@@ -200,6 +217,8 @@ DRIVER_PACKAGE_VERSION="${DRIVER_VERSION}.${DRIVER_BUILD}"
 if [[ -z "${OUTPUT_PATH}" ]]; then
     if [[ "${MODE}" == "local" ]]; then
         OUTPUT_PATH="${DIST_DIR}/Cuelet-${APP_VERSION}-local.pkg"
+    elif [[ "${MODE}" == "beta-unsigned" ]]; then
+        OUTPUT_PATH="${DIST_DIR}/Cuelet-${APP_VERSION}-beta.1-macos-arm64-unsigned.pkg"
     else
         OUTPUT_PATH="${DIST_DIR}/Cuelet-${APP_VERSION}.pkg"
     fi
@@ -250,8 +269,24 @@ else
 fi
 STAGED_DRIVER="${DRIVER_ROOT}/Library/Audio/Plug-Ins/HAL/${DRIVER_BUNDLE_NAME}"
 
-codesign --verify --deep --strict "${STAGED_APP}"
-codesign --verify --deep --strict "${STAGED_DRIVER}"
+if [[ "${MODE}" == "beta-unsigned" ]]; then
+    # The build inputs are locally ad-hoc signed for structural verification;
+    # the public beta payload is deliberately stripped of all code signatures.
+    remove_bundle_signatures() {
+        local bundle="$1"
+        codesign --remove-signature "${bundle}" >/dev/null 2>&1 || true
+        find "${bundle}" -type d -name _CodeSignature -prune \
+            -exec /bin/rm -rf -- {} +
+    }
+    remove_bundle_signatures "${STAGED_EMBEDDED_DRIVER}"
+    remove_bundle_signatures "${STAGED_APP}"
+    remove_bundle_signatures "${STAGED_DRIVER}"
+fi
+
+if [[ "${MODE}" != "beta-unsigned" ]]; then
+    codesign --verify --deep --strict "${STAGED_APP}"
+    codesign --verify --deep --strict "${STAGED_DRIVER}"
+fi
 
 STAGED_EMBEDDED_HASH="$(shasum -a 256 "${STAGED_EMBEDDED_DRIVER}/Contents/MacOS/${DRIVER_EXECUTABLE}" | awk '{print $1}')"
 STAGED_DRIVER_HASH="$(shasum -a 256 "${STAGED_DRIVER}/Contents/MacOS/${DRIVER_EXECUTABLE}" | awk '{print $1}')"
@@ -298,6 +333,7 @@ CUELET_EXPECTED_BUNDLE_ID='${APP_BUNDLE_ID}'
 CUELET_EXPECTED_EXECUTABLE='${APP_NAME}'
 CUELET_CANDIDATE_VERSION='${APP_VERSION}'
 CUELET_CANDIDATE_BUILD='${APP_BUILD}'
+CUELET_ALLOW_UNSIGNED='$([[ "${MODE}" == "beta-unsigned" ]] && echo 1 || echo 0)'
 EOF
 cat >"${DRIVER_SCRIPTS}/package-metadata" <<EOF
 CUELET_PAYLOAD_LABEL='Cuelet audio driver'
@@ -306,6 +342,7 @@ CUELET_EXPECTED_BUNDLE_ID='${DRIVER_BUNDLE_ID}'
 CUELET_EXPECTED_EXECUTABLE='${DRIVER_EXECUTABLE}'
 CUELET_CANDIDATE_VERSION='${DRIVER_VERSION}'
 CUELET_CANDIDATE_BUILD='${DRIVER_BUILD}'
+CUELET_ALLOW_UNSIGNED='$([[ "${MODE}" == "beta-unsigned" ]] && echo 1 || echo 0)'
 EOF
 chmod 644 "${APP_SCRIPTS}/package-metadata" "${DRIVER_SCRIPTS}/package-metadata"
 
@@ -335,10 +372,16 @@ PUBLIC_RESOURCES="${WORK_ROOT}/resources-release"
     local "${INSTALLER_DIR}/Resources" "${LOCAL_RESOURCES}"
 "${SCRIPT_DIR}/render-installer-resources.sh" \
     release "${INSTALLER_DIR}/Resources" "${PUBLIC_RESOURCES}"
+BETAVERSION_RESOURCES="${WORK_ROOT}/resources-beta-unsigned"
+"${SCRIPT_DIR}/render-installer-resources.sh" \
+    beta-unsigned "${INSTALLER_DIR}/Resources" "${BETAVERSION_RESOURCES}"
 ditto "${LOCAL_RESOURCES}" "${VALIDATION_ROOT}/inventories/installer-resources-local"
 ditto "${PUBLIC_RESOURCES}" "${VALIDATION_ROOT}/inventories/installer-resources-release"
+ditto "${BETAVERSION_RESOURCES}" "${VALIDATION_ROOT}/inventories/installer-resources-beta-unsigned"
 if [[ "${MODE}" == "local" ]]; then
     ditto "${LOCAL_RESOURCES}" "${PRODUCT_RESOURCES}"
+elif [[ "${MODE}" == "beta-unsigned" ]]; then
+    ditto "${BETAVERSION_RESOURCES}" "${PRODUCT_RESOURCES}"
 else
     ditto "${PUBLIC_RESOURCES}" "${PRODUCT_RESOURCES}"
 fi
@@ -398,6 +441,9 @@ APP_EXECUTABLE_HASH="$(shasum -a 256 "${STAGED_APP}/Contents/MacOS/${APP_NAME}" 
     if [[ "${MODE}" == "local" ]]; then
         echo "signature=unsigned local test package"
         echo "distributable=no"
+    elif [[ "${MODE}" == "beta-unsigned" ]]; then
+        echo "signature=unsigned beta package"
+        echo "distributable=public beta; production signing and notarization pending"
     else
         echo "signature=Developer ID Installer"
         echo "distributable=pending notarization and stapling"
@@ -411,6 +457,8 @@ ditto "${OUTPUT_PATH}" "${VALIDATION_ROOT}/packages/$(basename "${OUTPUT_PATH}")
 echo "Built ${OUTPUT_PATH}"
 if [[ "${MODE}" == "local" ]]; then
     echo "LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION"
+elif [[ "${MODE}" == "beta-unsigned" ]]; then
+    echo "CUELET 0.x BETA — UNSIGNED PUBLIC BETA"
 fi
 echo "SHA-256: ${PACKAGE_HASH}"
 echo "Evidence: ${VALIDATION_ROOT}"

@@ -86,6 +86,16 @@ cmp -s "${REPOSITORY_ROOT}/LICENSE" "${RESOURCES_DIR}/LICENSE.txt" || {
     echo "The packaged Cuelet license does not match the repository LICENSE." >&2
     exit 1
 }
+APPLE_SAMPLE_LICENSE_SOURCE="${PACKAGE_DIR}/Driver/APPLE_SAMPLE_LICENSE.txt"
+[[ -s "${APPLE_SAMPLE_LICENSE_SOURCE}" ]] || {
+    echo "Apple sample license is missing: ${APPLE_SAMPLE_LICENSE_SOURCE}" >&2
+    exit 1
+}
+install -m 0644 "${APPLE_SAMPLE_LICENSE_SOURCE}" "${RESOURCES_DIR}/APPLE_SAMPLE_LICENSE.txt"
+cmp -s "${APPLE_SAMPLE_LICENSE_SOURCE}" "${RESOURCES_DIR}/APPLE_SAMPLE_LICENSE.txt" || {
+    echo "The packaged Apple sample license does not match the tracked driver notice." >&2
+    exit 1
+}
 
 if [[ -n "${CUELET_VIRTUAL_AUDIO_DRIVER_BUNDLE:-}" ]]; then
     DRIVER_SOURCE="${CUELET_VIRTUAL_AUDIO_DRIVER_BUNDLE}"

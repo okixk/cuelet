@@ -21,6 +21,8 @@ CONTENTS_DIR := $(BUNDLE_DIR)/Contents
 EXECUTABLE_DIR := $(CONTENTS_DIR)/MacOS
 EXECUTABLE := $(EXECUTABLE_DIR)/$(PRODUCT_NAME)
 INFO_PLIST := $(CONTENTS_DIR)/Info.plist
+APPLE_SAMPLE_LICENSE_SOURCE := $(ROOT)/APPLE_SAMPLE_LICENSE.txt
+APPLE_SAMPLE_LICENSE_DEST := $(CONTENTS_DIR)/Resources/APPLE_SAMPLE_LICENSE.txt
 TEST_BUILD_DIR := $(BUILD_ROOT)/Tests
 TEST_EXECUTABLE := $(TEST_BUILD_DIR)/CueletVirtualAudioCoreTests
 CONTRACT_TEST_EXECUTABLE := $(TEST_BUILD_DIR)/CueletVirtualAudioDriverContractTests
@@ -65,7 +67,7 @@ endif
 
 all: bundle
 
-bundle: $(EXECUTABLE) $(INFO_PLIST)
+bundle: $(EXECUTABLE) $(INFO_PLIST) $(APPLE_SAMPLE_LICENSE_DEST)
 	codesign --force --sign - $(BUNDLE_DIR) >/dev/null
 	@echo "Built $(BUNDLE_DIR)"
 
@@ -87,6 +89,11 @@ $(INFO_PLIST): Resources/Info.plist
 	mkdir -p $(CONTENTS_DIR)
 	cp Resources/Info.plist $(INFO_PLIST)
 	plutil -lint $(INFO_PLIST)
+
+$(APPLE_SAMPLE_LICENSE_DEST): $(APPLE_SAMPLE_LICENSE_SOURCE)
+	mkdir -p $(dir $@)
+	cp $< $@
+	cmp -s $< $@
 
 $(TEST_EXECUTABLE): \
 		$(SOURCE_DIR)/CueletVirtualAudioCore.c \
