@@ -32,7 +32,7 @@ Evidence labels:
 | Library/data | Duplicate handling | Runtime + Automated | Runtime + Automated | Runtime + Automated | Duplicate identity/collision handling is covered. |
 | Library/data | Symlink/platform safety | Automated | Runtime + Automated | Automated | The safety primitive is platform-specific. |
 | Library/data | Atomic persistence/migration/backup | Runtime + Automated | Runtime + Automated | Runtime + Automated | Private settings/storage formats differ. |
-| Playback | Play/pause/resume/stop | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS final GUI card click was not reliable under accessibility automation; service/live tests pass. |
+| Playback | Play/pause/resume/stop | Runtime + Automated | Runtime + Automated | Runtime + Automated | macOS GUI playback and exact-candidate virtual-input capture passed in the final release cycle. |
 | Playback | Stop All | Runtime + Automated | Runtime + Automated | Runtime + Automated | All three expose explicit stop-all behavior. |
 | Playback | Multiple simultaneous sounds | Runtime + Automated | Runtime + Automated | Runtime + Automated | Headroom/mixing implementation differs. |
 | Playback | Progress/duration/mini-player | Runtime + Automated | Runtime + Automated | Runtime + Automated | Native controls differ. |

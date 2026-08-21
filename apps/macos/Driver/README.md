@@ -48,7 +48,23 @@ The event snapshot uses wire selector `cqev` and remains read-only,
 unqualified, stateless, bounded to 256 records, and available only in a
 diagnostic build.
 
-## Transport development history
+The exact-current-HEAD release validation on 2026-08-21 used Git commit
+`8131c5ed12c841eade2ffbcb0fc2b68c7788314f`. The production executable hash
+was `f269a9c9b75327431925cfde9b1b0f403a5493f04288d29e91edf8af42d80549`;
+the diagnostics-enabled executable hash used by the committed live workflow
+was `9cad2be160bc79de737b71aa4cd8a0e94b8ac241193322a3d7c4a5dcd2a839c8`.
+After a normal restart, the installed diagnostic hash matched exactly and the
+48 kHz stereo live workflow passed with zero receiver drops, zero active holes,
+and zero phase discontinuities. See
+`docs/cross-platform-catch-up/MACOS_VALIDATION.md` for the durable measurements.
+
+## Historical transport development record
+
+The versioned sections below explain how the current transport and diagnostic
+design was reached. Their checkpoint assertion counts and pre-install status
+statements are historical; they do not describe the current release result.
+The current counts and post-restart evidence are recorded at the end of this
+file and in the authoritative macOS validation record.
 
 Version 0.1.2 introduced absolute sample-time indexing, but its live
 `WriteMix` path required both `mOutputTime` and `mInputTime` to be valid before
@@ -117,9 +133,9 @@ Build and query the diagnostic tools with:
 make -C Driver tools
 Driver/build/Tools/cuelet-driver-diagnostics status
 Driver/build/Tools/cuelet-driver-diagnostics clear
-Driver/build/Tools/cuelet-driver-diagnostics snapshot /tmp/cuelet-events.jsonl
+Driver/build/Tools/cuelet-driver-diagnostics snapshot <output-file>
 Driver/build/Tools/cuelet-driver-diagnostics summarize
-Driver/build/Tools/cuelet-driver-diagnostics watch-events 15 50 /tmp/cuelet-event-stream.jsonl
+Driver/build/Tools/cuelet-driver-diagnostics watch-events 15 50 <output-file>
 ```
 
 ## 0.1.5 custom-property access correction
@@ -194,8 +210,8 @@ root:
 The workflow verifies the installed version and hash, clears telemetry, runs
 only generated 997/1499 Hz output through the named virtual input, and saves
 counter polling, incrementally preserved and final decoded events,
-receiver/injector telemetry, a WAV
-capture, numeric capture analysis, and one diagnosis summary under `/tmp`.
+receiver/injector telemetry, a WAV capture, numeric capture analysis, and one
+diagnosis summary in a caller-selected untracked directory.
 It does not install, restart Core Audio, reboot, select a system default, or
 open a physical microphone.
 
@@ -227,14 +243,10 @@ additional readers, producer restart, and unequal callback sizes. The exact
 live-style regression now reaches `CueletRingReadAt`, returns 512 valid frames,
 and preserves the deterministic 997/1499 Hz payload checksum.
 
-That pre-install evidence preceded the explicit 0.1.7 installation and manual
-restart. The subsequent live run restored nonzero transport but exposed the
-separate per-client reader failure documented below. The 0.1.7 pre-install run
-passed 1,222,189 core assertions, 23,431 diagnostic
-driver-interface assertions, 4,292 diagnostics-disabled assertions, 50 Luna
-replay assertions, and 1,123 telemetry-store assertions, plus 100,000 stress
-iterations, ASan/UBSan, standalone UBSan, TSan, static analysis, bundle smoke,
-and 107 Swift tests with two opt-in skips in both Debug and Release.
+That pre-install evidence preceded the explicit historical 0.1.7 installation
+and manual restart. The subsequent live run restored nonzero transport but
+exposed the separate per-client reader failure documented below. Its checkpoint
+test results are superseded by the current validation totals below.
 
 ## 0.1.8 intermittent per-client reader fix
 
@@ -316,7 +328,7 @@ The direct diagnostic receiver is built without AVFoundation:
 ```bash
 clang -O2 -Wall -Wextra -Werror \
   -framework AudioToolbox -framework CoreAudio -framework CoreFoundation \
-  tools/cuelet-auhal-receiver.c -o /tmp/cuelet-auhal-receiver
+  tools/cuelet-auhal-receiver.c -o Driver/build/Tools/cuelet-auhal-receiver
 ```
 
 It selects the device by stable UID, enables only the HAL Output Audio Unit's
@@ -331,25 +343,16 @@ The Audio Server Plug-in's zero timestamp is a sample/host timeline contract;
 the transport uses cycle timestamps as its data coordinate rather than
 callback arrival order. Input and output operations are not assumed to carry
 both timestamps, arrive in the same order, or use the same frame count.
-The 0.1.6 diagnostic candidate passed 1,222,189 core assertions, 9,937
-diagnostic driver-interface assertions, 136 diagnostics-disabled interface
-assertions, 50 exact Luna replay assertions, and 1,123 telemetry-store
-assertions including concurrent overwrite/snapshot publication. It also passed
-305-second 44.1/48 kHz simulations, two-reader and seeded randomized ordering,
-100,000-iteration stress, ASan/UBSan, standalone UBSan, TSan, static analysis, diagnostic bundle
-smoke, and Swift Debug/Release tests (107 tests, 2 opt-in skips, no failures per
-configuration). Its telemetry still requires explicit installation, a manual
-restart, and a short live diagnostic run. No transport repair is claimed.
+The historical 0.1.6 candidate's checkpoint test totals and pre-install status
+are superseded by the current results below.
 
-The installed 0.1.5 executable is preserved at the system destination until
-explicit approval is given.
 A device-level running-property transition is not assumed merely because a
 client opened the input scope; explicit StartIO/StopIO contract behavior is
 tested separately, and the live device property remained 0 during I/O on this
 host.
 
-To install a future corrected bundle, obtain explicit approval first, then run
-from the repository root:
+To install a developer diagnostic bundle, obtain explicit approval first, set
+`CUELET_EXPECT_DRIVER_DIAGNOSTICS=1`, and run from the repository root:
 
 ```bash
 ./apps/macos/scripts/install-virtual-audio-driver.sh \
@@ -361,3 +364,21 @@ existing Cuelet bundle as
 `/Library/Audio/Plug-Ins/HAL/CueletVirtualAudio.driver.backup-<timestamp>`,
 and requires a manual full restart. It does not kill `coreaudiod` or change
 system defaults. Do not run the command as part of pre-install validation.
+
+## Current validation result
+
+The exact 0.1.11/12 candidate passed 1,252,215 core assertions, 15,678
+diagnostic contract assertions, 4,360 diagnostics-disabled contract assertions,
+50 Luna replay assertions, 1,396 telemetry-store assertions, and three analyzer
+tests. The 100,000-iteration stress test, ASan/UBSan, standalone UBSan, TSan,
+Clang analysis of all three translation units, and production bundle verifier
+passed. Swift Debug and Release each passed 118 tests with two intentional
+opt-in skips and no failures; the Debug and Release live-routing tests also
+passed separately.
+
+The diagnostics-enabled executable was installed through the guarded developer
+flow and activated only by a normal macOS restart. The installed hash then
+matched the committed workflow's candidate hash exactly. Deterministic live
+transport and a separate real Cuelet playback capture both passed with zero
+receiver block/event drops and zero active-region holes. This supersedes all
+earlier pre-install and incomplete live-status statements above.
