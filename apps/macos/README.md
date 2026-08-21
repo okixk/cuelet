@@ -76,6 +76,19 @@ the payload retains the final compiled app icon. Local packages are marked
 and Summary pages. The separately rendered public pages contain no local-test
 copy.
 
+The intentional public beta uses a separate explicit unsigned mode:
+
+```bash
+./scripts/build-release-package.sh --beta-unsigned
+```
+
+This creates `Cuelet-0.1.0-beta.1-macos-arm64-unsigned.pkg`. Its Installer
+pages explain that the beta is unsigned and may trigger macOS security
+warnings. The beta payload contains no code signature or notarization data;
+the internal Cuelet version remains 0.1.0 build 1. The Apple sample notice is
+included in the app and both driver payload locations alongside the separate
+Cuelet AGPL license.
+
 The package supports clean install, same-version repair, and upgrades from an
 older Cuelet app or driver. It refuses to replace a foreign bundle at either
 exact destination and refuses to downgrade a newer Cuelet bundle. The
@@ -94,7 +107,7 @@ but Cuelet Virtual Microphone is not installed. A separate app-only package is
 not produced for 0.1.0; a drag-and-drop container is cleaner than a second
 Installer receipt when that distribution channel is added.
 
-Public release mode requires externally configured Developer ID Application
+Production release mode requires externally configured Developer ID Application
 and Developer ID Installer identity names and never falls back to ad-hoc or
 unsigned output:
 

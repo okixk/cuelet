@@ -29,6 +29,20 @@ The result is named `Cuelet-<version>-local.pkg` and is explicitly a local test
 artifact, not a public distribution package. Its Welcome, Read Me, and Summary
 pages all display `LOCAL TEST PACKAGE — NOT FOR PUBLIC DISTRIBUTION`.
 
+The public beta uses a separate, explicit unsigned mode:
+
+```bash
+./scripts/build-release-package.sh --beta-unsigned
+```
+
+It emits `Cuelet-0.1.0-beta.1-macos-arm64-unsigned.pkg`, keeps Cuelet at
+version 0.1.0 build 1, and displays a concise beta/security-warning notice on
+each Installer page. The beta package has no code signature, notarization, or
+private signing data. It includes both `License.txt` (Cuelet's AGPL license)
+and `APPLE_SAMPLE_LICENSE.txt` (Apple's separate sample-code notice) in its
+component payloads; the notice is also carried in the installed app and
+driver bundles.
+
 The product archive uses polished Cuelet Welcome, Read Me, and Summary copy.
 Finder and the Installer title bar represent the outer `.pkg` with macOS's
 standard Installer package icon. The application payload retains and validates
