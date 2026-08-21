@@ -90,9 +90,14 @@ Requirements: Visual Studio with MSVC x64, Windows App SDK dependencies, and a s
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\build-windows.ps1 -Configuration Release
 powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\test-windows.ps1 -Configuration Release
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\package-windows-beta.ps1
 ```
 
-Ordinary Release builds exclude the development/test-signed virtual-audio package. See [apps/windows/README.md](apps/windows/README.md) for MSIX packaging and the current driver-signing boundary.
+The 0.x public beta is an intentionally unsigned portable ZIP. Ordinary
+Release builds and the MSIX route remain available for validation and future
+signed releases, and exclude the development/test-signed virtual-audio
+package. See [apps/windows/README.md](apps/windows/README.md) for packaging and
+the current driver-signing boundary.
 
 ## Repository layout
 
@@ -108,7 +113,7 @@ scripts/                    Shared release-validation tooling
 ## Current limitations
 
 - Public macOS binaries require Developer ID signing, hardened-runtime review, notarization, and stapling. The Installer-package structure is implemented.
-- The Windows app requires a real publisher identity and signed MSIX. The Release route relies on separately installed VB-CABLE; Cuelet's development driver remains excluded until it has Microsoft-compatible production signing.
+- The Windows 0.x beta is distributed as an unsigned portable ZIP; a real publisher identity and signed MSIX remain future-release requirements. The Release route relies on separately installed VB-CABLE; Cuelet's development driver remains excluded until it has Microsoft-compatible production signing.
 - Linux virtual-microphone behavior depends on the host PipeWire/session environment and available GStreamer plugins.
 - Cuelet does not currently apply loudness normalization, compression, limiting, acoustic echo cancellation, or clip editing.
 - Current macOS builds are arm64-only. Cross-architecture artifacts have not been prepared.

@@ -3,7 +3,8 @@ param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Debug',
     [switch]$Package,
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$PortableBeta
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,9 +42,24 @@ $arguments = @(
     '/v:minimal'
 )
 if ($Package) {
+    if ($PortableBeta) {
+        throw '-PortableBeta cannot be combined with -Package.'
+    }
     $arguments += '/p:GenerateAppxPackageOnBuild=true'
     $arguments += '/p:AppxBundle=Never'
     $arguments += '/p:AppxPackageSigningEnabled=false'
+}
+if ($PortableBeta) {
+    if ($Configuration -ne 'Release') {
+        throw '-PortableBeta is only supported for the Release configuration.'
+    }
+    $arguments += '/p:CueletPortableBeta=true'
+    $arguments += '/p:WindowsPackageType=None'
+    $arguments += '/p:AppxPackage=false'
+    $arguments += '/p:GenerateAppxPackageOnBuild=false'
+    $arguments += '/p:PublishAppxPackage=false'
+    $arguments += '/p:WindowsAppSDKSelfContained=true'
+    $arguments += '/p:CueletIncludeDevelopmentVirtualAudioDriver=false'
 }
 
 $action = if ($Rebuild) { 'Rebuilding' } else { 'Building' }

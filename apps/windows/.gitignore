@@ -4,3 +4,4 @@
 *.p12
 *.pfx
 *.pvk
+dist/

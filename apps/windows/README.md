@@ -108,6 +108,28 @@ powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\package-windows.
 
 This creates an unsigned local MSIX. Signing identity, certificate distribution, Store submission, and production installer policy are release-management work and are intentionally not faked by the script. Ordinary Release builds exclude the development virtual-audio driver and installer. Developers can opt into those artifacts explicitly with `-p:CueletIncludeDevelopmentVirtualAudioDriver=true` after preparing the test package.
 
+## Public 0.x beta
+
+The normal public Windows beta artifact is the unsigned portable ZIP, not the
+unsigned MSIX. Build it with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\package-windows-beta.ps1
+```
+
+This produces `Cuelet-0.1.0-beta.1-windows-x64-unsigned.zip`. It contains the
+self-contained x64 Release application layout, the full `LICENSE`, and the
+beta notice/instructions. It does not contain an MSIX, Cuelet's development
+SysVAD driver, or VB-CABLE. Windows 10 version 1809 or later is supported;
+install VB-CABLE separately when virtual microphone routing is needed.
+The executable is intentionally unsigned, so Windows or SmartScreen may warn
+when it is launched.
+
+The existing `package-windows.ps1` MSIX route remains available for local
+package validation and future signed releases. It must not be presented as the
+normal public beta installer while it is unsigned. Do not add a certificate or
+change the production identity/signing boundary to prepare this beta.
+
 Release packaging includes the repository's exact `LICENSE` at the MSIX package
 root. The package command audits the generated archive and fails unless that file
 is byte-identical to the root `LICENSE`; it also rejects development driver,

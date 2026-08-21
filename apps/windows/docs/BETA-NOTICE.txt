@@ -1,0 +1,5 @@
+Cuelet 0.x Beta
+
+Beta builds are currently distributed without production code signing.
+Windows may show security warnings when launching Cuelet.
+Signed builds are planned for a later release once Cuelet has received more real-world testing.
