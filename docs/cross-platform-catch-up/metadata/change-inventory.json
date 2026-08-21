@@ -1,5 +1,0 @@
-{
-  "workingTreeComparedWithHead": {"trackedModified": 26, "statInsertions": 5289, "statDeletions": 669, "staged": false, "untrackedIncludes": ["WindowsLifecycleModel", "WindowsVirtualAudioModel", "WindowsWorkflowModel", "VirtualAudio.Driver", "VirtualAudio.FlowTest", "VirtualAudio.Installer", "VirtualAudio.Shared", "WindowsDiagnostics", "VirtualAudioInstallerClient", "virtual-audio scripts/docs"]},
-  "headComparedWithParent": {"filesChanged": 16, "insertions": 1547, "deletions": 3, "summary": "Initial shared core and Qt core extraction"},
-  "visualScreenshots": 1
-}
