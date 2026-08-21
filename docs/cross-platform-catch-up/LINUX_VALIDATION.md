@@ -11,10 +11,10 @@ repository.
 | Item | Observed value |
 |---|---|
 | Audited GitHub base | `9d552362885d71f982787a8d4b1f0c0351c7f9d5` |
-| Validated package-input commit | `d4e9fadbde86f6cd100f810a49deadb765bfdcab` |
+| Validated package-input commit | `261a0273b877e9a3f4804ac22c7eac7658fa8fe2` |
 | Branch | `feat/linux-parity-catch-up` |
 | Working tree before correction | clean; local HEAD equaled `github/feat/linux-parity-catch-up` |
-| Derived `SOURCE_DATE_EPOCH` | `1787332242` |
+| Derived `SOURCE_DATE_EPOCH` | `1787332835` |
 | Distribution | Ubuntu 26.04 LTS |
 | Kernel | Linux 7.0.0-30-generic x86_64 |
 | Architecture | `x86_64` |
@@ -36,7 +36,7 @@ Flatpak, Snap, or receiving applications beyond the clients named below.
 
 The committed `apps/linux/scripts/package-linux-release.sh` pipeline was run
 twice from clean temporary build/staging directories with
-`SOURCE_DATE_EPOCH` unset. The script derived epoch `1787332242`, the newest
+`SOURCE_DATE_EPOCH` unset. The script derived epoch `1787332835`, the newest
 Git commit timestamp across the tracked inputs that can affect the installed
 Linux payload or deterministic archive construction. Unpackaged documentation
 and tests do not influence that default. Each run performed an optimized Meson
@@ -70,14 +70,14 @@ The Linux source has no Qt dependency or legacy root CMake build path.
 | Item | Result |
 |---|---|
 | Filename | `Cuelet-0.1.0-linux-x86_64.tar.gz` |
-| Size | 568,212 bytes |
-| SHA-256 | `fd7ae472486c395cbd65eb2fb88c6e29c10574f73164912f193e7ee6cd364471` |
+| Size | 568,213 bytes |
+| SHA-256 | `4d9d5eb5e9ab4fa6db9bdb66bc2c0c585d992c4a13d8e2346ca198b4c4a5cfa4` |
 | Reproducibility | Two equivalent clean builds were byte-identical |
 
 A separate disposable clone then received a later documentation-only commit
 outside the Linux package-input set. With `SOURCE_DATE_EPOCH` still unset, the
-resolver retained epoch `1787332242`; a third complete package build produced
-the same 568,212-byte archive byte-for-byte. The disposable commit, clone,
+resolver retained epoch `1787332835`; a third complete package build produced
+the same 568,213-byte archive byte-for-byte. The disposable commit, clone,
 build, and archive were removed after comparison and never entered the release
 branch.
 
