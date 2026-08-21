@@ -108,6 +108,11 @@ powershell -ExecutionPolicy Bypass -File .\apps\windows\scripts\package-windows.
 
 This creates an unsigned local MSIX. Signing identity, certificate distribution, Store submission, and production installer policy are release-management work and are intentionally not faked by the script. Ordinary Release builds exclude the development virtual-audio driver and installer. Developers can opt into those artifacts explicitly with `-p:CueletIncludeDevelopmentVirtualAudioDriver=true` after preparing the test package.
 
+Release packaging includes the repository's exact `LICENSE` at the MSIX package
+root. The package command audits the generated archive and fails unless that file
+is byte-identical to the root `LICENSE`; it also rejects development driver,
+debug/source/test, signing-secret/certificate, and developer-path content.
+
 The manifest keeps the existing local identity `ch.oki.cuelet` and the explicit
 development publisher placeholder `CN=Cuelet Development`. These values must be
 replaced together with the real Store identity or the subject of the actual
@@ -143,10 +148,11 @@ PFX files, private keys, and exported certificates are ignored under
 
 Before packaging, the script verifies that release metadata matches `VERSION`,
 that only x64 project configurations are present, and that every prepared
-Windows icon resource resolves. The final icon is supplied as scale-aware MSIX
-PNGs plus a lossless multi-resolution executable icon used by the window,
-task switcher, and notification area. The supplied placeholder lock-screen and
-backup Store images are not packaged.
+Windows icon resource resolves. After packaging, it audits the actual MSIX
+manifest, contents, and repository LICENSE equality. The final icon is supplied
+as scale-aware MSIX PNGs plus a lossless multi-resolution executable icon used
+by the window, task switcher, and notification area. The supplied placeholder
+lock-screen and backup Store images are not packaged.
 
 ## Current boundaries
 

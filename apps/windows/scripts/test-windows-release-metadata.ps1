@@ -69,6 +69,21 @@ if (($configurations -join ',') -ne 'Debug|x64,Release|x64') {
     throw "Cuelet release architecture must remain x64; found $($configurations -join ', ')."
 }
 
+$licenseItems = @($project.SelectNodes('//m:Content', $projectNamespaces) |
+    Where-Object {
+        $_.Include -eq '$(ProjectDir)..\..\..\LICENSE' -and
+        $_.Link -eq 'LICENSE' -and
+        $_.DeploymentContent -eq 'true' -and
+        $_.CopyToOutputDirectory -eq 'PreserveNewest'
+    })
+if ($licenseItems.Count -ne 1) {
+    throw 'Release packaging must source the package-root LICENSE directly from the repository LICENSE.'
+}
+$licenseGroup = $licenseItems[0].ParentNode
+if ($licenseGroup.Condition -ne "'`$(Configuration)'=='Release'") {
+    throw 'The repository LICENSE packaging item must be restricted to Release builds.'
+}
+
 $expectedAssets = [Collections.Generic.List[string]]::new()
 foreach ($name in @('LargeTile', 'SmallTile', 'SplashScreen', 'Square150x150Logo',
                      'Square44x44Logo', 'StoreLogo', 'Wide310x150Logo')) {
@@ -123,4 +138,4 @@ if ($releaseIdentity.DevelopmentPublisher) {
 } else {
     Write-Host 'The configured production identity is consistent. Packaging remains unsigned until the release signing step.'
 }
-Write-Host "Windows release metadata is consistent: Cuelet $version -> MSIX $packageVersion, x64, Windows 10 1809+."
+Write-Host "Windows release metadata is consistent: Cuelet $version -> MSIX $packageVersion, x64, Windows 10 1809+, repository LICENSE packaged."

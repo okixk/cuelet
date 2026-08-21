@@ -55,6 +55,13 @@
   <ItemGroup>
     <Image Include="Assets\*.png" />
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <Content Include="$(ProjectDir)..\..\..\LICENSE">
+      <Link>LICENSE</Link>
+      <DeploymentContent>true</DeploymentContent>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <ItemGroup><ResourceCompile Include="Cuelet.rc" /></ItemGroup>
   <ItemGroup Condition="'$(CueletIncludeDevelopmentVirtualAudioDriver)'=='true' and Exists('$(SolutionDir)x64\$(Configuration)\DriverPackage')">
     <Content Include="$(SolutionDir)x64\$(Configuration)\DriverPackage\**\*">
