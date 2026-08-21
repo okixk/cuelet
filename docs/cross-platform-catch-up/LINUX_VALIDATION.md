@@ -95,16 +95,15 @@ restart and an application-specific receiving client with an explicit input
 selector were not tested because they would disrupt the session or were not
 available; those remain explicit limitations.
 
-## Manual Linux desktop checklist
+## Manual Linux desktop scope
 
-The retained GNOME/Wayland checklist and screenshots document real GTK
-launch, populated/empty library, categories, search, playback, settings,
-responsive layout, and routing states. The native context menu was opened but
-no screenshot is claimed because the compositor did not provide a valid
-separate popup capture. File-dialog import, drag-out, broad accessibility
+The durable GNOME/Wayland runtime evidence covers real GTK launch,
+populated/empty library, categories, search, playback, settings, responsive
+layout, and routing states. File-dialog import, drag-out, broad accessibility
 audits, and third-party receiving applications remain untested limitations.
 This validation cycle did not expand into broad application or desktop-matrix
-testing.
+testing. Superseded capture-session checklists and image inventories are not
+part of the authoritative release record.
 
 ## Release conclusion
 
