@@ -83,7 +83,7 @@ swift test
 open dist/macos/Cuelet.app
 ```
 
-The local app bundle and bundled HAL are ad-hoc signed for verification only. The local Installer package exercises the real application and system-driver destinations but is not distributable. The explicit beta package is intentionally unsigned and emits `Cuelet-0.1.0-beta.1-macos-arm64-unsigned.pkg`; macOS security warnings are expected. Building never installs the package or driver. See [apps/macos/README.md](apps/macos/README.md) for package modes, signing hooks, and driver compatibility details.
+The local app bundle and bundled HAL are ad-hoc signed for verification only. The local Installer package exercises the real application and system-driver destinations but is not distributable. The explicit beta package has an unsigned outer product archive, ad-hoc signed app and driver payloads, and emits `Cuelet-0.1.0-beta.1-macos-arm64-unsigned.pkg`; macOS security warnings are expected. Building never installs the package or driver. See [apps/macos/README.md](apps/macos/README.md) for package modes, signing hooks, and driver compatibility details.
 
 ### Linux
 

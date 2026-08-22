@@ -246,24 +246,40 @@ if rg -a -n '/Users/[^/]+|~/projects/|/home/[^/]+' \
 fi
 
 if [[ "${PACKAGE_MODE}" == "beta-unsigned" ]]; then
-    if find "${STAGED_APP}" "${STAGED_DRIVER}" -type d -name _CodeSignature \
-        -print -quit | grep -q .; then
-        echo "Unsigned beta payload retains code-signing data." >&2
-        exit 1
-    fi
-    if codesign -dv "${STAGED_APP}" >/dev/null 2>&1 ||
-       codesign -dv "${STAGED_DRIVER}" >/dev/null 2>&1; then
-        echo "Unsigned beta payload contains a code signature." >&2
-        exit 1
-    fi
+    validate_adhoc_signature() {
+        local bundle="$1"
+        local label="$2"
+        local signature_log="${VALIDATION_ROOT}/logs/${label}-code-signature.txt"
+
+        codesign --verify --deep --strict --verbose=4 "${bundle}" \
+            >"${signature_log}" 2>&1
+        codesign -dvvv "${bundle}" >>"${signature_log}" 2>&1
+        grep -Eq '^Signature=adhoc$' "${signature_log}" || {
+            echo "${label} is not ad-hoc signed." >&2
+            exit 1
+        }
+        if grep -Eiq 'Developer ID|^Authority=|application-identifier|com.apple.developer.team-identifier' \
+            "${signature_log}" ||
+           awk -F= '$1 == "TeamIdentifier" && $2 != "not set" { found=1 } END { exit !found }' \
+               "${signature_log}"; then
+            echo "${label} contains production signing identity data." >&2
+            exit 1
+        fi
+    }
+
+    validate_adhoc_signature "${STAGED_APP}" app
+    validate_adhoc_signature \
+        "${STAGED_APP}/Contents/Resources/Driver/CueletVirtualAudio.driver" \
+        embedded-driver
+    validate_adhoc_signature "${STAGED_DRIVER}" standalone-driver
+
     BETA_SIGNATURE_LOG="${VALIDATION_ROOT}/logs/beta-package-signature.txt"
     if pkgutil --check-signature "${PACKAGE_PATH}" >"${BETA_SIGNATURE_LOG}" 2>&1; then
-        echo "Unsigned beta product unexpectedly has a package signature." >&2
+        echo "Beta product unexpectedly has a package signature." >&2
         exit 1
     fi
-    if grep -Eiq 'Developer ID|Authority=|TeamIdentifier|application-identifier' \
-        "${BETA_SIGNATURE_LOG}"; then
-        echo "Unsigned beta signature evidence contains private or production signing data." >&2
+    if ! grep -Eiq 'no signature|not signed' "${BETA_SIGNATURE_LOG}"; then
+        echo "Beta product signature status was not reported as unsigned." >&2
         exit 1
     fi
 fi
@@ -365,6 +381,6 @@ grep -q 'No unsigned or ad-hoc fallback was used' "${RELEASE_FAILURE_LOG}"
     echo "PASS: full package remains a non-customizable system install"
     echo "PASS: release mode has no unsigned fallback"
     if [[ "${PACKAGE_MODE}" == "beta-unsigned" ]]; then
-        echo "PASS: beta package is explicitly unsigned and has no production signing data"
+        echo "PASS: beta outer package is unsigned; app and drivers are ad-hoc signed without production identity"
     fi
 } | tee "${VALIDATION_ROOT}/logs/package-tests.txt"

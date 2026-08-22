@@ -29,7 +29,7 @@ Options:
                      Store package inspection evidence under PATH.
 
 Local mode creates an unsigned structural test package. Beta mode creates the
-intentional public unsigned beta package. Release mode requires
+intentional public beta package with an unsigned outer product archive. Release mode requires
 CUELET_DEVELOPER_ID_APPLICATION and CUELET_DEVELOPER_ID_INSTALLER and never
 falls back to ad-hoc or unsigned signing.
 USAGE
@@ -270,20 +270,18 @@ fi
 STAGED_DRIVER="${DRIVER_ROOT}/Library/Audio/Plug-Ins/HAL/${DRIVER_BUNDLE_NAME}"
 
 if [[ "${MODE}" == "beta-unsigned" ]]; then
-    # The build inputs are locally ad-hoc signed for structural verification;
-    # the public beta payload is deliberately stripped of all code signatures.
-    remove_bundle_signatures() {
-        local bundle="$1"
-        codesign --remove-signature "${bundle}" >/dev/null 2>&1 || true
-        find "${bundle}" -type d -name _CodeSignature -prune \
-            -exec /bin/rm -rf -- {} +
-    }
-    remove_bundle_signatures "${STAGED_EMBEDDED_DRIVER}"
-    remove_bundle_signatures "${STAGED_APP}"
-    remove_bundle_signatures "${STAGED_DRIVER}"
+    # Keep the payload locally ad-hoc signed; only the outer product archive is
+    # unsigned. These are the same signing commands used by local builds.
+    codesign --force --sign - "${STAGED_EMBEDDED_DRIVER}" >/dev/null
+    codesign --force --deep --options runtime --sign - "${STAGED_APP}" >/dev/null
+    codesign --force --sign - "${STAGED_DRIVER}" >/dev/null
 fi
 
-if [[ "${MODE}" != "beta-unsigned" ]]; then
+if [[ "${MODE}" == "beta-unsigned" ]]; then
+    codesign --verify --deep --strict "${STAGED_APP}"
+    codesign --verify --deep --strict "${STAGED_EMBEDDED_DRIVER}"
+    codesign --verify --deep --strict "${STAGED_DRIVER}"
+else
     codesign --verify --deep --strict "${STAGED_APP}"
     codesign --verify --deep --strict "${STAGED_DRIVER}"
 fi
@@ -333,7 +331,7 @@ CUELET_EXPECTED_BUNDLE_ID='${APP_BUNDLE_ID}'
 CUELET_EXPECTED_EXECUTABLE='${APP_NAME}'
 CUELET_CANDIDATE_VERSION='${APP_VERSION}'
 CUELET_CANDIDATE_BUILD='${APP_BUILD}'
-CUELET_ALLOW_UNSIGNED='$([[ "${MODE}" == "beta-unsigned" ]] && echo 1 || echo 0)'
+CUELET_ALLOW_UNSIGNED='0'
 EOF
 cat >"${DRIVER_SCRIPTS}/package-metadata" <<EOF
 CUELET_PAYLOAD_LABEL='Cuelet audio driver'
@@ -342,7 +340,7 @@ CUELET_EXPECTED_BUNDLE_ID='${DRIVER_BUNDLE_ID}'
 CUELET_EXPECTED_EXECUTABLE='${DRIVER_EXECUTABLE}'
 CUELET_CANDIDATE_VERSION='${DRIVER_VERSION}'
 CUELET_CANDIDATE_BUILD='${DRIVER_BUILD}'
-CUELET_ALLOW_UNSIGNED='$([[ "${MODE}" == "beta-unsigned" ]] && echo 1 || echo 0)'
+CUELET_ALLOW_UNSIGNED='0'
 EOF
 chmod 644 "${APP_SCRIPTS}/package-metadata" "${DRIVER_SCRIPTS}/package-metadata"
 
@@ -442,7 +440,7 @@ APP_EXECUTABLE_HASH="$(shasum -a 256 "${STAGED_APP}/Contents/MacOS/${APP_NAME}" 
         echo "signature=unsigned local test package"
         echo "distributable=no"
     elif [[ "${MODE}" == "beta-unsigned" ]]; then
-        echo "signature=unsigned beta package"
+        echo "signature=unsigned outer package; ad-hoc app and driver payloads"
         echo "distributable=public beta; production signing and notarization pending"
     else
         echo "signature=Developer ID Installer"
