@@ -6,6 +6,15 @@ inputs on native Ubuntu/GNOME/Wayland x86_64. Generated builds, archives,
 recordings, logs, and temporary directories were not retained in the
 repository.
 
+## Current beta artifact recheck
+
+At package-input HEAD `f3c96cf`, the current release package script completed
+twice from clean temporary build and staging directories. The package-input
+commit is still `261a0273b877e9a3f4804ac22c7eac7658fa8fe2`, so the
+documentation-only commits do not change the archive. The exact artifact remains
+`Cuelet-0.1.0-linux-x86_64.tar.gz` at 568,213 bytes with SHA-256
+`4d9d5eb5e9ab4fa6db9bdb66bc2c0c585d992c4a13d8e2346ca198b4c4a5cfa4`.
+
 ## Exact candidate and environment
 
 | Item | Observed value |
