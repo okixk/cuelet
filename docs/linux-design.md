@@ -28,7 +28,11 @@ The headerbar owns library/import actions, sorting, grid/list mode, preferences,
 
 ## Platform Behavior
 
-Wayland global hotkeys are not faked. The first Linux shortcut implementation is local to the app window and stores structured key data. Future global-hotkey work should investigate desktop portals first, compositor APIs second, and X11 fallback only as an explicit compatibility path.
+Desktop-wide shortcuts use the standards-based XDG GlobalShortcuts portal and
+show the portal's accepted trigger description and approval state. Local GTK
+shortcuts remain available while Cuelet is focused, and a generated
+`cuelet --play-id` command can be assigned through GNOME Custom Shortcuts when
+the portal is unavailable or a request is denied.
 
 ## Visual Direction
 

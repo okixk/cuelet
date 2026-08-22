@@ -44,14 +44,28 @@ Cuelet is a native desktop soundboard for organizing, finding, and playing audio
 Cuelet 0.1.0 is pre-1.0 software. The root [`VERSION`](VERSION) file is the
 authoritative application release version; platform manifests are checked
 against it. The native applications are implemented and covered by platform
-tests, but public distribution still requires the platform-specific signing or
-publication work described below.
+tests. Beta distribution follows the signing policy below; production
+publication work is tracked separately.
 
 | Platform | Native UI | Minimum / validated environment | Virtual microphone |
 | --- | --- | --- | --- |
 | macOS | SwiftUI/AppKit | macOS 14+, Apple Silicon build | Installer package includes the HAL driver; Developer ID signing/notarization still required |
 | Linux | GTK4/libadwaita | GTK 4.10+, libadwaita 1.5+, GStreamer 1.20+ | App-owned PipeWire route; requires `pw-loopback` and PipeWire GStreamer support |
 | Windows | WinUI 3 / C++/WinRT | Windows 10 1809+; Windows 11 recommended | Release uses a separately installed VB-CABLE pair; Cuelet's own driver remains development-only |
+
+## Beta distribution policy
+
+Cuelet 0.x beta builds are intentionally distributed without production code
+signing on macOS and Windows. Platform security warnings may therefore
+appear. Production signing is planned once the beta has received sufficient
+real-world testing.
+
+- macOS beta artifact: unsigned Installer package.
+- Windows beta artifact: unsigned portable ZIP, not an end-user MSIX.
+- Linux beta artifact: x86_64 tar archive with no configured signing scheme.
+
+This policy applies to beta distribution and does not remove the future
+production-signing infrastructure.
 
 ## Build
 
@@ -112,7 +126,7 @@ scripts/                    Shared release-validation tooling
 
 ## Current limitations
 
-- Public macOS binaries require Developer ID signing, hardened-runtime review, notarization, and stapling. The Installer-package structure is implemented.
+- Production macOS binaries require Developer ID signing, hardened-runtime review, notarization, and stapling. The Installer-package structure is implemented; the 0.x beta package is intentionally unsigned.
 - The Windows 0.x beta is distributed as an unsigned portable ZIP; a real publisher identity and signed MSIX remain future-release requirements. The Release route relies on separately installed VB-CABLE; Cuelet's development driver remains excluded until it has Microsoft-compatible production signing.
 - Linux virtual-microphone behavior depends on the host PipeWire/session environment and available GStreamer plugins.
 - Cuelet does not currently apply loudness normalization, compression, limiting, acoustic echo cancellation, or clip editing.

@@ -172,9 +172,9 @@ meson test -C apps/linux/build/debug --print-errorlogs
 
 ## Release Archive
 
-No distro-specific Linux package is established yet. Create the conservative
-binary archive from a fresh, stripped Meson Release build and its audited
-`DESTDIR` installation tree:
+The beta Linux distribution is a conventional x86_64 tar archive. Create it
+from a fresh, stripped Meson Release build and its audited `DESTDIR`
+installation tree:
 
 ```bash
 ./apps/linux/scripts/package-linux-release.sh
@@ -295,20 +295,12 @@ to update approved documentation screenshots.
 - Import drag-in is implemented; file drag-out is not.
 - The macOS SwiftUI app is unchanged. It still stores its app settings in Application Support; the Linux app writes the shared in-library metadata schema documented in `docs/metadata-schema.md` for future macOS adoption.
 
-## Manual Desktop Checks
+## Validation scope
 
-The service tests exercise import, persistence, playback state, path safety,
-and removal execution. The following interactions still need a person to click
-them in a real GNOME Wayland session before a release:
-
-1. Toggle grid/list and confirm keyboard focus remains visible.
-2. Import multiple files and a directory through the file dialog in both copy
-   and link modes; also drag files into the window.
-3. Click pause, resume, Stop, Stop All, and the volume control while listening
-   to the selected output.
-4. Toggle a favorite, edit a category color/icon, rename a managed sound, and
-   restart Cuelet to confirm the resulting presentation.
-5. Use Reveal in Files and a local shortcut from the focused window. Portal
-   shortcuts were separately verified with Ptyxis, Files, and Cuelet focused.
-6. Cancel both removal dialogs, then verify Remove from Library preserves the
-   file and Delete Managed File removes only the confirmed managed file.
+The current release record covers native GTK launch, library and category
+flows, search, playback, settings, responsive layout, portal shortcuts, and
+PipeWire routing on Ubuntu/GNOME/Wayland x86_64. It does not claim coverage
+for every desktop, distribution, sandbox, accessibility workflow, or
+third-party receiving application. See
+`docs/cross-platform-catch-up/LINUX_VALIDATION.md` for the tested scope and
+known limitations.

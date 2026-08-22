@@ -12,7 +12,9 @@ Cuelet's macOS app should feel like a real macOS utility, not a themed cross-pla
 
 ## Main Window
 
-The primary window uses a native sidebar with three initial destinations: Sound Library, Overlay Preview, and Settings. The Sound Library page is the main workflow and should receive the most design attention.
+The primary window uses a native sidebar for Library, Favorites, Recent, and
+Categories. The Sound Library page is the main workflow. Settings is exposed
+through the macOS Settings scene, not as a sidebar destination.
 
 The toolbar groups frequent actions by intent:
 
@@ -31,6 +33,4 @@ Pads should be visual and scannable. Avoid dense metadata rows. The target layou
 - Bottom left: category chip.
 - Bottom right: shortcut badge or duration.
 
-## Overlay
-
-The overlay is only a preview for now. Future work can add an always-on-top floating pad grid, profile selector, opacity setting, show/hide shortcut, and persistent Stop All button.
+There is no overlay destination in the current main window.

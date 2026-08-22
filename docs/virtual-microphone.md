@@ -1,13 +1,14 @@
-# Virtual Microphone Notes
+# Virtual Microphone
 
-Cuelet's native Linux client can expose an app-managed PipeWire virtual
-microphone. The other native clients do not gain that behavior from the Linux
-implementation.
+Virtual microphone behavior is platform-specific:
 
-Virtual microphone behavior remains platform-specific. Linux creates only
-temporary user-session nodes while Cuelet is running; it does not install a
-kernel driver, root service, or permanent PipeWire/WirePlumber configuration.
-Support must not be inferred for another platform or packaging sandbox.
+- macOS: the beta package installs Cuelet's Core Audio HAL device. A Mac
+  restart is required before the device becomes available.
+- Linux: Cuelet creates temporary user-session PipeWire nodes while it is
+  running. It does not install a kernel driver, root service, or persistent
+  PipeWire/WirePlumber configuration.
+- Windows: the 0.1.0 Release app uses a separately installed VB-CABLE pair.
+  Cuelet's development virtual-audio driver is not included in the beta.
 
 ## Current Boundary
 
@@ -19,15 +20,7 @@ application modes. See `apps/linux/README.md` and
 `docs/cross-platform-catch-up/LINUX_VALIDATION.md` for requirements and tested
 scope.
 
-## Platform Direction
-
-- Linux: implemented with PipeWire on the native GTK client; no PulseAudio
-  compatibility module is required for the graph.
-- macOS: document BlackHole or similar virtual devices, then route Cuelet output to the chosen device.
-- Windows: document VB-Cable or similar virtual devices, then route Cuelet output to the selected device.
-
-## Future UI
-
-The native Linux preferences already separate normal playback, virtual
-soundboard injection, and optional physical-microphone mix levels. Equivalent
-behavior on other platforms remains future work.
+The native Linux preferences separate normal playback, virtual soundboard
+injection, and optional physical-microphone mix levels. See
+`apps/linux/README.md` and `docs/cross-platform-catch-up/LINUX_VALIDATION.md`
+for the Linux routing requirements and tested scope.
