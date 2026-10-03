@@ -262,17 +262,31 @@ void CueletWindow::showPreferences()
 
     GtkWidget* appearancePage = addPage("Appearance", "preferences-desktop-theme-symbolic");
     GtkWidget* appearanceGroup = addGroup(appearancePage, "Display");
-    GtkWidget* followSystemRow = adw_switch_row_new();
-    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(followSystemRow), "Follow System Theme");
-    adw_action_row_set_subtitle(ADW_ACTION_ROW(followSystemRow), "When disabled, Cuelet uses a dark appearance.");
-    adw_switch_row_set_active(ADW_SWITCH_ROW(followSystemRow), settings_.appearanceMode != "dark");
-    g_signal_connect(followSystemRow, "notify::active", G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+    GtkWidget* appearanceRow = adw_action_row_new();
+    adw_preferences_row_set_title(ADW_PREFERENCES_ROW(appearanceRow), "Appearance");
+    adw_action_row_set_subtitle(ADW_ACTION_ROW(appearanceRow), "Choose the system, light, or dark appearance.");
+    const char* appearances[] = {"System", "Light", "Dark", nullptr};
+    GtkWidget* appearanceDropDown = gtk_drop_down_new_from_strings(appearances);
+    gtk_accessible_update_property(
+        GTK_ACCESSIBLE(appearanceDropDown),
+        GTK_ACCESSIBLE_PROPERTY_LABEL, "Appearance",
+        -1);
+    gtk_drop_down_set_selected(GTK_DROP_DOWN(appearanceDropDown),
+        settings_.appearanceMode == "light" ? 1 : settings_.appearanceMode == "dark" ? 2 : 0);
+    gtk_widget_set_valign(appearanceDropDown, GTK_ALIGN_CENTER);
+    g_signal_connect(appearanceDropDown, "notify::selected", G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
         auto* self = static_cast<CueletWindow*>(userData);
-        self->settings_.appearanceMode = adw_switch_row_get_active(ADW_SWITCH_ROW(object)) ? "system" : "dark";
+        switch (gtk_drop_down_get_selected(GTK_DROP_DOWN(object))) {
+        case 1: self->settings_.appearanceMode = "light"; break;
+        case 2: self->settings_.appearanceMode = "dark"; break;
+        default: self->settings_.appearanceMode = "system"; break;
+        }
         self->applyAppearanceMode();
         self->saveSettings();
     }), this);
-    adw_preferences_group_add(ADW_PREFERENCES_GROUP(appearanceGroup), followSystemRow);
+    adw_action_row_add_suffix(ADW_ACTION_ROW(appearanceRow), appearanceDropDown);
+    adw_action_row_set_activatable_widget(ADW_ACTION_ROW(appearanceRow), appearanceDropDown);
+    adw_preferences_group_add(ADW_PREFERENCES_GROUP(appearanceGroup), appearanceRow);
 
     GtkWidget* viewModeRow = adw_action_row_new();
     adw_preferences_row_set_title(ADW_PREFERENCES_ROW(viewModeRow), "Default View");

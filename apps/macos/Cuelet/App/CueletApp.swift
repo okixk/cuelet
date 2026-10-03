@@ -5,10 +5,19 @@ struct CueletApp: App {
     @StateObject private var appState = AppState()
     @NSApplicationDelegateAdaptor(CueletApplicationDelegate.self) private var applicationDelegate
 
+    private var colorScheme: ColorScheme? {
+        switch appState.settings.appearanceMode {
+        case "Light": .light
+        case "Dark": .dark
+        default: nil
+        }
+    }
+
     var body: some Scene {
         WindowGroup(id: "main") {
             RootView()
                 .environmentObject(appState)
+                .preferredColorScheme(colorScheme)
                 .frame(minWidth: 980, minHeight: 680)
                 .onAppear {
                     applicationDelegate.appState = appState
@@ -71,23 +80,27 @@ struct CueletApp: App {
         Settings {
             SettingsView()
                 .environmentObject(appState)
+                .preferredColorScheme(colorScheme)
         }
         .keyboardShortcut(",", modifiers: [.command])
 
         Window("About Cuelet", id: CueletWindowID.about) {
             CueletAboutView()
+                .preferredColorScheme(colorScheme)
         }
         .defaultPosition(.center)
         .windowResizability(.contentSize)
 
         Window("Cuelet License", id: CueletWindowID.license) {
             CueletLicenseView()
+                .preferredColorScheme(colorScheme)
         }
         .defaultPosition(.center)
         .defaultSize(width: 720, height: 560)
 
         Window("Cuelet Help", id: CueletHelpWindowID.help) {
             CueletHelpView()
+                .preferredColorScheme(colorScheme)
         }
         .defaultPosition(.center)
         .defaultSize(width: 720, height: 680)

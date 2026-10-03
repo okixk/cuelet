@@ -14,6 +14,7 @@ final class SettingsStoreTests: XCTestCase {
         settings.keepsRunningAfterWindowClose = true
         settings.showsMenuBarItem = true
         settings.soundboardVolume = 0.42
+        settings.appearanceMode = "Light"
 
         store.save(settings)
 
@@ -22,6 +23,7 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertTrue(store.load().keepsRunningAfterWindowClose)
         XCTAssertTrue(store.load().showsMenuBarItem)
         XCTAssertEqual(store.load().soundboardVolume, 0.42)
+        XCTAssertEqual(store.load().appearanceMode, "Light")
     }
 
     func testCorruptSettingsAreNotSilentlyOverwritten() throws {
