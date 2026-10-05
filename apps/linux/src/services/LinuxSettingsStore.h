@@ -19,6 +19,7 @@ struct LinuxSettings {
     std::string outputDevice;
     std::string virtualMicrophoneMode = "speakersOnly";
     bool mixesPhysicalMicrophone = false;
+    bool noiseSuppression = false;
     std::string physicalMicrophoneDevice;
     double virtualMicrophoneLevel = 0.25;
     double physicalMicrophoneLevel = 0.25;

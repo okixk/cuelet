@@ -20,6 +20,10 @@ requires GTK 4.10 or newer, libadwaita 1.5 or newer, GLib/GIO, GStreamer 1.20
 or newer with playback codecs, GStreamer PBUtils, and JSON-GLib. The optional
 virtual microphone additionally needs a running PipeWire session, WirePlumber
 or another session manager, `pw-loopback`, and GStreamer's `pipewiresink`.
+The optional microphone-only noise suppression switch additionally needs the
+GStreamer `rsaudiofx` plugin's `audiornnoise` element. Check with
+`gst-inspect-1.0 audiornnoise`. Without it, Cuelet and the ordinary virtual
+microphone continue to work.
 Desktop-wide shortcuts need XDG Desktop Portal and a desktop backend that
 implements `org.freedesktop.portal.GlobalShortcuts`.
 

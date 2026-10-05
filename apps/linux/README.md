@@ -28,7 +28,10 @@ sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
 Runtime codec support depends on the installed GStreamer plugins.
 `pipewire-bin` supplies `pw-loopback` for the optional app-managed virtual
 microphone and `gstreamer1.0-pipewire` supplies Cuelet's exact-target audio
-stream. The rest of Cuelet works without enabling that feature.
+stream. Microphone noise suppression additionally needs the optional
+GStreamer `rsaudiofx` plugin's `audiornnoise` element. Cuelet checks for that
+element at runtime; it is not required to launch Cuelet or use the normal
+virtual microphone.
 PipeWire, PulseAudio, and xdg-desktop-portal are runtime integrations, not
 compile-time dependencies. Desktop-wide shortcuts require the
 `org.freedesktop.portal.GlobalShortcuts` interface; version 1 is supported and
@@ -138,6 +141,13 @@ names. If that exact source disappears, soundboard injection continues in a
 degraded state and Cuelet reconnects only when the same stable source returns.
 The normal playback, virtual soundboard, and physical microphone levels are
 controlled separately; both mix inputs default to 25% to leave headroom.
+**Noise suppression** is off by default. When enabled, only the selected
+physical microphone passes through GStreamer's `audiornnoise` before its mix
+level is applied. Soundboard clips continue to enter the virtual sink by their
+existing independent route. With suppression off, the physical microphone
+keeps its existing `pw-loopback` route. If `audiornnoise` is unavailable,
+Cuelet turns suppression off, reports that the optional plugin is missing, and
+keeps the virtual microphone and ordinary microphone mix working.
 Routing and microphone-mix preferences are saved. If the user leaves the
 feature enabled, a later Cuelet launch restores it and can reopen the same
 selected microphone; disabling the switch before exit prevents that capture.
@@ -156,6 +166,8 @@ Useful non-destructive diagnostics are:
 wpctl status -n
 pw-dump | grep -E 'cuelet\.(virtual-microphone|soundboard-input|microphone-mix)'
 pgrep -a pw-loopback
+gst-inspect-1.0 audiornnoise
+pw-link -l
 ```
 
 `Off`, `Starting`, `Ready`, `Degraded: selected microphone unavailable`,
@@ -163,6 +175,17 @@ pgrep -a pw-loopback
 If the source does not appear, verify that `pw-loopback`, `pipewiresink`, and
 the user's PipeWire session are available. Cuelet itself does not record the
 microphone to disk or transmit audio over the network.
+
+To validate suppression on a real PipeWire device, select a physical
+microphone, enable its mix, and record **Cuelet Virtual Microphone** in an
+external app. Compare a spoken phrase with steady background noise while
+suppression is off and on. Play a Cuelet clip at the same time and confirm the
+clip stays unchanged. Toggle suppression off again, restart Cuelet to check
+persistence, then unplug and reconnect the selected microphone. Use
+`gst-inspect-1.0 audiornnoise` to verify plugin installation and `pw-link -l`
+to inspect the physical microphone and virtual sink links. The installed
+GStreamer plugin supplies the processor; Cuelet does not bundle RNNoise code
+or model weights on Linux.
 
 Run tests:
 

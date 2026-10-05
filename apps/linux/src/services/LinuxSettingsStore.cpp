@@ -284,6 +284,7 @@ LinuxSettings normalizedSettings(const LinuxSettings& input)
             ? input.virtualMicrophoneMode
             : "speakersOnly",
         input.mixesPhysicalMicrophone,
+        input.noiseSuppression,
         normalizedPipeWireNodeName(input.physicalMicrophoneDevice),
         normalizedMixLevel(input.virtualMicrophoneLevel),
         normalizedMixLevel(input.physicalMicrophoneLevel),
@@ -386,6 +387,10 @@ LinuxSettings LinuxSettingsStore::load() const
             object, "mixesPhysicalMicrophone", invalidValue)) {
         settings.mixesPhysicalMicrophone = *value;
     }
+    if (const auto value = boolMember(
+            object, "noiseSuppression", invalidValue)) {
+        settings.noiseSuppression = *value;
+    }
     if (const auto value = stringMember(
             object, "physicalMicrophoneDevice", invalidValue)) {
         const auto normalized = normalizedPipeWireNodeName(*value);
@@ -460,6 +465,8 @@ bool LinuxSettingsStore::save(const LinuxSettings& settings) const
     json_builder_set_member_name(builder, "mixesPhysicalMicrophone");
     json_builder_add_boolean_value(
         builder, normalized.mixesPhysicalMicrophone);
+    json_builder_set_member_name(builder, "noiseSuppression");
+    json_builder_add_boolean_value(builder, normalized.noiseSuppression);
     json_builder_set_member_name(builder, "physicalMicrophoneDevice");
     json_builder_add_string_value(
         builder, normalized.physicalMicrophoneDevice.c_str());

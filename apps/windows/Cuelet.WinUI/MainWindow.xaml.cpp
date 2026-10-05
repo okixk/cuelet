@@ -967,6 +967,13 @@ namespace winrt::Cuelet::WinUI::implementation
         if (auto value = readRegistryString(L"MicrophoneInputId")) m_microphoneInputId = cuelet::windows::wideToUtf8(*value);
         m_monitorLocally = readRegistryDword(L"MonitorLocally", 1) != 0;
         m_mixPhysicalMicrophone = readRegistryDword(L"MixPhysicalMicrophone", 1) != 0;
+        // No RNNoise model is distributed until its redistribution license is
+        // established. Ignore any stale or manually set value in this build.
+        const bool requestedNoiseSuppression =
+            readRegistryDword(L"NoiseSuppression", 0) != 0;
+        constexpr bool noiseSuppressionAvailable = false;
+        m_noiseSuppressionEnabled =
+            noiseSuppressionAvailable && requestedNoiseSuppression;
         m_audioSetupCompleted = readRegistryDword(L"AudioSetupCompleted", 0) != 0;
         m_broadcastVolume = cuelet::windows::volumeFromSetting(readRegistryDword(L"BroadcastVolume", 800));
         m_microphoneVolume = cuelet::windows::volumeFromSetting(readRegistryDword(L"MicrophoneVolume", 800));
@@ -984,6 +991,7 @@ namespace winrt::Cuelet::WinUI::implementation
         MinimizeToTrayToggle().IsOn(m_minimizeToTray);
         MonitorLocallyToggle().IsOn(m_monitorLocally);
         MixMicrophoneToggle().IsOn(m_mixPhysicalMicrophone);
+        NoiseSuppressionToggle().IsOn(m_noiseSuppressionEnabled);
         BroadcastVolumeSlider().Value(m_broadcastVolume * 100.0);
         MicrophoneVolumeSlider().Value(m_microphoneVolume * 100.0);
         SoundboardVolumeSlider().Value(m_soundboardVolume * 100.0);
@@ -1012,6 +1020,7 @@ namespace winrt::Cuelet::WinUI::implementation
         writeRegistryString(key, L"MicrophoneInputId", cuelet::windows::utf8ToWide(m_microphoneInputId));
         writeRegistryDword(key, L"MonitorLocally", m_monitorLocally ? 1 : 0);
         writeRegistryDword(key, L"MixPhysicalMicrophone", m_mixPhysicalMicrophone ? 1 : 0);
+        writeRegistryDword(key, L"NoiseSuppression", m_noiseSuppressionEnabled ? 1 : 0);
         writeRegistryDword(key, L"AudioSetupCompleted", m_audioSetupCompleted ? 1 : 0);
         writeRegistryDword(key, L"BroadcastVolume", cuelet::windows::volumeToSetting(m_broadcastVolume));
         writeRegistryDword(key, L"MicrophoneVolume", cuelet::windows::volumeToSetting(m_microphoneVolume));

@@ -242,6 +242,7 @@ namespace winrt::Cuelet::WinUI::implementation
         bool m_gridView = true;
         bool m_monitorLocally = true;
         bool m_mixPhysicalMicrophone = true;
+        bool m_noiseSuppressionEnabled = false;
         bool m_audioSetupCompleted = false;
         bool m_audioSetupRunning = false;
         cuelet::windows::ImportBehavior m_importBehavior = cuelet::windows::ImportBehavior::Copy;

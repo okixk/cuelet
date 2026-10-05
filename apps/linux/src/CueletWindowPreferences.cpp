@@ -77,6 +77,7 @@ struct VirtualMicrophonePreferenceData {
     GtkWidget* endpointRow = nullptr;
     GtkWidget* modeDropDown = nullptr;
     GtkWidget* microphoneRow = nullptr;
+    GtkWidget* noiseSuppressionRow = nullptr;
     GtkWidget* microphoneDropDown = nullptr;
     std::vector<std::string> microphoneIds;
     bool changing = false;
@@ -544,6 +545,27 @@ void CueletWindow::showPreferences()
     adw_preferences_group_add(
         ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), physicalRow);
 
+    const bool rnnoiseAvailable = virtualMicrophoneBackend_ &&
+        virtualMicrophoneBackend_->capabilities().rnnoiseAvailable;
+    if (!rnnoiseAvailable && settings_.noiseSuppression) {
+        settings_.noiseSuppression = false;
+        saveSettings();
+    }
+    GtkWidget* noiseSuppressionRow = adw_switch_row_new();
+    adw_preferences_row_set_title(
+        ADW_PREFERENCES_ROW(noiseSuppressionRow), "Noise suppression");
+    adw_action_row_set_subtitle(
+        ADW_ACTION_ROW(noiseSuppressionRow),
+        rnnoiseAvailable
+            ? "Reduce steady background noise from your microphone before it is mixed with Cuelet sounds."
+            : "Unavailable: optional GStreamer RNNoise plugin (audiornnoise) is not installed.");
+    adw_switch_row_set_active(
+        ADW_SWITCH_ROW(noiseSuppressionRow), settings_.noiseSuppression);
+    adw_preferences_group_add(
+        ADW_PREFERENCES_GROUP(virtualMicrophoneGroup), noiseSuppressionRow);
+    g_object_set_data(
+        G_OBJECT(dialog), "cuelet-noise-suppression-row", noiseSuppressionRow);
+
     const auto microphones = physicalMicrophones();
     std::vector<const char*> microphoneNames;
     std::vector<std::string> microphoneIds;
@@ -633,6 +655,7 @@ void CueletWindow::showPreferences()
         virtualMicrophoneEndpointRow,
         modeDropDown,
         physicalRow,
+        noiseSuppressionRow,
         microphoneDropDown,
         std::move(microphoneIds),
         false,
@@ -651,6 +674,9 @@ void CueletWindow::showPreferences()
         const bool mix = adw_switch_row_get_active(
             ADW_SWITCH_ROW(data->microphoneRow));
         gtk_widget_set_sensitive(data->modeDropDown, enabled);
+        gtk_widget_set_sensitive(
+            data->noiseSuppressionRow,
+            enabled && mix && data->self->virtualMicrophoneBackend_->capabilities().rnnoiseAvailable);
         gtk_widget_set_sensitive(
             data->microphoneDropDown,
             enabled && mix && data->microphoneIds.size() > 1);
@@ -683,6 +709,9 @@ void CueletWindow::showPreferences()
             gtk_widget_set_sensitive(data->modeDropDown, active);
             const bool mix = adw_switch_row_get_active(
                 ADW_SWITCH_ROW(data->microphoneRow));
+            gtk_widget_set_sensitive(
+                data->noiseSuppressionRow,
+                active && mix && data->self->virtualMicrophoneBackend_->capabilities().rnnoiseAvailable);
             gtk_widget_set_sensitive(
                 data->microphoneDropDown,
                 active && mix && data->microphoneIds.size() > 1);
@@ -734,6 +763,36 @@ void CueletWindow::showPreferences()
                 data->self->virtualMicrophoneActive() &&
                     data->self->settings_.mixesPhysicalMicrophone &&
                     data->microphoneIds.size() > 1);
+            gtk_widget_set_sensitive(
+                data->noiseSuppressionRow,
+                data->self->virtualMicrophoneActive() &&
+                    data->self->settings_.mixesPhysicalMicrophone &&
+                    data->self->virtualMicrophoneBackend_->capabilities().rnnoiseAvailable);
+        }),
+        virtualMicrophoneData);
+
+    g_signal_connect(
+        noiseSuppressionRow,
+        "notify::active",
+        G_CALLBACK(+[](GObject* object, GParamSpec*, gpointer userData) {
+            auto* data = static_cast<VirtualMicrophonePreferenceData*>(userData);
+            if (!data || data->changing || !ADW_IS_SWITCH_ROW(object) ||
+                g_object_get_data(object, "cuelet-noise-syncing")) {
+                return;
+            }
+            data->self->settings_.noiseSuppression =
+                adw_switch_row_get_active(ADW_SWITCH_ROW(object));
+            data->self->applyVirtualMicrophoneSettings();
+            data->self->saveSettings();
+            const bool effective = data->self->settings_.noiseSuppression;
+            if (effective != adw_switch_row_get_active(ADW_SWITCH_ROW(object))) {
+                data->changing = true;
+                adw_switch_row_set_active(ADW_SWITCH_ROW(object), effective);
+                data->changing = false;
+            }
+            const auto status = data->self->virtualMicrophoneStatus();
+            adw_action_row_set_subtitle(
+                ADW_ACTION_ROW(data->diagnosticRow), status.c_str());
         }),
         virtualMicrophoneData);
 

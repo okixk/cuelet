@@ -35,6 +35,24 @@ bool needsVirtualGraph(VirtualMicrophoneRoutingMode mode)
     return mode != VirtualMicrophoneRoutingMode::SpeakersOnly;
 }
 
+constexpr const char* missingRnnoiseMessage =
+    "Noise suppression unavailable: optional GStreamer audiornnoise plugin is not installed.";
+
+std::string boundedBackendError(const std::string& error)
+{
+    std::string result;
+    result.reserve(std::min<std::size_t>(error.size(), 160));
+    for (const unsigned char character : error) {
+        if (result.size() == 160) {
+            break;
+        }
+        result.push_back(character < 0x20 || character == 0x7f
+            ? ' '
+            : character > 0x7e ? '?' : static_cast<char>(character));
+    }
+    return result;
+}
+
 } // namespace
 
 std::vector<PhysicalMicrophoneInfo> physicalMicrophonesFromNodes(
@@ -132,6 +150,14 @@ bool LinuxVirtualMicrophoneService::apply(
         !validStableName(next.physicalMicrophoneId)) {
         next.physicalMicrophoneId.clear();
     }
+    // An apply is a fresh user request. A failed processed route remains
+    // bypassed during polling, but the user can explicitly turn it on again.
+    noiseSuppressionFailureMessage_.clear();
+    noiseSuppressionUnavailable_ = next.noiseSuppression &&
+        !backend_.capabilities().rnnoiseAvailable;
+    if (noiseSuppressionUnavailable_) {
+        next.noiseSuppression = false;
+    }
 
     const bool levelChanged =
         next.physicalMicrophoneLevel != configuration_.physicalMicrophoneLevel;
@@ -149,7 +175,8 @@ bool LinuxVirtualMicrophoneService::apply(
 
     refreshGraph(monotonicMilliseconds);
     if (levelChanged && backend_.physicalMixRunning() &&
-        activePhysicalMicrophoneId_ == configuration_.physicalMicrophoneId) {
+        activePhysicalMicrophoneId_ == configuration_.physicalMicrophoneId &&
+        activeNoiseSuppression_ == configuration_.noiseSuppression) {
         backend_.setPhysicalMixLevel(configuration_.physicalMicrophoneLevel);
         activePhysicalMicrophoneLevel_ = configuration_.physicalMicrophoneLevel;
     }
@@ -175,8 +202,17 @@ void LinuxVirtualMicrophoneService::poll(std::uint64_t monotonicMilliseconds)
                 ? "The virtual microphone helper exited. Reconnecting."
                 : event.error;
         } else if (event.kind == VirtualMicrophoneBackendEventKind::PhysicalMixExited) {
+            if (activeNoiseSuppression_) {
+                configuration_.noiseSuppression = false;
+                const auto detail = boundedBackendError(event.error);
+                noiseSuppressionFailureMessage_ = detail.empty()
+                    ? "Noise suppression stopped. Microphone mixing continues without it."
+                    : "Noise suppression stopped: " + detail +
+                        ". Microphone mixing continues without it.";
+            }
             backend_.stopPhysicalMix();
             activePhysicalMicrophoneId_.clear();
+            activeNoiseSuppression_ = false;
         }
     }
 
@@ -208,9 +244,17 @@ void LinuxVirtualMicrophoneService::poll(std::uint64_t monotonicMilliseconds)
         return;
     }
 
+    if (configuration_.noiseSuppression && !available.rnnoiseAvailable) {
+        configuration_.noiseSuppression = false;
+        noiseSuppressionUnavailable_ = true;
+    } else if (available.rnnoiseAvailable) {
+        noiseSuppressionUnavailable_ = false;
+    }
+
     if (currentBridgeExited || !backend_.bridgeRunning()) {
         backend_.stopPhysicalMix();
         activePhysicalMicrophoneId_.clear();
+        activeNoiseSuppression_ = false;
         backend_.stopBridge();
         status_.state = VirtualMicrophoneState::Reconnecting;
         if (!startGraph(monotonicMilliseconds, true)) {
@@ -316,6 +360,7 @@ void LinuxVirtualMicrophoneService::refreshGraph(
         if (monotonicMilliseconds >= startupDeadlineMilliseconds_) {
             backend_.stopPhysicalMix();
             activePhysicalMicrophoneId_.clear();
+            activeNoiseSuppression_ = false;
             backend_.stopBridge();
             status_ = {
                 VirtualMicrophoneState::Failed,
@@ -336,14 +381,24 @@ void LinuxVirtualMicrophoneService::refreshGraph(
 
 void LinuxVirtualMicrophoneService::refreshPhysicalMix()
 {
+    const auto diagnostic = [&]() -> std::string {
+        if (!noiseSuppressionFailureMessage_.empty()) {
+            return noiseSuppressionFailureMessage_;
+        }
+        return noiseSuppressionUnavailable_ ? missingRnnoiseMessage : "";
+    };
     if (!status_.virtualSourceVisible ||
         !configuration_.mixPhysicalMicrophone ||
         configuration_.physicalMicrophoneId.empty()) {
-        if (backend_.physicalMixRunning()) {
+        if (backend_.physicalMixRunning() || !activePhysicalMicrophoneId_.empty()) {
             backend_.stopPhysicalMix();
         }
         activePhysicalMicrophoneId_.clear();
+        activeNoiseSuppression_ = false;
         status_.physicalMicrophoneActive = false;
+        if (!diagnostic().empty()) {
+            status_.message = diagnostic();
+        }
         return;
     }
 
@@ -353,10 +408,11 @@ void LinuxVirtualMicrophoneService::refreshPhysicalMix()
             return microphone.stableId == configuration_.physicalMicrophoneId;
         });
     if (selected == microphones.end()) {
-        if (backend_.physicalMixRunning()) {
+        if (backend_.physicalMixRunning() || !activePhysicalMicrophoneId_.empty()) {
             backend_.stopPhysicalMix();
         }
         activePhysicalMicrophoneId_.clear();
+        activeNoiseSuppression_ = false;
         status_.state = VirtualMicrophoneState::DegradedMicrophoneUnavailable;
         status_.physicalMicrophoneActive = false;
         status_.message = "Degraded: selected microphone unavailable";
@@ -364,29 +420,56 @@ void LinuxVirtualMicrophoneService::refreshPhysicalMix()
     }
 
     if (backend_.physicalMixRunning() &&
-        activePhysicalMicrophoneId_ == selected->stableId) {
+        activePhysicalMicrophoneId_ == selected->stableId &&
+        activeNoiseSuppression_ == configuration_.noiseSuppression) {
         status_.physicalMicrophoneActive = true;
+        if (!diagnostic().empty()) {
+            status_.message = diagnostic();
+        }
         return;
     }
-    if (backend_.physicalMixRunning()) {
+    if (backend_.physicalMixRunning() || !activePhysicalMicrophoneId_.empty()) {
         backend_.stopPhysicalMix();
     }
     activePhysicalMicrophoneId_.clear();
-    if (!backend_.startPhysicalMix(
+    activeNoiseSuppression_ = false;
+    const auto startPhysical = [&](bool suppressNoise) {
+        return backend_.startPhysicalMix(
             selected->stableId,
             backend_.virtualSinkNode(),
             configuration_.physicalMicrophoneLevel,
-            generation_)) {
+            suppressNoise,
+            generation_);
+    };
+    bool started = startPhysical(configuration_.noiseSuppression);
+    if (!started && configuration_.noiseSuppression) {
+        // The factory probe can succeed even when this particular pipeline
+        // cannot be created or started. Release any partial graph before
+        // restoring the original microphone-only pw-loopback route.
+        backend_.stopPhysicalMix();
+        configuration_.noiseSuppression = false;
+        noiseSuppressionFailureMessage_ =
+            "Noise suppression failed to start. Microphone mixing continues without it.";
+        started = startPhysical(false);
+    }
+    if (!started) {
         status_.state = VirtualMicrophoneState::DegradedMicrophoneUnavailable;
         status_.physicalMicrophoneActive = false;
-        status_.message = "Degraded: physical microphone could not be opened";
+        status_.message = noiseSuppressionFailureMessage_.empty()
+            ? "Degraded: physical microphone could not be opened"
+            : "Noise suppression failed and the physical microphone could not be opened.";
         return;
     }
     activePhysicalMicrophoneId_ = selected->stableId;
     activePhysicalMicrophoneLevel_ = configuration_.physicalMicrophoneLevel;
+    activeNoiseSuppression_ = configuration_.noiseSuppression;
     status_.physicalMicrophoneActive = true;
     status_.state = VirtualMicrophoneState::Ready;
-    status_.message = "Ready — physical microphone mixing is active";
+    status_.message = !diagnostic().empty()
+        ? diagnostic()
+        : configuration_.noiseSuppression
+            ? "Ready — microphone noise suppression is active"
+            : "Ready — physical microphone mixing is active";
 }
 
 bool LinuxVirtualMicrophoneService::virtualSourceIsVisible(
@@ -406,6 +489,7 @@ void LinuxVirtualMicrophoneService::stopGraph()
     // attempts to start a replacement.
     backend_.stopPhysicalMix();
     activePhysicalMicrophoneId_.clear();
+    activeNoiseSuppression_ = false;
     if (backend_.bridgeRunning()) {
         backend_.stopBridge();
     }

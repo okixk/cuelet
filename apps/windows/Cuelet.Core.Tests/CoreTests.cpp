@@ -29,6 +29,7 @@
 #include <vector>
 
 void runVirtualAudioFifoExtendedTests();
+void runMicrophoneNoiseSuppressorTests();
 
 namespace {
 
@@ -979,6 +980,7 @@ int wmain()
 {
     try {
         runTests();
+        runMicrophoneNoiseSuppressorTests();
         std::wcout << L"Cuelet Windows core tests passed.\n";
         return 0;
     } catch (std::exception const& error) {

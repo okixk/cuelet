@@ -163,6 +163,7 @@ void checkDefaults(const LinuxSettings& settings)
     CHECK(settings.outputDevice.empty());
     CHECK(settings.virtualMicrophoneMode == "speakersOnly");
     CHECK(!settings.mixesPhysicalMicrophone);
+    CHECK(!settings.noiseSuppression);
     CHECK(settings.physicalMicrophoneDevice.empty());
     CHECK(std::abs(settings.virtualMicrophoneLevel - 0.25) < 0.000001);
     CHECK(std::abs(settings.physicalMicrophoneLevel - 0.25) < 0.000001);
@@ -196,6 +197,7 @@ void testCompleteRoundTrip()
     expected.outputDevice = "alsa_output.usb-test";
     expected.virtualMicrophoneMode = "speakersAndVirtualMicrophone";
     expected.mixesPhysicalMicrophone = true;
+    expected.noiseSuppression = true;
     expected.physicalMicrophoneDevice = "alsa_input.usb-test";
     expected.virtualMicrophoneLevel = 0.42;
     expected.physicalMicrophoneLevel = 0.35;
@@ -224,6 +226,7 @@ void testCompleteRoundTrip()
     CHECK(actual.outputDevice == expected.outputDevice);
     CHECK(actual.virtualMicrophoneMode == expected.virtualMicrophoneMode);
     CHECK(actual.mixesPhysicalMicrophone == expected.mixesPhysicalMicrophone);
+    CHECK(actual.noiseSuppression == expected.noiseSuppression);
     CHECK(actual.physicalMicrophoneDevice == expected.physicalMicrophoneDevice);
     CHECK(std::abs(actual.virtualMicrophoneLevel - expected.virtualMicrophoneLevel) < 0.000001);
     CHECK(std::abs(actual.physicalMicrophoneLevel - expected.physicalMicrophoneLevel) < 0.000001);
@@ -298,6 +301,7 @@ void testWrongTypesAndUnknownValuesUseFieldDefaults()
             "copiesImportedFiles": null,
             "appearanceMode": "sepia",
             "outputDevice": false,
+            "noiseSuppression": "on",
             "approvedLinkedPaths": [7, "relative.wav"]
         })");
 

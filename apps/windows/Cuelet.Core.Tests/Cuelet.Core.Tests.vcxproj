@@ -18,7 +18,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="PropertySheets"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /></ImportGroup>
   <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><LanguageStandard>stdcpp17</LanguageStandard><TreatWarningAsError>true</TreatWarningAsError><PreprocessorDefinitions>CUELET_AUDIO_FIFO_TESTING;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalIncludeDirectories>$(ProjectDir)..\..\..\core\cuelet-core\include;$(ProjectDir)..\Cuelet.Core.Win32;$(ProjectDir)..\Cuelet.VirtualAudio.Shared;$(ProjectDir)..\Cuelet.VirtualAudio.Driver\overlay\EndpointsCommon;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ClCompile></ItemDefinitionGroup>
-  <ItemGroup><ClCompile Include="CoreTests.cpp" /><ClCompile Include="VirtualAudioFifoTests.cpp" /></ItemGroup>
+  <ItemGroup><ClCompile Include="CoreTests.cpp" /><ClCompile Include="VirtualAudioFifoTests.cpp" /><ClCompile Include="MicrophoneNoiseSuppressorTests.cpp" /></ItemGroup>
   <ItemGroup><ProjectReference Include="..\Cuelet.Core.Win32\Cuelet.Core.Win32.vcxproj"><Project>{2490CFA1-3EC9-46E7-A178-67BE6C7B5477}</Project></ProjectReference></ItemGroup>
   <ItemGroup><ClInclude Include="..\Cuelet.VirtualAudio.Shared\VirtualAudioPackagePolicy.h" /></ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

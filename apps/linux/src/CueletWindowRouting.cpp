@@ -98,6 +98,7 @@ bool CueletWindow::applyVirtualMicrophoneSettings(bool reportFailure)
     cuelet_linux::VirtualMicrophoneConfiguration configuration;
     configuration.mode = mode;
     configuration.mixPhysicalMicrophone = settings_.mixesPhysicalMicrophone;
+    configuration.noiseSuppression = settings_.noiseSuppression;
     configuration.physicalMicrophoneId = settings_.physicalMicrophoneDevice;
     configuration.soundboardLevel = settings_.virtualMicrophoneLevel;
     configuration.physicalMicrophoneLevel = settings_.physicalMicrophoneLevel;
@@ -119,6 +120,11 @@ bool CueletWindow::applyVirtualMicrophoneSettings(bool reportFailure)
         }
         return false;
     }
+    if (settings_.noiseSuppression &&
+        !virtualMicrophoneService_->configuration().noiseSuppression) {
+        settings_.noiseSuppression = false;
+        saveSettings();
+    }
     return true;
 }
 
@@ -128,6 +134,31 @@ void CueletWindow::pollVirtualMicrophone()
         return;
     }
     virtualMicrophoneService_->poll(monotonicMilliseconds());
+    if (settings_.noiseSuppression &&
+        !virtualMicrophoneService_->configuration().noiseSuppression) {
+        settings_.noiseSuppression = false;
+        saveSettings();
+        if (preferencesDialog_) {
+            auto* noiseRow = static_cast<GtkWidget*>(g_object_get_data(
+                G_OBJECT(preferencesDialog_), "cuelet-noise-suppression-row"));
+            if (ADW_IS_SWITCH_ROW(noiseRow)) {
+                g_object_set_data(
+                    G_OBJECT(noiseRow), "cuelet-noise-syncing", GINT_TO_POINTER(1));
+                adw_switch_row_set_active(ADW_SWITCH_ROW(noiseRow), FALSE);
+                g_object_set_data(G_OBJECT(noiseRow), "cuelet-noise-syncing", nullptr);
+                const bool available = virtualMicrophoneBackend_->capabilities().rnnoiseAvailable;
+                gtk_widget_set_sensitive(
+                    noiseRow,
+                    available && virtualMicrophoneActive() &&
+                        settings_.mixesPhysicalMicrophone);
+                adw_action_row_set_subtitle(
+                    ADW_ACTION_ROW(noiseRow),
+                    available
+                        ? "Reduce steady background noise from your microphone before it is mixed with Cuelet sounds."
+                        : "Unavailable: optional GStreamer RNNoise plugin (audiornnoise) is not installed.");
+            }
+        }
+    }
     const auto& status = virtualMicrophoneService_->status();
     if (preferencesDialog_) {
         auto* statusRow = static_cast<GtkWidget*>(g_object_get_data(

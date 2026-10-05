@@ -62,6 +62,7 @@ enum class VirtualMicrophoneState {
 struct VirtualMicrophoneConfiguration {
     VirtualMicrophoneRoutingMode mode = VirtualMicrophoneRoutingMode::SpeakersOnly;
     bool mixPhysicalMicrophone = false;
+    bool noiseSuppression = false;
     std::string physicalMicrophoneId;
     double soundboardLevel = 0.25;
     double physicalMicrophoneLevel = 0.25;
@@ -78,6 +79,7 @@ struct VirtualMicrophoneCapabilities {
     bool pipeWireSessionReachable = false;
     bool pwLoopbackAvailable = false;
     bool pipeWireGStreamerAvailable = false;
+    bool rnnoiseAvailable = false;
 };
 
 enum class VirtualMicrophoneBackendEventKind {
@@ -109,6 +111,7 @@ public:
         const std::string& sourceNode,
         const std::string& sinkNode,
         double level,
+        bool noiseSuppression,
         std::uint64_t generation) = 0;
     virtual void setPhysicalMixLevel(double level) = 0;
     virtual void stopPhysicalMix() = 0;
@@ -154,6 +157,9 @@ private:
     VirtualMicrophoneStatus status_;
     std::string activePhysicalMicrophoneId_;
     double activePhysicalMicrophoneLevel_ = 0.25;
+    bool activeNoiseSuppression_ = false;
+    bool noiseSuppressionUnavailable_ = false;
+    std::string noiseSuppressionFailureMessage_;
     bool shutdown_ = false;
 };
 

@@ -31,6 +31,29 @@ Cuelet recognizes and pairs:
 - physical input: the selected or default communications microphone
 - physical microphone mixing: optional
 
+The Windows audio settings show a disabled **Noise suppression** switch. It is
+off by default and cannot be enabled in this build. The microphone AudioGraph
+still connects its physical input directly to the selected virtual render
+endpoint, with the existing microphone gain. Soundboard playback enters that
+endpoint through its separate path and is unaffected.
+
+The planned microphone-only processing stage will adapt AudioGraph's variable
+quanta to RNNoise frames before the existing microphone gain. The bounded frame
+adapter and tests are present in `Cuelet.Core.Win32`; no RNNoise processing is
+wired into the production graph yet. A production implementation must supply
+48 kHz mono PCM to RNNoise, restore the expected output channel layout, and
+obtain the frame size from `rnnoise_get_frame_size()`. It must preserve the
+current direct route when the switch is off.
+
+RNNoise code at upstream revision
+`70f1d256acd4b34a572f999a05c87bf00b67730d` has a BSD-3-Clause `COPYING`
+file, but the separately downloaded model archive with SHA-256
+`0a8755f8e2d834eff6a54714ecc7d75f9932e845df35f8b59bc52a7cfe6e8b37`
+does not contain an explicit model redistribution license. The archive is not
+vendored or downloaded by Cuelet. Windows suppression remains unavailable until
+the model's redistribution terms are confirmed and a pinned, reproducible
+dependency and its third-party notice can be included.
+
 Local playback and monitoring are preserved through a separately selected
 speaker/headphone endpoint. Cuelet does not change the global Windows default
 microphone. Select `CABLE Output` as the microphone in Discord, games, OBS, or

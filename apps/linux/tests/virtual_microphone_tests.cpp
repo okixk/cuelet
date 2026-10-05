@@ -42,11 +42,12 @@ PipeWireNodeInfo node(
 
 class FakeBackend final : public VirtualMicrophoneBackend {
 public:
-    VirtualMicrophoneCapabilities capabilitiesValue{true, true, true};
+    VirtualMicrophoneCapabilities capabilitiesValue{true, true, true, true};
     std::vector<PipeWireNodeInfo> nodes;
     std::deque<VirtualMicrophoneBackendEvent> events;
     bool startBridgeSucceeds = true;
     bool startPhysicalSucceeds = true;
+    bool startProcessedSucceeds = true;
     bool bridgeRunningValue = false;
     bool physicalRunningValue = false;
     bool physicalHandleRetained = false;
@@ -58,6 +59,7 @@ public:
     std::string selectedPhysicalNode;
     std::string physicalTarget;
     double physicalLevel = 0.0;
+    bool physicalNoiseSuppression = false;
     std::uint64_t bridgeGeneration = 0;
     std::uint64_t physicalGeneration = 0;
 
@@ -104,6 +106,7 @@ public:
         const std::string& sourceNode,
         const std::string& sinkNode,
         double level,
+        bool noiseSuppression,
         std::uint64_t generation) override
     {
         ++startPhysicalCalls;
@@ -113,10 +116,13 @@ public:
         selectedPhysicalNode = sourceNode;
         physicalTarget = sinkNode;
         physicalLevel = level;
+        physicalNoiseSuppression = noiseSuppression;
         physicalGeneration = generation;
-        physicalRunningValue = startPhysicalSucceeds;
-        physicalHandleRetained = startPhysicalSucceeds;
-        return startPhysicalSucceeds;
+        const bool started = startPhysicalSucceeds &&
+            (!noiseSuppression || startProcessedSucceeds);
+        physicalRunningValue = started;
+        physicalHandleRetained = started;
+        return started;
     }
 
     void setPhysicalMixLevel(double level) override
@@ -362,7 +368,8 @@ void physicalMixUsesOnlyTheSelectedStableSource()
             "the UI state must expose active microphone capture");
     require(backend.startPhysicalCalls == 1
                 && backend.selectedPhysicalNode == "alsa_input.mic-b"
-                && backend.physicalTarget == "cuelet.soundboard-input",
+                && backend.physicalTarget == "cuelet.soundboard-input"
+                && !backend.physicalNoiseSuppression,
             "only the selected stable source may feed the Cuelet-owned sink");
 
     service.poll(1);
@@ -384,6 +391,197 @@ void physicalMixUsesOnlyTheSelectedStableSource()
     require(backend.startPhysicalCalls == 2 &&
                 backend.selectedPhysicalNode == "alsa_input.mic-b",
             "an exited physical helper must be reconstructed for the exact selected source");
+}
+
+void noiseSuppressionSwitchesOnlyThePhysicalMicrophoneRoute()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "noise-switch", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+
+    require(!configuration.noiseSuppression,
+            "noise suppression must be off in the default configuration");
+    require(service.apply(configuration, 0), "default microphone mixing must start");
+    require(!backend.physicalNoiseSuppression && backend.startPhysicalCalls == 1,
+            "the default microphone route must retain pw-loopback behavior");
+
+    configuration.noiseSuppression = true;
+    require(service.apply(configuration, 1), "suppression must enable without bridge restart");
+    require(backend.physicalNoiseSuppression && backend.startPhysicalCalls == 2
+                && backend.startBridgeCalls == 1,
+            "enabling must restart only the physical microphone path");
+    require(service.configuration().noiseSuppression,
+            "the effective configuration must report suppression on");
+
+    configuration.noiseSuppression = false;
+    require(service.apply(configuration, 2), "suppression must disable immediately");
+    require(!backend.physicalNoiseSuppression && backend.startPhysicalCalls == 3
+                && backend.startBridgeCalls == 1,
+            "disabling must restore the ordinary microphone loopback path");
+}
+
+void missingRnnoisePluginPreservesVirtualSourceAndMicrophone()
+{
+    FakeBackend backend;
+    backend.capabilitiesValue.rnnoiseAvailable = false;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "missing-rnnoise", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+    configuration.noiseSuppression = true;
+
+    require(service.apply(configuration, 0),
+            "missing optional plugin must not prevent normal virtual microphone use");
+    require(backend.bridgeRunningValue && backend.physicalRunningValue
+                && !backend.physicalNoiseSuppression,
+            "missing plugin must use the existing physical microphone loopback");
+    require(!service.configuration().noiseSuppression,
+            "the effective suppression setting must be disabled");
+    require(service.status().message.find("audiornnoise") != std::string::npos,
+            "the status must explain which optional plugin is missing");
+    service.poll(1);
+    require(service.status().message.find("audiornnoise") != std::string::npos,
+            "the diagnostic must remain visible during polling");
+
+    backend.capabilitiesValue.rnnoiseAvailable = true;
+    service.poll(2);
+    require(!service.configuration().noiseSuppression
+                && !backend.physicalNoiseSuppression
+                && service.status().message.find("audiornnoise") == std::string::npos,
+            "installing the plugin must clear the stale diagnostic without enabling suppression");
+}
+
+void rnnoiseLossRestartsOnlyPhysicalRouteWithoutStateCarryover()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "rnnoise-loss", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+    configuration.noiseSuppression = true;
+    require(service.apply(configuration, 0), "processed route must start");
+    require(backend.physicalNoiseSuppression, "processed route must be selected");
+
+    backend.capabilitiesValue.rnnoiseAvailable = false;
+    service.poll(1);
+    require(backend.bridgeRunningValue && backend.startBridgeCalls == 1
+                && backend.startPhysicalCalls == 2 && !backend.physicalNoiseSuppression,
+            "losing the plugin must replace only the microphone route with loopback");
+    require(!service.configuration().noiseSuppression,
+            "the effective setting must become off when the plugin disappears");
+    require(service.status().message.find("audiornnoise") != std::string::npos,
+            "plugin loss must report a useful diagnostic");
+}
+
+void processedStartupFailureFallsBackToOrdinaryMicrophoneMix()
+{
+    FakeBackend backend;
+    backend.startProcessedSucceeds = false;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "processed-start-failure", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+    configuration.noiseSuppression = true;
+
+    require(service.apply(configuration, 0),
+            "failed optional suppression startup must preserve the virtual source");
+    require(backend.startPhysicalCalls == 2 && backend.physicalRunningValue
+                && !backend.physicalNoiseSuppression && backend.startBridgeCalls == 1,
+            "processed startup failure must immediately start ordinary microphone loopback");
+    require(!service.configuration().noiseSuppression,
+            "startup failure must disable effective suppression");
+    require(service.status().message.find("failed to start") != std::string::npos,
+            "startup failure must have a concise diagnostic");
+    service.poll(1);
+    require(backend.startPhysicalCalls == 2 &&
+                service.status().message.find("failed to start") != std::string::npos,
+            "polling must neither retry suppression nor erase its diagnostic");
+
+    backend.startProcessedSucceeds = true;
+    require(service.apply(configuration, 2),
+            "an explicit later On request must be able to retry suppression");
+    require(service.configuration().noiseSuppression &&
+                backend.physicalNoiseSuppression && backend.startPhysicalCalls == 3,
+            "the later On request must replace bypass with a newly started processed route");
+}
+
+void processedRuntimeFailureFallsBackAndReportsBackendError()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.internal", "Built-in Microphone"));
+    LinuxVirtualMicrophoneService service(backend, "processed-runtime-failure", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.physicalMicrophoneId = "alsa_input.internal";
+    configuration.noiseSuppression = true;
+    require(service.apply(configuration, 0), "processed route must start");
+
+    backend.physicalRunningValue = false;
+    backend.events.push_back({
+        service.generation(),
+        VirtualMicrophoneBackendEventKind::PhysicalMixExited,
+        "injected GStreamer pipeline error \xC3\xA9",
+    });
+    service.poll(1);
+    require(backend.startPhysicalCalls == 2 && backend.physicalRunningValue
+                && !backend.physicalNoiseSuppression && backend.startBridgeCalls == 1,
+            "processed runtime failure must restore ordinary microphone loopback");
+    require(!service.configuration().noiseSuppression,
+            "runtime failure must disable effective suppression");
+    require(service.status().message.find("injected GStreamer pipeline error") !=
+                std::string::npos,
+            "runtime failure must expose the backend error");
+    require(service.status().message.find("\xC3") == std::string::npos,
+            "the bounded diagnostic must not expose partial UTF-8 to the GTK subtitle");
+    service.poll(2);
+    require(backend.startPhysicalCalls == 2,
+            "a later poll must not retry the failed processed route");
+}
+
+void suppressionNeverProcessesSoundboardOnlyRoute()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    LinuxVirtualMicrophoneService service(backend, "soundboard-only", 1000);
+    auto configuration = virtualOnly();
+    configuration.noiseSuppression = true;
+
+    require(service.apply(configuration, 0),
+            "virtual microphone can run without a physical microphone mix");
+    require(backend.bridgeRunningValue && backend.startPhysicalCalls == 0,
+            "the soundboard-only bridge must never enter the suppressor");
+}
+
+void processedMicrophoneDeviceChangeStartsFreshRoute()
+{
+    FakeBackend backend;
+    makeVirtualSourceVisible(backend);
+    backend.nodes.push_back(node(61, "alsa_input.mic-a", "Microphone A"));
+    backend.nodes.push_back(node(62, "alsa_input.mic-b", "Microphone B"));
+    LinuxVirtualMicrophoneService service(backend, "processed-device-change", 1000);
+    auto configuration = virtualOnly();
+    configuration.mixPhysicalMicrophone = true;
+    configuration.noiseSuppression = true;
+    configuration.physicalMicrophoneId = "alsa_input.mic-a";
+    require(service.apply(configuration, 0), "first processed microphone must start");
+
+    configuration.physicalMicrophoneId = "alsa_input.mic-b";
+    require(service.apply(configuration, 1), "second processed microphone must start");
+    require(backend.stopPhysicalCalls >= 1 && backend.startPhysicalCalls == 2
+                && backend.selectedPhysicalNode == "alsa_input.mic-b"
+                && backend.physicalNoiseSuppression && backend.startBridgeCalls == 1,
+            "changing devices must stop the old processed route before starting a new one");
 }
 
 void missingPhysicalSourceDegradesAndReconnectsExactly()
@@ -494,6 +692,13 @@ int main()
         failedRequestRecoversUnlessExplicitlyDisabled();
         modeTransitionsAndCleanupAreScoped();
         physicalMixUsesOnlyTheSelectedStableSource();
+        noiseSuppressionSwitchesOnlyThePhysicalMicrophoneRoute();
+        missingRnnoisePluginPreservesVirtualSourceAndMicrophone();
+        rnnoiseLossRestartsOnlyPhysicalRouteWithoutStateCarryover();
+        processedStartupFailureFallsBackToOrdinaryMicrophoneMix();
+        processedRuntimeFailureFallsBackAndReportsBackendError();
+        suppressionNeverProcessesSoundboardOnlyRoute();
+        processedMicrophoneDeviceChangeStartsFreshRoute();
         missingPhysicalSourceDegradesAndReconnectsExactly();
         disableReapsAnExitedPhysicalHelperBeforeReenable();
         pipeWireDisconnectReconnectAndStaleEventsAreSafe();
